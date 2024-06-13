@@ -1,6 +1,7 @@
 item,item_desc,classes,damage_range_low,damage_range_high,attack_type,source
 Token of the Wise Wizard,Token of the Wise Wizard,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",0,1,other,starting
-Plain Bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",-5,-1,other,starting
+Plain Bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",-5,-1,heal,starting
 Bastard Sword,Bastard Sword (4-9 damage),['Warrior'],4,9,melee,starting
 Battle-Axe,Battle-Axe (2-12 damage),['Warrior'],2,12,melee,starting
 Thor's Hammer,Thor's Hammer (20-25 damage),['Warrior'],20,25,special,starting
+Non-Starting Cleric,Cleric Item,['Cleric'],-10,-5,heal,dwarf-king
