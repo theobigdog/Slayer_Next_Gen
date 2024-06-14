@@ -5,3 +5,4 @@ Bastard Sword,Bastard Sword (4-9 damage),['Warrior'],4,9,melee,starting
 Battle-Axe,Battle-Axe (2-12 damage),['Warrior'],2,12,melee,starting
 Thor's Hammer,Thor's Hammer (20-25 damage),['Warrior'],20,25,special,starting
 Non-Starting Cleric,Cleric Item,['Cleric'],-10,-5,heal,dwarf-king
+Healing Wand,Healing Wand (2-10 healing),['Cleric'],-10,-2,heal,starting
