@@ -5,6 +5,7 @@ import pandas as pd
 from ast import literal_eval
 
 items = pd.read_csv('supporting_docs/items.csv')
+stats = pd.read_csv('supporting_docs/hero_stats.csv')
 
 def get_starting_inv(hero_class, items = items):
     starting_inv = {}
@@ -15,6 +16,12 @@ def get_starting_inv(hero_class, items = items):
             starting_inv[items['item'].iat[row]] = items['item_desc'].iat[row]
     return starting_inv
 
+def get_stats(hero_class, stats = stats):
+    starting_stats = {
+        'crit_chance' : stats['crit_chance'].at[hero_class]
+    }   
+
+
 class Warrior:
 
     def __init__ (self, name : str):
@@ -24,6 +31,7 @@ class Warrior:
         self.starting_health = acc.multi_roll(40,65)
         self.health = self.starting_health
         self.starting_inv = get_starting_inv(self.hero_class)
+        self.stats = get_stats(self.hero_class)
 
 class Cleric:
 
@@ -39,8 +47,8 @@ print(f'Items df: {items}')
 ted = Warrior('Ted')
 sara = Cleric('Sara')
 #test = items['classes'][0]
-print('Ted' + str(ted.starting_inv))
-print('Sara' + str(sara.starting_inv))
+print(ted.crit_chance)
+
 #print(test)
 #for item in items['classes']:
 #    print(literal_eval(item))
