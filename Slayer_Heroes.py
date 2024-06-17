@@ -36,18 +36,18 @@ def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, de
 def get_stats(hero_class : str, stats = stats) -> dict:
     index = stats.index[stats['hero_class'] == hero_class]
     return {
-        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['crit'], 0), #stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 20),
-        'crit_mult' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_mult'][index]).values[0], 0.2, 1, stat_dice_cutoffs['crit_mult'], 2), # This one needs a float since it is multiplying the crit damage
+        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['crit_cutoff'], 0), #stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 20),
+        'crit_mult' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_mult'][index]).values[0], 0.2, 1, stat_dice_cutoffs['crit_mult_cutoff'], 2), # This one needs a float since it is multiplying the crit damage
         'low_miss' : (stats[stats['hero_class'] == hero_class]['low_miss'][index]).values[0],
         'high_miss' : (stats[stats['hero_class'] == hero_class]['high_miss'][index]).values[0],
-        'luck' : stat_value_delta((stats[stats['hero_class'] == hero_class]['luck'][index]).values[0], 2, 1, stat_dice_cutoffs['luck'], 0),
-        'expertise' : stat_value_delta((stats[stats['hero_class'] == hero_class]['expertise'][index]).values[0], 5, 1, stat_dice_cutoffs['expertise'], 0),
-        'toughness' : stat_value_delta((stats[stats['hero_class'] == hero_class]['toughness'][index]).values[0], 2, 1, stat_dice_cutoffs['toughness'], 0),
-        'dodge' : stat_value_delta((stats[stats['hero_class'] == hero_class]['dodge'][index]).values[0], 1.5, 1, stat_dice_cutoffs['dodge'], 0),
-        'parry' : stat_value_delta((stats[stats['hero_class'] == hero_class]['parry'][index]).values[0], 2, 1, stat_dice_cutoffs['parry'], 0),
-        'fear' : stat_value_delta((stats[stats['hero_class'] == hero_class]['fear'][index]).values[0], 2, 1, stat_dice_cutoffs['fear'], 0),
-        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], 5, 1, stat_dice_cutoffs['heal'], 0) if hero_class == 'Cleric' else 100,
-        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['aoe_heal'], 0) if hero_class == 'Cleric' else 20,
+        'luck' : stat_value_delta((stats[stats['hero_class'] == hero_class]['luck'][index]).values[0], 2, 1, stat_dice_cutoffs['luck_cutoff'], 0),
+        'expertise' : stat_value_delta((stats[stats['hero_class'] == hero_class]['expertise'][index]).values[0], 5, 1, stat_dice_cutoffs['expertise_cutoff'], 0),
+        'toughness' : stat_value_delta((stats[stats['hero_class'] == hero_class]['toughness'][index]).values[0], 2, 1, stat_dice_cutoffs['toughness_cutoff'], 0),
+        'dodge' : stat_value_delta((stats[stats['hero_class'] == hero_class]['dodge'][index]).values[0], 1.5, 1, stat_dice_cutoffs['dodge_cutoff'], 0),
+        'parry' : stat_value_delta((stats[stats['hero_class'] == hero_class]['parry'][index]).values[0], 2, 1, stat_dice_cutoffs['parry_cutoff'], 0),
+        'fear' : stat_value_delta((stats[stats['hero_class'] == hero_class]['fear'][index]).values[0], 2, 1, stat_dice_cutoffs['fear_cutoff'], 0),
+        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], 5, 1, stat_dice_cutoffs['heal_cutoff'], 0) if hero_class == 'Cleric' else 100,
+        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['aoe_heal_cutoff'], 0) if hero_class == 'Cleric' else 20,
         'low_st_health' : (stats[stats['hero_class'] == hero_class]['low_st_health'][index]).values[0],
         'high_st_health' : (stats[stats['hero_class'] == hero_class]['high_st_health'][index]).values[0],
     }

@@ -1,4 +1,4 @@
-item,item_desc,classes,damage_range_low,damage_range_high,attack_type,source
+item,item_desc_and_base_damage,classes,damage_range_low,damage_range_high,attack_type,source
 token_of_the_wise_wizard,Token of the Wise Wizard,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",0,1,other,starting
 plain_bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",-5,-1,heal,starting
 bastard_sword,Bastard Sword (4-9 damage),['Warrior'],4,9,melee,starting
@@ -11,9 +11,9 @@ flying_fist_of_judah,Flying Fist of Judah (19-27 damage),['Battle_Mage'],19,27,s
 hunting_knife,Hunting Knife (6-11 damage),['Hunter'],6,11,range,starting
 maple_recurve,Maple Recurve (20-27 damage),['Hunter'],20,27,special_range,starting
 basic_fire_bolt,Basic Fire Bolt (6-12 damage),['Wizard'],6,12,range,starting
-small_lightning,Small Lightning Strike (6-9 damage),['Wizard'],6,9,range,starting
+small_lightning_strike,Small Lightning Strike (6-9 damage),['Wizard'],6,9,range,starting
 fire_rain,Fire Rain (12-30 damage),['Wizard'],12,30,special_range,starting
 deep_scratch,Deep Scratch (2-3 damage),['Sapper'],2,3,melee,starting
 big_badda_boom,Big Badda Boom (50-75 damage),['Sapper'],50,75,special_melee,starting
-healing_wand,Healing Wand (2-10 healing),['Cleric'],-10,-2,heal,starting
+healing_wand,Healing Wand (2-10 healing),['Cleric'],-10,-2,range,starting
 deep_meditation,Deep Meditation (13-30 healing),['Cleric'],-30,-13,special_range,starting
