@@ -1,8 +1,9 @@
 import Slayer_Accessory as acc
+import Slayer_Heroes as heroes
 import pandas as pd
 import numpy as np
 import random
-from colorama import Fore, Back, Style, Cursor, win32, init
+from colorama import Fore, Back, Style, Cursor
 import time
 import string
 
@@ -25,7 +26,12 @@ def get_saved_game():
     return saved_party
 
 def create_new_party(name: str) -> pd.DataFrame:
-    new_party = None
+    new_party = []
+    new_party.append(heroes.Warrior('Billy'))
+    new_party.append(heroes.Cleric('Puds'))
+    new_party.append(heroes.Wizard('TBear'))
+    new_party.append(heroes.Shifter('Bubba'))
+    new_party.append(heroes.Sapper('Sister'))
     return new_party
 
 def form_party(name : str) -> pd.DataFrame:
@@ -42,11 +48,22 @@ def form_party(name : str) -> pd.DataFrame:
                 else:
                     repeat_customer = False
                     saved_party = create_new_party(name)
-                    input('created a new party')
+                    input('created a new party_inner')
             else:
                 acceptable = True
                 input('Your party was imported successfully')
     else:
         saved_party = create_new_party(name)
-        input('created a new party')
+        input('created a new party_outer')
+
+    for dudette in saved_party:
+        print(dudette.name)
+        print(dudette.hero_class)
+        print(dudette.stats)
+        print(dudette.starting_inv)
+        print(dudette.inv)
+        print(dudette.starting_health)
+        print(dudette.health)
+        acc.next()
+    acc.save_party(saved_party, 'ted')
     return saved_party
