@@ -1,4 +1,4 @@
-item,item_desc_and_base_damage,classes,damage_range_low,damage_range_high,attack_type,source
+item,item_desc,classes,damage_range_low,damage_range_high,attack_type,source
 token_of_the_wise_wizard,Token of the Wise Wizard,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",0,1,other,starting
 plain_bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle-Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",-5,-1,heal,starting
 bastard_sword,Bastard Sword (4-9 damage),['Warrior'],4,9,melee,starting
