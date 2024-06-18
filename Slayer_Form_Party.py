@@ -64,10 +64,9 @@ def get_hero(selection : str, name : str):
         return heroes.Warrior(name)
 
 def auto_pick_name():
-    first_pos = 1 #######
-    first = auto_name_choices['first'][random.randint(1,len(auto_name_choices['first']))]
-    middle = auto_name_choices['middle'][random.randint(1,len(auto_name_choices['middle']))]
-    last = auto_name_choices['last'][random.randint(1, len(auto_name_choices['last']))]
+    first = auto_name_choices['first'][random.randint(0,len(auto_name_choices['first']) - 1)]
+    middle = auto_name_choices['middle'][random.randint(0,len(auto_name_choices['middle']) - 1)]
+    last = auto_name_choices['last'][random.randint(0, len(auto_name_choices['last']) - 1)]
     return first + ' ' + middle + ' ' + last
 
 def create_new_party(name: str) -> list:
@@ -125,7 +124,7 @@ def create_new_party(name: str) -> list:
     return new_party
 
 def form_party(name : str) -> list:
-    repeat_customer = acc.yes_no(input(f"Have we seen you here before, uh, what was it again?  Oh, right, {name}.  That's a weird freakin' name, but whatever.\nOk, {name}, do you have an old party to further abuse? I mean, load?\n(If you don't actually have a save or you forgot the name just enter 'No'):  "))
+    repeat_customer = acc.yes_no(input(f"Have we seen you here before, uh, what was it again?  Oh, right, {name}.\nThat's a weird freakin' name, but whatever.\nOk, {name}, do you have an old party to further abuse? I mean, load?\n(If you don't actually have a save or you forgot the name just enter 'No'):  "))
     saved_party = None
     if repeat_customer:
         acceptable = False
