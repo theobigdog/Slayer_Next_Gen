@@ -53,8 +53,8 @@ def get_dice_cutoffs():
     return {
         'crit_cutoff' : 20,
         'crit_mult_cutoff' : 2.5,
-        'low_miss_cutoff' : 1,
-        'high_miss_cutoff' : 100,
+        'low_miss' : 1,
+        'high_miss' : 100,
         'luck_cutoff' : 20,
         'expertise_cutoff' : 50,
         'toughness_cutoff' : 20,
@@ -64,35 +64,9 @@ def get_dice_cutoffs():
         'heal_cutoff' : 100,
         'aoe_heal_cutoff' : 20,
     }
-'''
-def write_to_csvX(file_path, data_instances):
-    with open(file_path, mode='w', newline='') as f:
-        writer = csv.writer(f)
-
-        writer.writerow(data_instances[0].__annotations__.keys())
-
-        for instance in data_instances:
-            writer.writerow(instance.__dict__.values)
-
-def save_charX(char) -> str:
-    id = uuid.uuid4().hex
-    #char.to_csv(f'saved_chars/{id}.csv')
-    write_to_csvX(f'saved_chars/{id}.csv', char)
-    return id
-
-def save_partyX(party : list, name : str):    
-    uuids = []
-    for hero in party:
-        uuids.append(save_charX(hero))
-    
-    with open(f'saved_parties/{name}', 'w') as f:
-        write = csv.writer(f)
-        write.writerow(uuids)
-'''
-        
-def save_char(hero, id):
-    jb.dump(hero, 'saved_chars/' + str(id) + '.pkl')
 
 def save_party(party : list, name : str = 'default'):
     jb.dump(party, f'saved_parties/{name}.pkl')
 
+def load_party(name : str = 'default') -> list:
+    return jb.load(f'saved_parties/{name}.pkl')
