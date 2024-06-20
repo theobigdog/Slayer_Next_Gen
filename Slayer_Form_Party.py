@@ -15,11 +15,17 @@ auto_name_choices = {
     'last' : ["Wet-Nurse","Sensation","Meal-Worm","Armpit","Butthead","Doofus","Dork","Lamp","Smegma","Jerk","Monkey","Walrus","Doormat"]
 }
 
-dick_bubble = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
-
 def get_name() -> str:
     print("Greetings!")
     name = str(input(f'What is your name?  If you have one that is.  {whine()}.  Your name, please:  ')).title()
+    unacceptable = True
+    while unacceptable:
+        if name.upper() in dick_bubble:
+            print('No.')
+            time.sleep(2)
+            name = str(input(f"Your name!  Your real fucking name!  Jesus Christ!  {whine()}.  "))
+        else:
+            unacceptable = False
     return name
 
 '''def get_saved_game_obsolete() -> list:  ################### MIght be obsolete
@@ -58,9 +64,31 @@ def print_recommended_classes(num_chars : int):
     }'''
     
     for i in range(num_chars): #acc.get_hero_classes():
-        rando = random.randint(1,len(acc.get_hero_classes()))
+        rando = random.randint(1,len(acc.get_hero_classes())-1)
         print(acc.get_hero_classes()[rando])#conversion[str(rando)])
     #print('Cleric (2nd)')
+
+def get_default_classes(party_count : int) -> list:
+    #classes = acc.get_hero_classes()
+    # 0: Warrior, 1: Shifter, 2: Battle_Mage, 3: Hunter, 4: Wizard, 5: Sapper, 6: Cleric
+    if party_count == 1:
+        return ['Warrior']
+    elif party_count == 2:
+        return ['Warrior', 'Cleric']
+    elif party_count == 3:
+        return ['Warrior', 'Cleric', 'Hunter']
+    elif party_count == 4:
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter']
+    elif party_count == 5:
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric']
+    elif party_count == 6:
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper']
+    elif party_count == 7:
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Wizard']
+    elif party_count == 8:
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Wizard', 'Battle_Mage']
+    else:
+        return []
 
 def get_hero(selection : str, name : str):
     if selection == 'Warrior':
@@ -86,6 +114,12 @@ def auto_pick_name():
     last = auto_name_choices['last'][random.randint(0, len(auto_name_choices['last']) - 1)]
     return first + ' ' + middle + ' ' + last
 
+dick_bubble = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
+
+def print_current_party(party : list):
+    for member in party:
+        print(f"Hero:  {member.name}, Class:  {member.hero_class}")
+
 def create_new_party(name: str) -> list:
     new_party = []
     wt()
@@ -107,9 +141,14 @@ def create_new_party(name: str) -> list:
             party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
     if party_count <= 3:
         print(f'{party_count}?!  Ballsy, I like it!')
+        time.sleep(2)
+    wt()
+    #print('Recommended Class Composition')
     print_recommended_classes(party_count)
-    choose_composition = acc.yes_no(input("Would you like to choose the composition of your party?"))
-    choose_names = acc.yes_no(input("Would you like to choose the names of your party members?"))
+    print()
+    choose_composition = acc.yes_no(input("Would you like to choose the composition of your party?  "))
+    print()
+    choose_names = acc.yes_no(input("Would you like to choose the names of your party members?  "))
     if choose_composition:
         print("Fair enough, but I doubt you'll get the composition right, so suck it.")
         time.sleep(2)
@@ -117,6 +156,9 @@ def create_new_party(name: str) -> list:
         acc.print_classes()
         print()
         for i in range(party_count):
+            wt()
+            print_current_party(new_party)
+            print_recommended_classes(party_count)
             selection = input("Which Class would you like to add?  ")
             while selection not in acc.get_hero_classes():
                 selection = input("Let's try again.  Of the listed Class options, which would you like to add?  ")
@@ -126,8 +168,9 @@ def create_new_party(name: str) -> list:
             else:
                 new_party.append(get_hero(selection, auto_pick_name()))
     else:
-        members = acc.get_hero_classes()
-        members.append('Cleric')
+        #members = acc.get_hero_classes()  # Fix this
+        #members.append('Cleric')
+        members = get_default_classes(party_count)
         print("I figured as much.  Where is your sense of originality?")
         time.sleep(2)
         wt()
