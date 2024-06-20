@@ -12,6 +12,8 @@ import joblib as jb
 yes = ['YES','Y']
 no = ['NO','N']
 
+whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?"]
+
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']
 
@@ -65,8 +67,22 @@ def get_dice_cutoffs():
         'aoe_heal_cutoff' : 20,
     }
 
-def save_party(party : list, name : str = 'default'):
-    jb.dump(party, f'saved_parties/{name}.pkl')
+def print_classes():
+    print('Class Options:')
+    print()
+    for hero_class in get_hero_classes():
+        print(hero_class)
 
-def load_party(name : str = 'default') -> list:
-    return jb.load(f'saved_parties/{name}.pkl')
+def save_party(party : list, name : str = 'default'):
+    jb.dump(party, f'saved_parties/{name.title()}.pkl')
+    print(f'Your party has been saved as {name.title()}.')
+    next()
+
+def load_party(name : str = 'saved_Games/default.pkl') -> list:
+    #name = name.title()
+    return jb.load(f'{name.title()}')
+
+def whine() -> str:
+    whine_itself = whines[random.randint(0, len(whines)-1)]
+    whine_itself = str("..." + whine_itself)
+    return whine_itself

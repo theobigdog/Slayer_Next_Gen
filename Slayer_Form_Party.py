@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_Accessory import wt, next
+from Slayer_Accessory import wt, next, whine
 import Slayer_Heroes as heroes
 import pandas as pd
 import numpy as np
@@ -10,40 +10,57 @@ import time
 import string
 
 auto_name_choices = {
-    'first' : ['Ted', 'Sara'],
-    'middle' : ['Robert', 'Elizabeth'],
-    'last' : ['Brandon', 'Brandonses']
+    'first' : ["Ath","Jodum","Prinny","Bubba","The Cake","Tedless","Muffy","Bildo","T-Bear","Miss Beans","Billy","Djub-Djub"],
+    'middle' : ["the Messy","the Wrong","the Strange","the Savage","the Potent","the Silly-Hearted","the Smelly","the Aromatic","the Unkempt","the Poorly-Dressed","the Cruel","the Really Mean"],
+    'last' : ["Wet-Nurse","Sensation","Meal-Worm","Armpit","Butthead","Doofus","Dork","Lamp","Smegma","Jerk","Monkey","Walrus","Doormat"]
 }
+
+dick_bubble = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
 
 def get_name() -> str:
     print("Greetings!")
-    name = str(input('What is your name?  If you have one that is.  ')).title()
+    name = str(input(f'What is your name?  If you have one that is.  {whine()}.  Your name, please:  ')).title()
     return name
 
-def get_saved_game() -> list:
-    save_name = str(input('The name of your saved party, please:  '))
-    if not save_name.endswith('pkl'):
-        save_name += '.pkl'
-    if not save_name.startswith('saved_parties/'):
+'''def get_saved_game_obsolete() -> list:  ################### MIght be obsolete
+    starting_name = str(input('The name of your saved party, please:  '))
+    save_name = starting_name
+    if not starting_name.endswith('pkl'):
+        save_name = save_name + '.pkl'
+    if not starting_name.startswith('saved_parties/'):
         save_name = 'saved_parties/' + save_name
     try:
-        saved_party = jb.load(save_name)
+        saved_party = acc.load_party(save_name)
     except(ValueError, FileNotFoundError):
         saved_party = "invalid"
-    return saved_party
+    return saved_party, starting_name'''
 
+''''
 def print_classes():
     print('Class Options:')
     print()
     for hero_class in acc.get_hero_classes():
         print(hero_class)
-
-def print_recommended_classes():
-    print('Recommended Party Composition:')
+'''
+        
+def print_recommended_classes(num_chars : int):
+    print('Recommended Party Composition (based on party-size):')
     print()
-    for hero_class in acc.get_hero_classes():
-        print(hero_class)
-    print('Cleric (2nd)')
+    '''conversion = {
+        "1" : ['Warrior'],
+        "2" : ['Warrior', 'Cleric'],
+        "3" : ['Warrior', 'Cleric', 'Hunter'],
+        "4" : ['Warrior', 'Cleric', 'Hunter', 'Shifter'],
+        "5" : 
+        "6" : 
+        "7" : 
+        "8" : ['Warrior', 'Cleric', 'Hunter', 'Shifter', ],
+    }'''
+    
+    for i in range(num_chars): #acc.get_hero_classes():
+        rando = random.randint(1,len(acc.get_hero_classes()))
+        print(acc.get_hero_classes()[rando])#conversion[str(rando)])
+    #print('Cleric (2nd)')
 
 def get_hero(selection : str, name : str):
     if selection == 'Warrior':
@@ -72,10 +89,10 @@ def auto_pick_name():
 def create_new_party(name: str) -> list:
     new_party = []
     wt()
-    print_classes()
+    acc.print_classes()
     print()
-    print_recommended_classes()
-    print()
+   # print_recommended_classes()
+    #print()
 
     party_count = input("How many party members would you like to include (1 minimum, 8 maximum)?  ")
     value_ok = False
@@ -90,14 +107,14 @@ def create_new_party(name: str) -> list:
             party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
     if party_count <= 3:
         print(f'{party_count}?!  Ballsy, I like it!')
-    
+    print_recommended_classes(party_count)
     choose_composition = acc.yes_no(input("Would you like to choose the composition of your party?"))
     choose_names = acc.yes_no(input("Would you like to choose the names of your party members?"))
     if choose_composition:
-        print("Fair enough, but I doubt you'll do it right.")
+        print("Fair enough, but I doubt you'll get the composition right, so suck it.")
         time.sleep(2)
         wt()
-        print_classes()
+        acc.print_classes()
         print()
         for i in range(party_count):
             selection = input("Which Class would you like to add?  ")
@@ -122,37 +139,87 @@ def create_new_party(name: str) -> list:
             else:
                 new_party.append(get_hero(selection, auto_pick_name()))
     return new_party
-
-def form_party(name : str) -> list:
+'''
+def form_party_obsolete(name : str) -> list:
     repeat_customer = acc.yes_no(input(f"Have we seen you here before, uh, what was it again?  Oh, right, {name}.\nThat's a weird freakin' name, but whatever.\nOk, {name}, do you have an old party to further abuse? I mean, load?\n(If you don't actually have a save or you forgot the name just enter 'No'):  "))
     saved_party = None
     if repeat_customer:
         acceptable = False
-        saved_party = get_saved_game()
+        saved_party, saved_name = get_saved_game()
         while (not acceptable) and (repeat_customer):
             if type(saved_party) != list and repeat_customer == True: #pd.DataFrame and repeat_customer == True:
                 repeat_customer = acc.yes_no(input('Are you having trouble understanding?  Yes, or No, do you have a valid saved party?:  '))
                 if repeat_customer:
-                    saved_party = get_saved_game()
+                    saved_party, saved_name = get_saved_game()
                 else:
                     repeat_customer = False
-                    saved_party = create_new_party(name)
-                    input('created a new party_inner')
+                    saved_party = create_new_party(saved_name)
+                    acc.save_party(saved_party, saved_name)
             else:
                 acceptable = True
-                input('Your party was imported successfully')
+                print('Your party was imported successfully.')
+                next()
     else:
         saved_party = create_new_party(name)
-        input('created a new party_outer')
+        acc.save_party(saved_party, name)
+'''
+#def get_saved_party(name):
+ #   try:
+  #      return 
 
+
+def form_party() -> list:
+    name = get_name()
+    saved_party = []#saved_party
+    try:
+        saved_party = jb.load(f"saved_parties/{name}.pkl")
+        print(f"Ah yes, {name}... <snicker snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.")
+        next()
+    except(FileNotFoundError):
+        name = str(input(f"I don't recognize you.  What was that name again?  "))
+        try:
+            saved_party = jb.load(f"saved_parties/{name}.pkl")
+            print(f"Oh, that's right, you were the dude projectile vomiting into that fountain last night.{whine()}  Welcome back.")
+            next()
+        except(FileNotFoundError):
+            print(f"No, I've never seen you.")
+            time.sleep(2)
+            print(f"Let's just make you a fresh party, mkay?")
+            time.sleep(2)
+            saved_party = create_new_party(name)
+
+
+            '''
+    repeat_customer = acc.yes_no(input(f"Have we seen you here before, uh, what was it again?  Oh, right, {name}.\nThat's a weird freakin' name, but whatever.\nOk, {name}, do you have an old party to further abuse? I mean, load?\n(If you don't actually have a save or you forgot the name just enter 'No'):  "))
+    saved_party = None
+    if repeat_customer:
+        acceptable = False
+        saved_party, saved_name = get_saved_game()
+        while (not acceptable) and (repeat_customer):
+            if type(saved_party) != list and repeat_customer == True: #pd.DataFrame and repeat_customer == True:
+                repeat_customer = acc.yes_no(input('Are you having trouble understanding?  Yes, or No, do you have a valid saved party?:  '))
+                if repeat_customer:
+                    saved_party, saved_name = get_saved_game()
+                else:
+                    repeat_customer = False
+                    saved_party = create_new_party(saved_name)
+                    acc.save_party(saved_party, saved_name)
+            else:
+                acceptable = True
+                print('Your party was imported successfully.')
+                next()
+    else:
+        saved_party = create_new_party(name)
+        acc.save_party(saved_party, name)
+    '''
+    print()
     for dudette in saved_party:
         print(dudette.name)
         print(dudette.hero_class)
         print(dudette.stats)
-        print(dudette.starting_inv)
+        #print(dudette.starting_inv)
         print(dudette.inv)
-        print(dudette.starting_health)
+        #print(dudette.starting_health)
         print(dudette.health)
-        acc.next()
-    acc.save_party(saved_party, 'ted')
+        next()
     return saved_party
