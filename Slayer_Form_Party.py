@@ -58,7 +58,7 @@ def print_recommended_classes(num_chars : int):
     }'''
     
     for i in range(num_chars): #acc.get_hero_classes():
-        rando = random.randint(1,len(acc.get_hero_classes()))
+        rando = random.randint(1,len(acc.get_hero_classes())-1)
         print(acc.get_hero_classes()[rando])#conversion[str(rando)])
     #print('Cleric (2nd)')
 
