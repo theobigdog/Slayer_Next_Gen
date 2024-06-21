@@ -10,7 +10,7 @@ wt()
 party = fp.form_party()#name)
 #play_game(party)
 #next()
-gr.loser_banner()
+#gr.loser_banner()
 end()
 
 

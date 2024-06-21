@@ -20,7 +20,7 @@ def get_name() -> str:
     name = str(input(f'What is your name?  If you have one that is.  {whine()}.  Your name, please:  ')).title()
     unacceptable = True
     while unacceptable:
-        if name.upper() in dick_bubble:
+        if name.upper() in db:
             print('No.')
             time.sleep(2)
             name = str(input(f"Your name!  Your real fucking name!  Jesus Christ!  {whine()}.  "))
@@ -50,7 +50,7 @@ def print_classes():
 '''
         
 def print_recommended_classes(num_chars : int):
-    print('Recommended Party Composition (based on party-size):')
+    print('\nRecommended Party Composition (based on party-size):')
     print()
     '''conversion = {
         "1" : ['Warrior'],
@@ -114,7 +114,7 @@ def auto_pick_name():
     last = auto_name_choices['last'][random.randint(0, len(auto_name_choices['last']) - 1)]
     return first + ' ' + middle + ' ' + last
 
-dick_bubble = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
+db = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
 
 def print_current_party(party : list):
     for member in party:
@@ -150,6 +150,7 @@ def create_new_party(name: str) -> list:
     print()
     choose_names = acc.yes_no(input("Would you like to choose the names of your party members?  "))
     if choose_composition:
+        print()
         print("Fair enough, but I doubt you'll get the composition right, so suck it.")
         time.sleep(2)
         wt()
@@ -158,11 +159,18 @@ def create_new_party(name: str) -> list:
         for i in range(party_count):
             wt()
             print_current_party(new_party)
+            print()
+            acc.print_classes()
+            print()
             print_recommended_classes(party_count)
-            selection = input("Which Class would you like to add?  ")
+            print()
+           # acc.print_classes
+            selection = input("\nWhich Class would you like to add?  ")
             while selection not in acc.get_hero_classes():
+                print()
                 selection = input("Let's try again.  Of the listed Class options, which would you like to add?  ")
             if choose_names:
+                print()
                 name_choice = str(input("Ok, let's have a name for her:  "))
                 new_party.append(get_hero(selection, name_choice))
             else:
@@ -228,7 +236,7 @@ def form_party() -> list:
             print(f"No, I've never seen you.")
             time.sleep(2)
             print(f"Let's just make you a fresh party, mkay?")
-            time.sleep(2)
+            time.sleep(3)
             saved_party = create_new_party(name)
 
 
@@ -264,5 +272,7 @@ def form_party() -> list:
         print(dudette.inv)
         #print(dudette.starting_health)
         print(dudette.health)
-        next()
+        print()
+        #next()
+    next()
     return saved_party
