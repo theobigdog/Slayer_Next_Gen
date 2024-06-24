@@ -12,7 +12,10 @@ import joblib as jb
 yes = ['YES','Y']
 no = ['NO','N']
 
-whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?"]
+whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "I don't care.  I just don't even fucking care anymore.  What?  Oh!"]
+
+items = pd.read_csv('supporting_docs/items.csv')
+stats = pd.read_csv('supporting_docs/hero_stats.csv')
 
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']
@@ -73,16 +76,33 @@ def print_classes():
     for hero_class in get_hero_classes():
         print(hero_class)
 
-def save_party(party : list, name : str = 'default'):
+def save_party(party : dict, name : str = 'default'):
     jb.dump(party, f'saved_parties/{name.title()}.pkl')
     print(f'Your party has been saved as {name.title()}.')
+    print(f'Keep track of this saved name if you want to recover your party: {name.title()}')
     next()
 
-def load_party(name : str = 'saved_Games/default.pkl') -> list:
-    #name = name.title()
-    return jb.load(f'{name.title()}')
+def load_party(name : str = 'saved_parties/default.pkl') -> list:
+    return jb.load(f'saved_parties/{name.title()}.pkl')
 
 def whine() -> str:
     whine_itself = whines[random.randint(0, len(whines)-1)]
     whine_itself = str("..." + whine_itself)
     return whine_itself
+
+def print_player_summary(party : dict, items : pd.DataFrame = items):
+    for dudette in party:
+        print(f"{dudette.name}:  {dudette.hero_class}")
+        print('Inventory:  ')
+        for inv_item in dudette.inv:
+            item = items[items['item'] == inv_item]['item_desc'].values[0]
+            print(item)
+        print(f"Starting Health: {dudette.health}")
+        print()
+    next()
+
+def get_items() -> pd.DataFrame:
+    return items
+
+def get_stats() -> pd.DataFrame:
+    return stats

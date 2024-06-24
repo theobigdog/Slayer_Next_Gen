@@ -7,8 +7,8 @@ from ast import literal_eval
 
 stat_dice_cutoffs = acc.get_dice_cutoffs()
 
-items = pd.read_csv('supporting_docs/items.csv')
-stats = pd.read_csv('supporting_docs/hero_stats.csv')
+items = acc.get_items()
+stats = acc.get_stats()
 
 def get_starting_inv(hero_class : str, items = items) -> list:
     starting_inv = []
@@ -58,6 +58,7 @@ def initialize_char (class_obj):
     class_obj.inv = class_obj.starting_inv.copy()
     class_obj.starting_health = stat_value_delta(acc.multi_roll(class_obj.stats['low_st_health'], class_obj.stats['high_st_health']), 2, 1, 100, 0)
     class_obj.health = class_obj.starting_health
+    class_obj.is_dead = False
 
 class Warrior:
 
@@ -120,24 +121,3 @@ class Cleric:
         self.hero_class = 'Cleric'
         self.attack_style = 'range'
         self = initialize_char(self)
-
-'''
-print(f'Items df: {items}')
-ted = Wizard('Ted')
-bill = Warrior('Bill')
-sara = Cleric('Sara')
-mandy = Sapper('Mandy')
-print('Wizard')
-print(ted.stats)
-print(ted.inv)
-print('Warrior')
-print(bill.stats)
-print(bill.inv)
-print('Cleric')
-print(sara.stats)
-print(sara.inv)
-print('Sapper')
-print(mandy.stats)
-print(mandy.inv)
-##acc.next()
-'''
