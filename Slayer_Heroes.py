@@ -24,7 +24,7 @@ def get_starting_inv(hero_class : str, items = items) -> list:
     # lower_limit = lower cutoff for adj,
     # upper_limit = upper cutoff for adj,
     # decimals = number of decimal places in adj if val is a float
-def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, decimals : int = 0) -> float:
+def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, decimals : int = 0) -> float: #### adjusts stat-cutoffs so there is more variability within each class
     adj = lower_limit - 1
     while not(lower_limit <= adj and adj <= upper_limit):
         if type(val) == np.float64:

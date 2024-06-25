@@ -76,10 +76,10 @@ def print_classes():
     for hero_class in get_hero_classes():
         print(hero_class)
 
-def save_party(party : dict, name : str = 'default'):
-    jb.dump(party, f'saved_parties/{name.title()}.pkl')
-    print(f'Your party has been saved as {name.title()}.')
-    print(f'Keep track of this saved name if you want to recover your party: {name.title()}')
+def save_party(party : dict):
+    jb.dump(party, f"saved_parties/{party['name'].title()}.pkl")
+    print(f"Your party has been saved as {party['name'].title()}.")
+    print(f"Keep track of this saved name if you want to recover your party: {party['name'].title()}")
     next()
 
 def load_party(name : str = 'saved_parties/default.pkl') -> list:

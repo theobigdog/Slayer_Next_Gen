@@ -153,7 +153,7 @@ def create_new_party(name: str) -> list:
 def get_party() -> dict:
     name = get_name()
     saved_party = []
-    can_save_party = False
+    #can_save_party = False
     try:
         saved_party = acc.load_party(name) #jb.load(f"saved_parties/{name}.pkl")
         print(f"Ah yes, here you are: {name}... <snicker snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
@@ -170,29 +170,27 @@ def get_party() -> dict:
             print(f"Let's just make you a fresh party, mkay?")
             time.sleep(3)
             saved_party = create_new_party(name)
-            can_save_party = True
-    #print()
+            #can_save_party = True
     wt()
     acc.print_player_summary(saved_party)
-    '''for dudette in saved_party:
-        print(dudette.name)
-        print(dudette.hero_class)
-       # print(dudette.stats)
-        print(dudette.inv)
-        print(dudette.health)
-        print()
-    next()
-'''    
-    if can_save_party:
+     
+    return {
+        "name" : name,
+        "party" : saved_party,
+        "wiped" : False,
+        "current_instance" : 0,
+    }
+    
+    '''if can_save_party:
         print()
         save_new_party = acc.yes_no(input('Would you like to save your new party?  '))
         if save_new_party:
-            acc.save_party(saved_party, name)
+            acc.save_party(group)
     
     group = {
         "name" : name,
         "party" : saved_party,
         "wiped" : False,
-        "current_instance" : 1,
-    }
-    return group
+        "current_instance" : 0,
+    }'''
+   # return group
