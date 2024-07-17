@@ -63,7 +63,7 @@ def initialize_char (class_obj):
 class Warrior:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Warrior'
         self.attack_style = 'both'
         self = initialize_char(self)
@@ -72,7 +72,7 @@ class Warrior:
 class Shifter:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Shifter'
         self.attack_style = 'melee'
         self = initialize_char(self)
@@ -81,7 +81,7 @@ class Shifter:
 class Battle_Mage:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Battle_Mage'
         self.attack_style = 'melee'
         self = initialize_char(self)
@@ -90,7 +90,7 @@ class Battle_Mage:
 class Hunter:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Hunter'
         self.attack_style = 'range'
         self = initialize_char(self)
@@ -99,7 +99,7 @@ class Hunter:
 class Wizard:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Wizard'
         self.attack_style = 'range'
         self = initialize_char(self)
@@ -108,7 +108,7 @@ class Wizard:
 class Sapper:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Sapper'
         self.attack_style = 'melee'
         self = initialize_char(self)
@@ -117,7 +117,7 @@ class Sapper:
 class Cleric:
 
     def __init__ (self, name : str):
-        self.name = name
+        self.heroine_name = name
         self.hero_class = 'Cleric'
         self.attack_style = 'range'
         self = initialize_char(self)

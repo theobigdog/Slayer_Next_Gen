@@ -1,5 +1,6 @@
 import Slayer_Accessory as acc
 from Slayer_Accessory import wt, next, whine
+import Slayer_Combat
 import Slayer_Heroes as heroes
 import joblib as jb
 import random
@@ -156,30 +157,36 @@ def get_party() -> dict:
     #can_save_party = False
     try:
         saved_party = acc.load_party(name) #jb.load(f"saved_parties/{name}.pkl")
-        print(f"Ah yes, here you are: {name}... <snicker snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
+        print(f"Ah yes, here you are: {name}... <snicker-snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
+        Slayer_Combat.display_party_summary(saved_party['party'])
         next()
+        return saved_party
     except(FileNotFoundError):
         name = str(input(f"I don't recognize you.  What was that name again?  "))
         try:
             saved_party = acc.load_party(name) #jb.load(f"saved_parties/{name}.pkl")
             print(f"Oh, that's right, {name}, you were the moron projectile vomiting into that fountain last night.{whine()}  Welcome back.")
+            acc.print_player_starting_summary(saved_party.party)
+            Slayer_Combat.display_party_summary(saved_party.party)
             next()
+            return saved_party
         except(FileNotFoundError):
             print(f"No, I've never seen you.")
             time.sleep(2)
             print(f"Let's just make you a fresh party, mkay?")
             time.sleep(3)
             saved_party = create_new_party(name)
+            acc.print_player_starting_summary(saved_party)
+            Slayer_Combat.display_party_summary(saved_party)
+            next()
+            return {
+                "name" : name,
+                "party" : saved_party,
+                "wiped" : False,
+                "current_instance" : 0,
+            }
             #can_save_party = True
     wt()
-    acc.print_player_summary(saved_party)
-     
-    return {
-        "name" : name,
-        "party" : saved_party,
-        "wiped" : False,
-        "current_instance" : 0,
-    }
     
     '''if can_save_party:
         print()
