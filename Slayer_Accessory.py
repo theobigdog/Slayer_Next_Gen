@@ -97,7 +97,7 @@ def print_player_starting_summary(party : list, items : pd.DataFrame = items):
         for inv_item in dudette.inv:
             item = items[items['item'] == inv_item]['item_desc'].values[0]
             print(item)
-        print(f"Starting Health: {dudette.health}")
+        print(f"Starting Health: {int(round(dudette.starting_health, 0))}")
         print()
     next()
 
