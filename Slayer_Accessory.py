@@ -90,9 +90,9 @@ def whine() -> str:
     whine_itself = str("..." + whine_itself)
     return whine_itself
 
-def print_player_starting_summary(party : dict, items : pd.DataFrame = items):
+def print_player_starting_summary(party : list, items : pd.DataFrame = items):
     for dudette in party:
-        print(f"{dudette.name}:  {dudette.hero_class}")
+        print(f"{dudette.heroine_name}:  {dudette.hero_class}")
         print('Inventory:  ')
         for inv_item in dudette.inv:
             item = items[items['item'] == inv_item]['item_desc'].values[0]

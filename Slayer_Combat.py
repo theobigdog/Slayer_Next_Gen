@@ -11,9 +11,7 @@ def display_party_summary(party : list):
     for heroine in party:
         low_health = heroine.health <= (heroine.starting_health * 0.1)
         if low_health:
-            #print(heroine.name + heroine.hero_class)
-            print(heroine.name + ":  " + Fore.RED + str(heroine.health) + Style.RESET_ALL + " / " + str(heroine.starting_health))
+            print(f"{heroine.heroine_name}:  {heroine.hero_class}, {Fore.RED}{heroine.health}{Style.RESET_ALL}/{heroine.starting_health}")
         else:
-            print(heroine.name + heroine.hero_class)
-            print(f"{heroine.name}:  {heroine.health} / {heroine.starting_health}") 
+            print(f"{heroine.heroine_name}:  {heroine.hero_class}, {heroine.health}/{heroine.starting_health}")
     next()

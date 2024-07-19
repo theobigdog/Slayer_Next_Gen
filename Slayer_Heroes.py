@@ -57,7 +57,7 @@ def initialize_char (class_obj):
     class_obj.starting_inv = get_starting_inv(class_obj.hero_class)
     class_obj.inv = class_obj.starting_inv.copy()
     class_obj.starting_health = stat_value_delta(acc.multi_roll(class_obj.stats['low_st_health'], class_obj.stats['high_st_health']), 2, 1, 100, 0)
-    class_obj.health = class_obj.starting_health
+    class_obj.health = 1#class_obj.starting_health
     class_obj.is_dead = False
 
 class Warrior:
