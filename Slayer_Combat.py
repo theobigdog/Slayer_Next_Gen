@@ -6,7 +6,7 @@ from colorama import Fore, Back, Style, Cursor
 import time
 
 def display_mob_summary(mob: dict):
-    print(test)
+    print('test')
 
 def display_party_summary(party : list):
     print()
