@@ -84,7 +84,7 @@ db = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK
 
 def print_current_party(party : list):
     for member in party:
-        print(f"Hero:  {member.name}, Class:  {member.hero_class}")
+        print(f"Hero:  {member.heroine_name}, Class:  {member.hero_class}")
 
 def create_new_party(name: str) -> list:
     new_party = []
