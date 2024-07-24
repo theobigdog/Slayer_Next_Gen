@@ -14,6 +14,7 @@ basic_fire_bolt,Basic Fire Bolt (6-12 damage),['Wizard'],6,12,range,starting
 small_lightning_strike,Small Lightning Strike (6-9 damage),['Wizard'],6,9,range,starting
 fire_rain,Fire Rain (12-30 damage),['Wizard'],12,30,special_range,starting
 deep_scratch,Deep Scratch (2-3 damage),['Sapper'],2,3,melee,starting
-big_badda_boom,Big Badda Boom (50-75 damage),['Sapper'],50,75,special_melee,starting
+big_badda_boom,Big Badda Boom (50-75 damage),['Sapper'],50,75,aoe,starting
 healing_wand,Healing Wand (2-10 healing),['Cleric'],-10,-2,range,starting
 deep_meditation,Deep Meditation (13-30 healing),['Cleric'],-30,-13,special_range,starting
+vomit,Happy's Regurgitation,['Disgruntled Dwarf'],5,20,aoe,mob
