@@ -1,0 +1,8 @@
+item,item_desc,mob_class,damage_low,damage_high,special,attack_style
+vomit,Happy's Regurgitation,Disgruntled Dwarf,8,12,TRUE,aoe
+beer_stein,Beer Mug Attack,Disgruntled Dwarf,4,7,FALSE,melee
+drunken_pile_drive,Drunk Pile Driver,Disgruntled Dwarf,7,10,FALSE,melee
+charging_bull,Bull Charge,Disgruntled Dwarf,10,12,FALSE,both
+great_axe,Great Axe,Disgruntled Dwarf,5,8,FALSE,melee
+mithril_dagger,Mithril Dagger,Disgruntled Dwarf,20,30,TRUE,melee
+rubber_ducky,A Rubber Ducky?,Disgruntled Dwarf,0,1,FALSE,melee

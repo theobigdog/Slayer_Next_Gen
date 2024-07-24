@@ -1,0 +1,2 @@
+name,mob_class,attack_style,crit_multiplier,enraged_crit_multiplier,crit_chance,enraged_crit_chance,starting_hp,enraged_hp,miss,enraged_miss,luck,enraged_luck,expertise,enraged_expertise,toughness,enraged_toughness,dodge,enraged_dodge,healing_chance,enraged_healing_chance,healing,enraged_healing
+Happy,Disgruntled Dwarf,melee,1.5,5,19,10,200,1000,9,12,19,10,5,1,18,5,18,10,19,15,50,1000

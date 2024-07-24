@@ -5,6 +5,9 @@ import random
 from colorama import Fore, Back, Style, Cursor
 import time
 
+def display_mob_summary(mob: dict):
+    print(test)
+
 def display_party_summary(party : list):
     print()
     print()
@@ -17,3 +20,8 @@ def display_party_summary(party : list):
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {Fore.MAGENTA}{int(round(heroine.health, 0))}{Style.RESET_ALL}/{heroine.starting_health}")
         else:
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {int(round(heroine.health, 0))}/{heroine.starting_health}")
+
+def show_current_status(party_dict: dict, mob: dict):
+    party = party_dict['party']
+    display_mob_summary(mob)
+    display_party_summary(party)

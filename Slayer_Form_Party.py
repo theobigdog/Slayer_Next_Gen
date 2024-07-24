@@ -158,6 +158,10 @@ def get_party() -> dict:
     try:
         saved_party = acc.load_party(name) #jb.load(f"saved_parties/{name}.pkl")
         print(f"Ah yes, here you are: {name}... <snicker-snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
+        next()
+        wt()
+        acc.print_player_starting_summary(saved_party['party'])
+        wt()
         Slayer_Combat.display_party_summary(saved_party['party'])
         next()
         return saved_party
@@ -166,8 +170,11 @@ def get_party() -> dict:
         try:
             saved_party = acc.load_party(name) #jb.load(f"saved_parties/{name}.pkl")
             print(f"Oh, that's right, {name}, you were the moron projectile vomiting into that fountain last night.{whine()}  Welcome back.")
-            acc.print_player_starting_summary(saved_party.party)
-            Slayer_Combat.display_party_summary(saved_party.party)
+            next()
+            wt()
+            acc.print_player_starting_summary(saved_party['party'])
+            wt()
+            Slayer_Combat.display_party_summary(saved_party['party'])
             next()
             return saved_party
         except(FileNotFoundError):
@@ -176,7 +183,10 @@ def get_party() -> dict:
             print(f"Let's just make you a fresh party, mkay?")
             time.sleep(3)
             saved_party = create_new_party(name)
+            #next()
+            wt()
             acc.print_player_starting_summary(saved_party)
+            wt()
             Slayer_Combat.display_party_summary(saved_party)
             next()
             return {

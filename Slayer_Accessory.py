@@ -16,6 +16,8 @@ whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good"
 
 items = pd.read_csv('supporting_docs/items.csv')
 stats = pd.read_csv('supporting_docs/hero_stats.csv')
+mobs = pd.read_csv('supporting_docs/mobs.csv')
+mob_equipment = pd.read_csv('supporting_docs/mob_equipment.csv')
 
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']
@@ -106,3 +108,9 @@ def get_items() -> pd.DataFrame:
 
 def get_stats() -> pd.DataFrame:
     return stats
+
+def get_mobs() -> pd.DataFrame:
+    return mobs
+
+def get_mob_equipment() -> pd.DataFrame:
+    return mob_equipment
