@@ -5,7 +5,8 @@ from colorama import Fore, Back, Style, Cursor
 import time
 import Slayer_Combat as combat
 
-
+mobs = acc.get_mobs()
+mob_equipment = acc.get_mob_equipment()
 
 class Disgruntled_Dwarf:
 

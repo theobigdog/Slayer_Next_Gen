@@ -21,7 +21,6 @@ def display_party_summary(party : list):
         else:
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {int(round(heroine.health, 0))}/{heroine.starting_health}")
 
-def show_current_status(party_dict: dict, mob: dict):
-    party = party_dict['party']
+def show_current_status(party: dict, mob: dict):
     display_mob_summary(mob)
     display_party_summary(party)
