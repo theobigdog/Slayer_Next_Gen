@@ -12,7 +12,7 @@ import joblib as jb
 yes = ['YES','Y']
 no = ['NO','N']
 
-whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "I don't care.  I just don't even fucking care anymore.  What?  Oh!"]
+whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "Would you stop that shit?  And I mean, right now!  Oh sorry", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "I don't care.  I just don't even fucking care anymore.  What?  Oh!"]
 
 items = pd.read_csv('supporting_docs/items.csv')
 stats = pd.read_csv('supporting_docs/hero_stats.csv')
@@ -57,7 +57,7 @@ def end(full = False):
 def multi_roll(low_range : int, high_range : int) -> int:
     return random.randint(low_range, high_range)
 
-def get_dice_cutoffs():
+def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
     return {
         'crit_cutoff' : 20,
         'crit_mult_cutoff' : 2.5,
@@ -71,6 +71,18 @@ def get_dice_cutoffs():
         'fear_cutoff' : 20,
         'heal_cutoff' : 100,
         'aoe_heal_cutoff' : 20,
+    }
+
+def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine
+    return {
+        'crit_cutoff' : 20,
+        'crit_mult_cutoff' : 100,
+        'miss_cutoff' : 30,
+        'luck_cutoff' : 20,
+        'expertise_cutoff' : 20,
+        'toughness_cutoff' : 20,
+        'dodge_cutoff' : 15,
+        'healing_chance_cutoff' : 20,
     }
 
 def print_classes():
@@ -115,3 +127,42 @@ def get_mobs() -> pd.DataFrame:
 
 def get_mob_equipment() -> pd.DataFrame:
     return mob_equipment
+
+def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
+    index = mobs.index[mobs['mob_class'] == mob_class]
+    return {
+        'crit': mobs[mobs['mob_class'] == mob_class]['crit_multiplier'][index].values[0],
+        'enraged_crit': mobs[mobs['mob_class'] == mob_class]['enraged_crit_multiplier'][index].values[0],
+        'crit_chance': mobs[mobs['mob_class'] == mob_class]['crit_chance'][index].values[0],
+        'enraged_crit_chance': mobs[mobs['mob_class'] == mob_class]['enraged_crit_chance'][index].values[0],
+        'starting_hp': mobs[mobs['mob_class'] == mob_class]['starting_hp'][index].values[0],
+        'enraged_hp': mobs[mobs['mob_class'] == mob_class]['enraged_hp'][index].values[0],
+        'miss': mobs[mobs['mob_class'] == mob_class]['miss'][index].values[0],
+        'enraged_miss': mobs[mobs['mob_class'] == mob_class]['enraged_miss'][index].values[0],
+        'luck': mobs[mobs['mob_class'] == mob_class]['luck'][index].values[0],
+        'enraged_luck': mobs[mobs['mob_class'] == mob_class]['enraged_luck'][index].values[0],
+        'expertise': mobs[mobs['mob_class'] == mob_class]['expertise'][index].values[0],
+        'enraged_expertise': mobs[mobs['mob_class'] == mob_class]['enraged_expertise'][index].values[0],
+        'toughness': mobs[mobs['mob_class'] == mob_class]['toughness'][index].values[0],
+        'enraged_toughness': mobs[mobs['mob_class'] == mob_class]['enraged_toughness'][index].values[0],
+        'dodge': mobs[mobs['mob_class'] == mob_class]['dodge'][index].values[0],
+        'enraged_dodge': mobs[mobs['mob_class'] == mob_class]['enraged_dodge'][index].values[0],
+        'healing_chance': mobs[mobs['mob_class'] == mob_class]['healing_chance'][index].values[0],
+        'enraged_healing_chance': mobs[mobs['mob_class'] == mob_class]['enraged_healing_chance'][index].values[0],
+        'healing': mobs[mobs['mob_class'] == mob_class]['healing'][index].values[0],
+        'enraged_healing': mobs[mobs['mob_class'] == mob_class]['enraged_healing'][index].values[0],
+    }
+
+def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame = mob_equipment):
+    return {
+
+    }
+
+def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
+    mob.mob_class = mobs[[mobs['name'] == mob.name]]['mob_class'][1] 
+    mob.stats = get_mob_stats(mob.mob_class, mobs),
+    mob.inv = get_mob_inv(mob.mob_class)
+    mob.mob_class = mobs[[mobs['name'] == mob.name]]['mob_class']
+    mob.attack_style = mobs[[mobs['name'] == mob.name]]['attack_style']
+    mob.is_dead = False
+    mob.enraged = False

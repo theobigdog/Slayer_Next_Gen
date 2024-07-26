@@ -11,6 +11,7 @@ wt()
 party = fp.get_party()
 gp.play_game(party)
 #next()
+#refresh_party(party)  #######  use this between every game to reset each heroine
 temp_save = acc.yes_no(input(f"Would you like to save your game (as {party['name'].title()})?  "))
 if temp_save:
     acc.save_party(party)
