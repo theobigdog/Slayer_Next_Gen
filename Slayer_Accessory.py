@@ -154,15 +154,15 @@ def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
     }
 
 def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame = mob_equipment):
-    return {
-
-    }
+    inv = []
+    for row in mob_equipment.index:
+        item_class = mob_equipment['mob_class'].iat[row]
+        if mob_class == item_class:
+            inv.append(mob_equipment['item'].iat[row])
+    return inv
 
 def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
-    mob.mob_class = mobs[[mobs['name'] == mob.name]]['mob_class'][1] 
     mob.stats = get_mob_stats(mob.mob_class, mobs),
-    mob.inv = get_mob_inv(mob.mob_class)
-    mob.mob_class = mobs[[mobs['name'] == mob.name]]['mob_class']
-    mob.attack_style = mobs[[mobs['name'] == mob.name]]['attack_style']
+    mob.inv = get_mob_inv(mob.mob_class, mobs)
     mob.is_dead = False
     mob.enraged = False

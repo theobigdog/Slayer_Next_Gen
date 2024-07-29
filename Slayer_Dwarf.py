@@ -45,6 +45,8 @@ class Disgruntled_Dwarf:
 
     def __init__(self):
         self.name = "Happy"
+        self.mob_class = 'Disgruntled Dwarf'
+        self.attack_style = 'melee'
         self = acc.initialize_mob(self, mobs, mob_equipment)
 
     

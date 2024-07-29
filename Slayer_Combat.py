@@ -6,7 +6,7 @@ from colorama import Fore, Back, Style, Cursor
 import time
 
 def display_mob_summary(mob: dict):
-    print('test')
+    print(f"name: {mob.name}, type: {mob.mob_class}, attack style: {mob.attack_style}, mob stats: {mob.stats}, and mob inventory: {mob.inv}")
 
 def display_party_summary(party : list):
     print()

@@ -9,7 +9,7 @@ from colorama import Fore, Back, Style, Cursor
 import time
 
 def play_game(party: dict) -> dict:
-    narration = acc.yes_no(input('Would you like narration?  '))
+    narration = acc.yes_no(input('Would you like narrative?  '))
     if narration == True:
         print("Really?  It's super boring, but, whatever.")
     else:
