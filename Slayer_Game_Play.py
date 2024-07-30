@@ -20,4 +20,13 @@ def play_game(party: dict) -> dict:
     mob = Slayer_Dwarf.Disgruntled_Dwarf()
     combat.show_current_status(party['party'], mob)
     next()
+
+    for heroine in party['party']:
+        print(heroine.heroine_name)
+        print(heroine.stats)
+        rolls = combat.get_heroine_attack_rolls(heroine)
+        print(rolls)
+        next()
+    next()
+
     return party

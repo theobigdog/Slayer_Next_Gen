@@ -59,10 +59,12 @@ def multi_roll(low_range : int, high_range : int) -> int:
 
 def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
     return {
+        'low' : 1,
         'crit_cutoff' : 20,
         'crit_mult_cutoff' : 2.5,
         'low_miss' : 1,
         'high_miss' : 100,
+        'miss_threshold' : 70,
         'luck_cutoff' : 20,
         'expertise_cutoff' : 50,
         'toughness_cutoff' : 20,
