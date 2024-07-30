@@ -38,7 +38,7 @@ def show_current_status(party: dict, mob: dict):
     print('Party')
     display_party_summary(party)
 
-def get_heroine_attack_rolls(heroine: object) -> dict:
+def get_heroine_attack_rolls(heroine: object) -> dict:  ### In this function, "cutoffs" indicate max value for dice roll, ""
     roll_results = {}
     heroine_stats = heroine.stats
     heroine_dice_cutoffs = acc.get_dice_cutoffs()
@@ -52,7 +52,7 @@ def get_heroine_attack_rolls(heroine: object) -> dict:
     fear = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['fear_cutoff'])
     heal = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['heal_cutoff'])
     aoe_heal = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['aoe_heal_cutoff'])
-    if crit > heroine_stats['crit_mult']:
+    if crit > heroine_stats['crit']:
         roll_results['crit_mult'] = heroine_stats['crit_mult'] # crit roll is higher than cutoff, so the crit_mult is returned
     else:
         roll_results['crit_mult'] = 1 # if not a crit, multiplier is 1

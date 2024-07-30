@@ -10,7 +10,7 @@ import time
 
 def play_game(party: dict) -> dict:
     narration = acc.yes_no(input('Would you like narrative?  '))
-    if narration == True:
+    if narration:
         print("Really?  It's super boring, but, whatever.")
     else:
         print("Oh I see how it is.  Fine.  I'll just shutup then.")
@@ -20,13 +20,4 @@ def play_game(party: dict) -> dict:
     mob = Slayer_Dwarf.Disgruntled_Dwarf()
     combat.show_current_status(party['party'], mob)
     next()
-
-    for heroine in party['party']:
-        print(heroine.heroine_name)
-        print(heroine.stats)
-        rolls = combat.get_heroine_attack_rolls(heroine)
-        print(rolls)
-        next()
-    next()
-
     return party
