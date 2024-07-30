@@ -31,6 +31,7 @@ def display_party_summary(party : list):
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {int(round(heroine.health, 0))}/{heroine.starting_health}")
 
 def show_current_status(party: dict, mob: dict):
+    wt()
     print('Enemy')
     display_mob_summary(mob)
     print()
@@ -38,7 +39,7 @@ def show_current_status(party: dict, mob: dict):
     print('Party')
     display_party_summary(party)
 
-def get_heroine_attack_rolls(heroine: object) -> dict:  ### In this function, "cutoffs" indicate max value for dice roll, ""
+def get_heroine_rolls(heroine: object) -> dict:  ### In this function, "cutoffs" indicate max value for dice roll, ""
     roll_results = {}
     heroine_stats = heroine.stats
     heroine_dice_cutoffs = acc.get_dice_cutoffs()
