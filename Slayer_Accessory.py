@@ -163,6 +163,9 @@ def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFra
 
 def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
     mob.stats = get_mob_stats(mob.mob_class, mobs),
+    mob.stats = mob.stats[0]
     mob.inv = get_mob_inv(mob.mob_class, mobs)
+    mob.starting_health = mob.stats['starting_hp']
+    mob.health = mob.stats['starting_hp']
     mob.is_dead = False
     mob.enraged = False
