@@ -9,15 +9,29 @@ from colorama import Fore, Back, Style, Cursor
 import time
 
 def play_game(party: dict) -> dict:
-    narration = acc.yes_no(input('Would you like narrative?  '))
-    if narration:
+    party['narration'] = acc.yes_no(input('Would you like narrative?  '))
+    if party['narration']:
         print("Really?  It's super boring, but, whatever.")
     else:
         print("Oh I see how it is.  Fine.  I'll just shutup then.")
     next()
-    if narration:
+    if party['narration']:
         nar.intro()
+        nar.happy_intro()
     mob = Slayer_Dwarf.Disgruntled_Dwarf()
     combat.show_current_status(party['party'], mob)
     next()
+    #print([x for x in mob.inv]) ############
+    #for x in mob.inv.keys():
+    #    print(f"{x}: {mob.inv[x]}")
+    #mob_rolls = combat.get_mob_rolls(mob)
+    #for x in mob.stats:
+    #    print(f"{x}: {mob.stats[x]}")
+    #next()
+    #mob.enraged = True
+    for i in range(5):
+        mob_rolls = combat.get_mob_rolls(mob)
+        for x in mob_rolls:
+            print(f"{x}: {mob_rolls[x]}")
+        next()  ##################
     return party

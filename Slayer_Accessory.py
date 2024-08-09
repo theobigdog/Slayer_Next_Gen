@@ -61,7 +61,7 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
     return {
         'low' : 1,
         'crit_cutoff' : 20,
-        'crit_mult_cutoff' : 2.5,
+        #'crit_mult_cutoff' : 2.5, ##  Does it even make sense to have this?
         'low_miss' : 1,
         'high_miss' : 100,
         'miss_threshold' : 70,
@@ -78,13 +78,15 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
 def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine
     return {
         'crit_cutoff' : 20,
-        'crit_mult_cutoff' : 100,
+        #'crit_mult_cutoff' : 5, ## Does it even make sense to have this?
         'miss_cutoff' : 30,
         'luck_cutoff' : 20,
         'expertise_cutoff' : 20,
         'toughness_cutoff' : 20,
         'dodge_cutoff' : 15,
         'healing_chance_cutoff' : 20,
+        'scare_cutoff' : 20,
+        'low' : 1,
     }
 
 def print_classes():
@@ -153,6 +155,8 @@ def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
         'enraged_healing_chance': mobs[mobs['mob_class'] == mob_class]['enraged_healing_chance'][index].values[0],
         'healing': mobs[mobs['mob_class'] == mob_class]['healing'][index].values[0],
         'enraged_healing': mobs[mobs['mob_class'] == mob_class]['enraged_healing'][index].values[0],
+        'scare': mobs[mobs['mob_class'] == mob_class]['scare'][index].values[0],
+        'enraged_scare': mobs[mobs['mob_class'] == mob_class]['enraged_scare'][index].values[0],
     }
 
 def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame = mob_equipment):
@@ -164,7 +168,7 @@ def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFra
     return inv
 
 def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
-    mob.stats = get_mob_stats(mob.mob_class, mobs),
+    mob.stats = get_mob_stats(mob.mob_class, mobs),#, mob_equipment),
     mob.stats = mob.stats[0]
     mob.inv = get_mob_inv(mob.mob_class, mobs)
     mob.starting_health = mob.stats['starting_hp']

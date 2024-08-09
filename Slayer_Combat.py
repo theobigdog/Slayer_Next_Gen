@@ -67,4 +67,56 @@ def get_heroine_rolls(heroine: object) -> dict:  ### In this function, "cutoffs"
     roll_results['heal'] = heal > heroine_stats['heal']
     roll_results['aoe_heal'] = aoe_heal > heroine_stats['aoe_heal']
     return roll_results
-    
+
+def get_mob_rolls(mob: object) -> dict:
+    roll_results = {}
+    mob_stats = mob.stats
+    enraged = mob.enraged
+    mob_dice_cutoffs = acc.get_dice_cutoffs_mobs()
+    crit = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['crit_cutoff'])
+    miss = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['miss_cutoff'])
+    luck = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['luck_cutoff'])
+    expertise = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['expertise_cutoff'])
+    toughness = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['toughness_cutoff'])
+    dodge = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['dodge_cutoff'])
+    heal = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['healing_chance_cutoff'])
+    scare = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['scare_cutoff'])
+    if enraged:
+        if crit > mob_stats['enraged_crit_chance']:
+            roll_results['crit_mult'] = mob_stats['enraged_crit']
+        else:
+            roll_results['crit_mult'] = 1
+        roll_results['miss'] = miss < mob_stats['enraged_miss']
+        roll_results['luck'] = luck > mob_stats['enraged_luck']
+        roll_results['expertise'] = expertise > mob_stats['enraged_expertise']
+        roll_results['toughness'] = toughness > mob_stats['enraged_toughness']
+        roll_results['dodge'] = dodge > mob_stats['enraged_dodge']
+        roll_results['heal'] = heal > mob_stats['enraged_healing_chance']
+        roll_results['scare'] = scare > mob_stats['enraged_scare']
+    else:
+        if crit > mob_stats['crit_chance']:
+            roll_results['crit_mult'] = mob_stats['crit']
+        else:
+            roll_results['crit_mult'] = 1
+        roll_results['miss'] = miss < mob_stats['miss']
+        roll_results['luck'] = luck > mob_stats['luck']
+        roll_results['expertise'] = expertise > mob_stats['expertise']
+        roll_results['toughness'] = toughness > mob_stats['toughness']
+        roll_results['dodge'] = dodge > mob_stats['dodge']
+        roll_results['heal'] = heal > mob_stats['healing_chance']
+        roll_results['scare'] = scare > mob_stats['scare']
+    return roll_results
+
+
+
+"""
+    'crit_cutoff' : 20,
+        'crit_mult_cutoff' : 100,
+        'miss_cutoff' : 30,
+        'luck_cutoff' : 20,
+        'expertise_cutoff' : 20,
+        'toughness_cutoff' : 20,
+        'dodge_cutoff' : 15,
+        'healing_chance_cutoff' : 20,
+    'scare' : 20
+    """
