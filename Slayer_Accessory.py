@@ -135,6 +135,8 @@ def get_mob_equipment() -> pd.DataFrame:
 def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
     index = mobs.index[mobs['mob_class'] == mob_class]
     return {
+        'turn': mobs[mobs['mob_class'] == mob_class]['turn_chance'][index].values[0],
+        'enraged_turn': mobs[mobs['mob_class'] == mob_class]['enraged_turn_chance'][index].values[0],
         'crit': mobs[mobs['mob_class'] == mob_class]['crit_multiplier'][index].values[0],
         'enraged_crit': mobs[mobs['mob_class'] == mob_class]['enraged_crit_multiplier'][index].values[0],
         'crit_chance': mobs[mobs['mob_class'] == mob_class]['crit_chance'][index].values[0],
@@ -159,7 +161,7 @@ def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
         'enraged_scare': mobs[mobs['mob_class'] == mob_class]['enraged_scare'][index].values[0],
     }
 
-def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame = mob_equipment):
+def get_mob_inv(mob_class: object, mob_equipment: pd.DataFrame = mob_equipment):
     inv = []
     for row in mob_equipment.index:
         item_class = mob_equipment['mob_class'].iat[row]
@@ -168,9 +170,11 @@ def get_mob_inv(mob_class: object, mobs: pd.DataFrame, mob_equipment: pd.DataFra
     return inv
 
 def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
-    mob.stats = get_mob_stats(mob.mob_class, mobs),#, mob_equipment),
-    mob.stats = mob.stats[0]
-    mob.inv = get_mob_inv(mob.mob_class, mobs)
+    index = mobs.index[mobs['mob_class'] == mob.mob_class]
+    mob.attack_style = mobs[mobs['mob_class'] == mob.mob_class]['attack_style'][index].values[0]
+    mob.stats = get_mob_stats(mob.mob_class, mobs)
+    #mob.stats = mob.stats[0]
+    mob.inv = get_mob_inv(mob.mob_class, mob_equipment)
     mob.starting_health = mob.stats['starting_hp']
     mob.health = mob.stats['starting_hp']
     mob.is_dead = False

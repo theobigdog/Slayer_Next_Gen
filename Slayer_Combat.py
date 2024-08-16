@@ -107,7 +107,8 @@ def get_mob_rolls(mob: object) -> dict:
         roll_results['scare'] = scare > mob_stats['scare']
     return roll_results
 
-
+def update_health(initial_health : int, delta : int) -> int:
+    return initial_health - delta if initial_health - delta > 0 else 0
 
 """
     'crit_cutoff' : 20,

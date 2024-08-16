@@ -29,9 +29,19 @@ def play_game(party: dict) -> dict:
     #    print(f"{x}: {mob.stats[x]}")
     #next()
     #mob.enraged = True
+    '''
+    for stat in mob.stats:
+        print(stat + ': ' + str(mob.stats[stat]))
+    next()
     for i in range(5):
         mob_rolls = combat.get_mob_rolls(mob)
         for x in mob_rolls:
             print(f"{x}: {mob_rolls[x]}")
         next()  ##################
+    '''
+    for heroine in party['party']:
+        heroine_rolls = combat.get_heroine_rolls(heroine)
+        for x in heroine_rolls:
+            print(f"{x}: {heroine_rolls[x]}")
+        next()
     return party
