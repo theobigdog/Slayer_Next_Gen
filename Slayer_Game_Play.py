@@ -21,6 +21,7 @@ def play_game(party: dict) -> dict:
     mob = Slayer_Dwarf.Disgruntled_Dwarf()
     combat.show_current_status(party['party'], mob)
     next()
+    '''
     #print([x for x in mob.inv]) ############
     #for x in mob.inv.keys():
     #    print(f"{x}: {mob.inv[x]}")
@@ -29,7 +30,7 @@ def play_game(party: dict) -> dict:
     #    print(f"{x}: {mob.stats[x]}")
     #next()
     #mob.enraged = True
-    '''
+    
     for stat in mob.stats:
         print(stat + ': ' + str(mob.stats[stat]))
     next()
@@ -38,10 +39,11 @@ def play_game(party: dict) -> dict:
         for x in mob_rolls:
             print(f"{x}: {mob_rolls[x]}")
         next()  ##################
-    '''
+    
     for heroine in party['party']:
         heroine_rolls = combat.get_heroine_rolls(heroine)
         for x in heroine_rolls:
             print(f"{x}: {heroine_rolls[x]}")
         next()
+    '''
     return party
