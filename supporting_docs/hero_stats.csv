@@ -1,8 +1,8 @@
-hero_class,crit_chance,crit_mult,low_miss,high_miss,luck,expertise,toughness,dodge,parry,fear,heal_chance,aoe_heal_chance,low_st_health,high_st_health
-Warrior,15,1.5,25,90,19,5,17,10,15,17,90,20,40,65
-Shifter,17,1.55,15,85,18,10,18,9,18,15,90,20,30,42
-Battle_Mage,17,1.6,20,100,17,20,19,11,17,14,80,20,30,45
-Hunter,18,1.7,30,90,17,5,18,14,19,15,75,20,25,35
-Wizard,14,1.65,10,85,19,25,20,14,20,10,95,20,20,27
-Sapper,19,1.25,1,80,19,45,20,2,20,10,95,20,15,20
-Cleric,10,2,5,90,16,49,20,7,20,18,15,18,15,25
+hero_class,crit_chance,crit_mult,low_miss,high_miss,luck,expertise,toughness,dodge,parry,fear,heal_chance,aoe_heal_chance,low_st_health,high_st_health,speed
+Warrior,15,1.5,25,90,19,5,17,10,15,17,90,20,40,65,8
+Shifter,17,1.55,15,85,18,10,18,9,18,15,90,20,30,42,15
+Battle_Mage,17,1.6,20,100,17,20,19,11,17,14,80,20,30,45,10
+Hunter,18,1.7,30,90,17,5,18,14,19,15,75,20,25,35,16
+Wizard,14,1.65,10,85,19,25,20,14,20,10,95,20,20,27,7
+Sapper,19,1.25,1,80,19,45,20,2,20,10,95,20,15,20,14
+Cleric,10,2,5,90,16,49,20,7,20,18,15,18,15,25,11

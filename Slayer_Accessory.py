@@ -61,7 +61,7 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
     return {
         'low' : 1,
         'crit_cutoff' : 20,
-        #'crit_mult_cutoff' : 2.5, ##  Does it even make sense to have this?
+        'crit_mult_cutoff' : 2.5, ##  Does it even make sense to have this?
         'low_miss' : 1,
         'high_miss' : 100,
         'miss_threshold' : 70,
@@ -78,7 +78,7 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
 def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine
     return {
         'crit_cutoff' : 20,
-        #'crit_mult_cutoff' : 5, ## Does it even make sense to have this?
+        'crit_mult_cutoff' : 5, ## Does it even make sense to have this?
         'miss_cutoff' : 30,
         'luck_cutoff' : 20,
         'expertise_cutoff' : 20,
@@ -135,6 +135,8 @@ def get_mob_equipment() -> pd.DataFrame:
 def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
     index = mobs.index[mobs['mob_class'] == mob_class]
     return {
+        'speed': mobs[mobs['mob_class'] == mob_class]['speed'][index].values[0],
+        'difficulty': mobs[mobs['mob_class'] == mob_class]['difficulty'][index].values[0],
         'turn': mobs[mobs['mob_class'] == mob_class]['turn_chance'][index].values[0],
         'enraged_turn': mobs[mobs['mob_class'] == mob_class]['enraged_turn_chance'][index].values[0],
         'crit': mobs[mobs['mob_class'] == mob_class]['crit_multiplier'][index].values[0],
