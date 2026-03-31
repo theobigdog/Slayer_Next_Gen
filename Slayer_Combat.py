@@ -6,6 +6,12 @@ import random
 from colorama import Fore, Back, Style, Cursor
 import time
 
+
+def clear_screen():
+    """Clear the console screen."""
+    import os
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 # ============================================================================
 # YOUR EXISTING FUNCTIONS (KEPT!)
 # ============================================================================
@@ -44,13 +50,14 @@ def show_current_status(party: dict, mob: dict):
     print('Party')
     display_party_summary(party)
 
-def get_heroine_rolls(heroine, items=None):
+def get_heroine_rolls(heroine, items=None, chosen_weapon=None):
     """
     Generate attack rolls for a heroine and resolve combat checks.
     
     Args:
         heroine: Hero object
         items: Items dataframe (optional)
+        chosen_weapon: Specific weapon to use (optional)
         
     Returns:
         dict: Attack roll values and combat resolution
@@ -66,11 +73,19 @@ def get_heroine_rolls(heroine, items=None):
     # Get dice cutoffs
     cutoffs = acc.get_dice_cutoffs()
     
-    # Find equipped weapon
+    # Find weapon to use
     equipped_weapon = None
     weapon_data = None
     
-    if not items.empty and hasattr(heroine, 'inv') and heroine.inv:
+    if chosen_weapon and chosen_weapon != "Fists":
+        # Use the chosen weapon
+        if not items.empty:
+            item_row = items[items['item'] == chosen_weapon]
+            if not item_row.empty:
+                equipped_weapon = chosen_weapon
+                weapon_data = item_row
+    elif not items.empty and hasattr(heroine, 'inv') and heroine.inv:
+        # Auto-select first weapon in inventory
         for item_name in heroine.inv:
             item_row = items[items['item'] == item_name]
             if not item_row.empty:
@@ -85,9 +100,11 @@ def get_heroine_rolls(heroine, items=None):
     if weapon_data is None:
         low_damage = 1
         high_damage = 4
+        weapon_type = 'melee'
     else:
         low_damage = int(weapon_data['damage_range_low'].values[0])
         high_damage = int(weapon_data['damage_range_high'].values[0])
+        weapon_type = weapon_data['attack_type'].values[0]
     
     # Roll base damage
     damage = acc.multi_roll(low_damage, high_damage)
@@ -129,7 +146,8 @@ def get_heroine_rolls(heroine, items=None):
         'aoe_heal_roll': aoe_heal_roll,
         'crit': is_crit,
         'miss': is_miss,
-        'weapon': equipped_weapon if equipped_weapon else "Fists"
+        'weapon': equipped_weapon if equipped_weapon else "Fists",
+        'weapon_type': weapon_type,
     }
 
 def get_mob_rolls(mob: object) -> dict:
@@ -158,37 +176,48 @@ def get_mob_rolls(mob: object) -> dict:
         high = 20
     
     # Roll all the dice
-    crit = acc.multi_roll(low, high)
-    miss = acc.multi_roll(mob_stats['low_miss'], mob_stats['high_miss'])
-    luck = acc.multi_roll(low, high)
-    expertise = acc.multi_roll(low, high)
-    toughness = acc.multi_roll(low, high)
-    dodge = acc.multi_roll(low, high)
-    parry = acc.multi_roll(low, high)
-    fear = acc.multi_roll(low, high)
-    damage = acc.multi_roll(low, high)
+    crit_roll = acc.multi_roll(low, high)
+    miss_roll = acc.multi_roll(mob_stats['low_miss'], mob_stats['high_miss'])
+    luck_roll = acc.multi_roll(low, high)
+    expertise_roll = acc.multi_roll(low, high)
+    toughness_roll = acc.multi_roll(low, high)
+    dodge_roll = acc.multi_roll(low, high)
+    parry_roll = acc.multi_roll(low, high)
+    fear_roll = acc.multi_roll(low, high)
+    base_damage = acc.multi_roll(low, high)
+    
+    # Add expertise to damage
+    damage = base_damage + mob_stats.get('expertise', 0)
+    
+    # Check for crit
+    is_crit = crit_roll > mob_stats['crit']
+    
+    # Apply crit multiplier if crit
+    if is_crit:
+        damage = int(damage * mob_stats.get('crit_mult', 1.5))
     
     # Store NUMERIC roll values (for combat comparisons)
-    roll_results['crit_roll'] = crit
-    roll_results['miss_roll'] = miss
-    roll_results['luck_roll'] = luck
-    roll_results['expertise_roll'] = expertise
-    roll_results['toughness_roll'] = toughness
-    roll_results['dodge_roll'] = dodge
-    roll_results['parry_roll'] = parry
-    roll_results['fear_roll'] = fear
-    roll_results['damage_roll'] = damage
+    roll_results['crit_roll'] = crit_roll
+    roll_results['miss_roll'] = miss_roll
+    roll_results['luck_roll'] = luck_roll
+    roll_results['expertise_roll'] = expertise_roll
+    roll_results['toughness_roll'] = toughness_roll
+    roll_results['dodge_roll'] = dodge_roll
+    roll_results['parry_roll'] = parry_roll
+    roll_results['fear_roll'] = fear_roll
+    
+    # Store final damage (with expertise and crit already applied)
+    roll_results['damage'] = damage
     
     # Store SUCCESS/FAIL booleans (for convenience)
-    roll_results['crit_success'] = crit > mob_stats['crit']
-    roll_results['crit_mult'] = mob_stats['crit_mult'] if crit > mob_stats['crit'] else 1
-    roll_results['miss'] = miss < 5  # Mobs have fixed miss threshold
-    roll_results['luck'] = luck > mob_stats['luck']
-    roll_results['expertise'] = expertise > mob_stats['expertise']
-    roll_results['toughness'] = toughness > mob_stats['toughness']
-    roll_results['dodge'] = dodge > mob_stats['dodge']
-    roll_results['parry'] = parry > mob_stats['parry']
-    roll_results['fear'] = fear > mob_stats['fear']
+    roll_results['crit'] = is_crit
+    roll_results['miss'] = miss_roll < 5  # Mobs have fixed miss threshold
+    roll_results['luck'] = luck_roll > mob_stats['luck']
+    roll_results['expertise'] = expertise_roll > mob_stats['expertise']
+    roll_results['toughness'] = toughness_roll > mob_stats['toughness']
+    roll_results['dodge'] = dodge_roll > mob_stats['dodge']
+    roll_results['parry'] = parry_roll > mob_stats['parry']
+    roll_results['fear'] = fear_roll > mob_stats['fear']
     
     return roll_results
 
@@ -524,7 +553,7 @@ def get_foreign_language_mob_speech(mob, context="attack"):
     return speech, reaction_template
 
 # ============================================================================
-# INITIATIVE / TURN ORDER SYSTEM
+# INITIATIVE / ROUND ORDER SYSTEM
 # ============================================================================
 
 def calculate_initiative(combatants, surprise_factor=0):
@@ -567,7 +596,7 @@ def display_initiative_order(initiative_list):
         initiative_list: Sorted initiative list from calculate_initiative()
     """
     print(f"\n{Fore.CYAN}{'='*60}")
-    print(f"{Fore.CYAN}TURN ORDER:")
+    print(f"{Fore.CYAN}ROUND ORDER:")
     print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
     
     for i, entry in enumerate(initiative_list, 1):
@@ -1009,15 +1038,43 @@ def get_parry_flavor(heroine, mob):
     ]
     return random.choice(messages)
 
-def get_miss_flavor(attacker, target):
-    """Generate flavor text for missed attack."""
-    messages = [
-        f"{attacker.name if hasattr(attacker, 'name') else attacker.heroine_name} swings wildly and misses!",
-        f"{attacker.name if hasattr(attacker, 'name') else attacker.heroine_name}'s attack goes wide. Embarrassing.",
-        f"{attacker.name if hasattr(attacker, 'name') else attacker.heroine_name} completely whiffs the attack. Oops.",
-        f"{attacker.name if hasattr(attacker, 'name') else attacker.heroine_name} stumbles mid-attack. The strike misses entirely.",
-    ]
-    return random.choice(messages)
+def get_miss_flavor(attacker, defender, weapon_type='melee'):
+    """
+    Get flavor text for a missed attack.
+    
+    Args:
+        attacker: Attacking character
+        defender: Defending character
+        weapon_type: Type of weapon ('melee', 'range', etc.)
+        
+    Returns:
+        str: Flavor text
+    """
+    import random
+    
+    attacker_name = attacker.heroine_name if hasattr(attacker, 'heroine_name') else attacker.name
+    defender_name = defender.name if hasattr(defender, 'name') else defender.heroine_name
+    
+    if 'range' in weapon_type.lower():
+        # Ranged miss flavors
+        flavors = [
+            f"{attacker_name}'s shot misses {defender_name} completely!",
+            f"{defender_name} dodges {attacker_name}'s projectile!",
+            f"{attacker_name}'s aim is off - the shot goes wide!",
+            f"{attacker_name} fires, but {defender_name} sidesteps!",
+            f"The projectile whizzes past {defender_name}'s head!",
+        ]
+    else:
+        # Melee miss flavors
+        flavors = [
+            f"{attacker_name}'s attack misses {defender_name} completely!",
+            f"{defender_name} dodges {attacker_name}'s strike!",
+            f"{defender_name} parries {attacker_name}'s attack!",
+            f"{attacker_name} swings wide, missing {defender_name}!",
+            f"{defender_name} sidesteps {attacker_name}'s attack!",
+        ]
+    
+    return random.choice(flavors)
 
 # ============================================================================
 # HEALING FLAVOR TEXT
@@ -1074,6 +1131,42 @@ def get_aoe_healing_flavor(healer, targets, amount):
 # PLAYER ACTION SYSTEM
 # ============================================================================
 
+def display_mob_status_compact(mobs):
+    """
+    Display compact mob status at top of action menu.
+    
+    Args:
+        mobs: List of all mobs (including defeated)
+    """
+    print(f"\n{Fore.RED}ENEMIES:{Style.RESET_ALL}")
+    
+    for mob in mobs:
+        if mob.health > 0:
+            hp_percent = (mob.health / mob.starting_health) * 100
+            
+            # Color code HP
+            if hp_percent > 66:
+                hp_color = Fore.GREEN
+            elif hp_percent > 33:
+                hp_color = Fore.YELLOW
+            else:
+                hp_color = Fore.RED
+            
+            # Status effects
+            status = ""
+            if hasattr(mob, 'enraged') and mob.enraged:
+                status += f" {Fore.MAGENTA}[ENRAGED]{Style.RESET_ALL}"
+            if hasattr(mob, 'creature_type') and mob.creature_type == 'undead':
+                status += f" {Fore.CYAN}[UNDEAD]{Style.RESET_ALL}"
+            if hasattr(mob, 'phase'):
+                status += f" {Fore.YELLOW}[PHASE {mob.phase}]{Style.RESET_ALL}"
+            
+            print(f"  • {mob.name}: {hp_color}{mob.health}/{mob.starting_health} HP{Style.RESET_ALL}{status}")
+        else:
+            print(f"  • {mob.name}: {Fore.RED}DEFEATED{Style.RESET_ALL}")
+    
+    print()
+
 def display_action_menu(hero, mobs):
     """
     Display available actions for a hero's turn.
@@ -1085,6 +1178,9 @@ def display_action_menu(hero, mobs):
     Returns:
         None (displays menu)
     """
+    # Show mob status first
+    display_mob_status_compact(mobs)
+    
     print(f"\n{Fore.CYAN}{'='*60}")
     print(f"{hero.heroine_name.upper()}'S TURN [{hero.hero_class}]")
     print(f"HP: {hero.health}/{hero.starting_health}")
@@ -1097,7 +1193,13 @@ def display_action_menu(hero, mobs):
     print(f"{'='*60}{Style.RESET_ALL}\n")
     
     print(f"{Fore.YELLOW}Choose Action:{Style.RESET_ALL}")
-    print(f"  1. Attack (Choose target)")
+    
+    # Clerics can't attack living!
+    if hero.hero_class == 'Cleric':
+        print(f"  {Fore.RED}1. Attack - FORBIDDEN! Clerics cannot harm the living!{Style.RESET_ALL}")
+    else:
+        print(f"  1. Attack (Choose target)")
+    
     print(f"  2. Defend (Increase dodge/parry this turn)")
     print(f"  3. Special Ability")
     print(f"  4. Use Item (Not implemented yet)")
@@ -1129,9 +1231,97 @@ def get_player_action_choice():
             print(f"{Fore.RED}Please enter a valid number.{Style.RESET_ALL}")
             continue
 
+def display_weapon_menu(hero):
+    """
+    Display available weapons for hero to choose from.
+    
+    Args:
+        hero: The hero choosing a weapon
+        
+    Returns:
+        None (displays menu)
+    """
+    import pandas as pd
+    
+    # Load items
+    try:
+        items = pd.read_csv('supporting_docs/items.csv')
+    except FileNotFoundError:
+        print(f"{Fore.RED}No items.csv found! Using fists.{Style.RESET_ALL}")
+        return None
+    
+    # Find all weapons in inventory
+    weapons = []
+    
+    if hasattr(hero, 'inv') and hero.inv:
+        for item_name in hero.inv:
+            item_row = items[items['item'] == item_name]
+            if not item_row.empty:
+                attack_type = item_row['attack_type'].values[0]
+                # Check if it's a weapon
+                if attack_type in ['melee', 'range', 'both', 'special_melee', 'special_range', 'special_both']:
+                    weapons.append({
+                        'name': item_name,
+                        'type': attack_type,
+                        'damage_low': int(item_row['damage_range_low'].values[0]),
+                        'damage_high': int(item_row['damage_range_high'].values[0]),
+                    })
+    
+    if not weapons:
+        print(f"{Fore.YELLOW}No weapons equipped. Using fists (1-4 damage).{Style.RESET_ALL}\n")
+        return None
+    
+    print(f"\n{Fore.YELLOW}Choose Weapon:{Style.RESET_ALL}")
+    
+    for i, weapon in enumerate(weapons, 1):
+        dmg_range = f"{weapon['damage_low']}-{weapon['damage_high']}"
+        weapon_type = weapon['type'].replace('_', ' ').title()
+        print(f"  {i}. {weapon['name']} [{weapon_type}] (Damage: {dmg_range})")
+    
+    print(f"  0. Fists (1-4 damage)")
+    print()
+    
+    return weapons
+
+def get_weapon_choice(hero, weapons):
+    """
+    Get player's weapon choice.
+    
+    Args:
+        hero: The hero choosing
+        weapons: List of available weapons
+        
+    Returns:
+        str: Weapon name, or "Fists" if none chosen
+    """
+    if not weapons:
+        return "Fists"
+    
+    while True:
+        try:
+            choice = input(f"{Fore.GREEN}Enter weapon (0-{len(weapons)}): {Style.RESET_ALL}").strip()
+            
+            if not choice:
+                continue
+            
+            choice_num = int(choice)
+            
+            if choice_num == 0:
+                return "Fists"
+            
+            if choice_num < 0 or choice_num > len(weapons):
+                print(f"{Fore.RED}Please enter a number between 0 and {len(weapons)}.{Style.RESET_ALL}")
+                continue
+            
+            return weapons[choice_num - 1]['name']
+            
+        except ValueError:
+            print(f"{Fore.RED}Please enter a valid number.{Style.RESET_ALL}")
+            continue
+
 def display_target_menu(mobs):
     """
-    Display available enemy targets.
+    Display available enemy targets with color-coded HP.
     
     Args:
         mobs: List of mob objects
@@ -1142,11 +1332,22 @@ def display_target_menu(mobs):
     print(f"\n{Fore.YELLOW}Choose Target:{Style.RESET_ALL}")
     
     for i, mob in enumerate(mobs, 1):
+        hp_percent = (mob.health / mob.starting_health) * 100
+        
+        # Determine HP color
+        if hp_percent > 66:
+            hp_color = Style.RESET_ALL  # White (default)
+        elif hp_percent > 33:
+            hp_color = Fore.YELLOW
+        else:
+            hp_color = Fore.RED
+        
+        # Check for enraged status
         status = ""
         if hasattr(mob, 'enraged') and mob.enraged:
             status = f" {Fore.RED}[ENRAGED!]{Style.RESET_ALL}"
         
-        print(f"  {i}. {mob.name} [HP: {mob.health}/{mob.starting_health}]{status}")
+        print(f"  {i}. {mob.name} [{hp_color}HP: {mob.health}/{mob.starting_health}{Style.RESET_ALL}]{status}")
     
     print()
 
@@ -1298,14 +1499,15 @@ def execute_ability(hero, ability_name, target, all_heroes, all_mobs):
         print(f"{Fore.RED}Unknown ability: {ability_name}{Style.RESET_ALL}")
         return False
 
-def execute_power_strike(hero, target):
+def execute_power_strike(hero, target, chosen_weapon=None):
     """
     Execute Power Strike ability.
-    2x damage, -5 accuracy penalty
+    2x damage, -10 accuracy penalty (was -5, now harder to hit)
     
     Args:
         hero: Attacking hero
         target: Target mob
+        chosen_weapon: Weapon to use (optional)
         
     Returns:
         bool: True if executed
@@ -1314,46 +1516,55 @@ def execute_power_strike(hero, target):
     time.sleep(0.5)
     
     # Get hero's attack rolls
-    hero_rolls = get_heroine_rolls(hero)
+    hero_rolls = get_heroine_rolls(hero, chosen_weapon=chosen_weapon)
     
-    # Apply -5 accuracy penalty to expertise roll
-    hit_roll = hero_rolls['expertise_roll'] - 5
+    # Apply -10 accuracy penalty to expertise roll (INCREASED from -5)
+    hit_roll = hero_rolls['expertise_roll'] - 10
     
     # Get target's defense rolls
     target_rolls = get_mob_rolls(target)
     
-    # Check if attack hits (must beat both dodge and parry)
-    if not check_hit(hit_roll, target_rolls['dodge_roll'], target_rolls['parry_roll']):
-        miss_flavor = get_miss_flavor(hero, target)
+    # Check for automatic miss
+    if hero_rolls['miss']:
+        miss_flavor = get_miss_flavor(hero, target, hero_rolls.get('weapon_type', 'melee'))
         print(f"{Fore.CYAN}{miss_flavor}{Style.RESET_ALL}")
         time.sleep(0.5)
         return True
     
-    # Calculate damage with 2x multiplier
-    base_damage = calculate_damage(
-        hero_rolls['damage_roll'],
-        hero.stats,
-        hero_rolls['crit_success'],
-        hero_rolls['crit_mult']
-    )
+    # Check if attack hits (must beat both dodge and parry)
+    if not check_hit(hit_roll, target_rolls['dodge_roll'], target_rolls['parry_roll']):
+        miss_flavor = get_miss_flavor(hero, target, hero_rolls.get('weapon_type', 'melee'))
+        print(f"{Fore.CYAN}{miss_flavor}{Style.RESET_ALL}")
+        time.sleep(0.5)
+        return True
     
-    # Apply Power Strike 2x multiplier
+    # Damage is already calculated with expertise and crit in get_heroine_rolls
+    # Just apply the 2x Power Strike multiplier
+    base_damage = hero_rolls['damage']
     damage = int(base_damage * 2)
+    
+    # Cap damage to remaining HP
+    actual_damage = min(damage, target.health)
     
     # Apply damage
     target.health -= damage
     
     # Flavor text
-    if hero_rolls['crit_success']:
+    if hero_rolls['crit']:
         print(f"{Fore.RED}💥 CRITICAL POWER STRIKE! 💥{Style.RESET_ALL}")
     
-    hit_flavor = get_hit_flavor(hero, target, damage, hero_rolls['crit_success'])
+    hit_flavor = get_hit_flavor(hero, target, actual_damage, hero_rolls['crit'], hero_rolls.get('weapon_type', 'melee'))
     print(f"{Fore.GREEN}{hit_flavor}{Style.RESET_ALL}")
     time.sleep(0.5)
     
     if target.health <= 0:
         print(f"{Fore.YELLOW}☠️  {target.name} has been defeated! ☠️{Style.RESET_ALL}")
         time.sleep(0.5)
+        
+        # CHECK FOR BOSS RESURRECTION!
+        if check_boss_resurrection(target):
+            print(f"\n{Fore.RED}⚔️  The battle is NOT over! ⚔️{Style.RESET_ALL}\n")
+            time.sleep(1)
     
     return True
 
@@ -1361,14 +1572,77 @@ def execute_heal(hero, target):
     """
     Execute Heal ability.
     Restores HP to a single target.
+    Can accidentally heal living enemies! (But damages undead)
     
     Args:
         hero: Hero casting heal
-        target: Target hero to heal
+        target: Target to heal (hero OR mob)
         
     Returns:
         bool: True if executed
     """
+    # Check if target is a MOB
+    is_mob = hasattr(target, 'mob_class')
+    
+    if is_mob:
+        # Healing a mob!
+        if target.creature_type == 'undead':
+            # Undead - this will damage them!
+            return execute_heal_on_undead(hero, target)
+        else:
+            # Living mob - ACCIDENTALLY HEAL THEM!
+            print(f"\n{Fore.RED}⚠️  OH NO! ⚠️{Style.RESET_ALL}")
+            print(f"{Fore.RED}{hero.heroine_name} accidentally heals {target.name}!{Style.RESET_ALL}\n")
+            time.sleep(1)
+            
+            # Get hero's heal roll
+            hero_rolls = get_heroine_rolls(hero)
+            heal_roll = hero_rolls['heal_roll']
+            
+            # Add heal stat
+            total_heal = heal_roll + hero.stats.get('heal', 0)
+            
+            # Apply healing to enemy
+            old_health = target.health
+            target.health = min(target.health + total_heal, target.starting_health)
+            actual_heal = target.health - old_health
+            
+            # Sarcastic flavor text
+            oops_messages = [
+                f"{Fore.YELLOW}\"Oops.\" {hero.heroine_name} says sheepishly.{Style.RESET_ALL}",
+                f"{Fore.YELLOW}\"That... wasn't supposed to happen,\" {hero.heroine_name} mutters.{Style.RESET_ALL}",
+                f"{Fore.YELLOW}\"MY BAD!\" {hero.heroine_name} shouts.{Style.RESET_ALL}",
+                f"{Fore.YELLOW}The party stares at {hero.heroine_name} in disbelief.{Style.RESET_ALL}",
+                f"{Fore.YELLOW}\"Whose side are you ON?!\" someone yells at {hero.heroine_name}.{Style.RESET_ALL}",
+            ]
+            
+            print(f"{Fore.GREEN}{target.name} recovers {actual_heal} HP!{Style.RESET_ALL}")
+            print(random.choice(oops_messages))
+            print(f"{Fore.CYAN}{target.name} looks confused but grateful.{Style.RESET_ALL}\n")
+            time.sleep(2)
+            
+            return True
+    
+    # Healing an ally (normal behavior)
+    
+    # Check if target is at full health
+    if target.health >= target.starting_health:
+        print(f"\n{Fore.YELLOW}⚠️  {target.heroine_name} is at FULL HEALTH.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Are you SURE you want to waste a turn on this? That's pretty idiotic...{Style.RESET_ALL}\n")
+        
+        confirm = input(f"{Fore.GREEN}Heal anyway? (y/n): {Style.RESET_ALL}").strip().lower()
+        
+        if confirm != 'y':
+            print(f"{Fore.CYAN}Wise choice. Choosing a different action...{Style.RESET_ALL}")
+            time.sleep(1)
+            return False  # Return False to let player choose again
+        
+        # Player confirmed - proceed with pointless heal
+        print(f"\n{Fore.RED}What a waste... {hero.heroine_name} stupidly attempts to heal {target.heroine_name},")
+        print(f"who is at FULL HEALTH, so, uh yeah, nothing happens. Brilliant.{Style.RESET_ALL}\n")
+        time.sleep(2)
+        return True
+    
     # Get hero's heal roll
     hero_rolls = get_heroine_rolls(hero)
     heal_roll = hero_rolls['heal_roll']
@@ -1394,6 +1668,71 @@ def execute_heal(hero, target):
     if target.health >= target.starting_health:
         print(f"{Fore.YELLOW}{target.heroine_name} is at full health!{Style.RESET_ALL}")
         time.sleep(0.5)
+    
+    return True
+
+def execute_heal_on_undead(hero, target):
+    """
+    Clerics can damage undead by 'healing' them.
+    Positive energy burns the unholy!
+    
+    Args:
+        hero: Cleric casting heal
+        target: Undead mob
+        
+    Returns:
+        bool: True if executed
+    """
+    # Get hero's heal roll
+    hero_rolls = get_heroine_rolls(hero)
+    heal_roll = hero_rolls['heal_roll']
+    
+    # Add heal stat (this becomes damage to undead)
+    total_damage = heal_roll + hero.stats.get('heal', 0)
+    
+    if total_damage <= 0:
+        print(f"{Fore.RED}{hero.heroine_name} doesn't have healing power!{Style.RESET_ALL}")
+        return False
+    
+    # Cap displayed damage to remaining HP (don't show overkill)
+    displayed_damage = min(total_damage, max(0, target.health))
+    
+    # Apply damage to undead
+    target.health -= total_damage
+    
+    # SNARKY FLAVOR TEXT!
+    print(f"\n{Fore.YELLOW}✨ {hero.heroine_name} channels HOLY ENERGY at {target.name}! ✨{Style.RESET_ALL}")
+    time.sleep(0.5)
+    
+    snarky_messages = [
+        f"{Fore.GREEN}The positive energy BURNS the undead abomination!\n\"How's THAT for bedside manner?\" {hero.heroine_name} quips.",
+        f"{Fore.GREEN}Holy light sears {target.name}'s rotting flesh!\n\"I'm helping! Sort of!\" {hero.heroine_name} grins.",
+        f"{Fore.GREEN}\"The power of healing compels you to DIE... again!\" {hero.heroine_name} shouts.\n{target.name} looks very confused before bursting into flames.",
+        f"{Fore.GREEN}Radiant energy scorches {target.name}! It shrieks in agony!\n\"Oops, did that hurt? My bad!\" {hero.heroine_name} says, not sorry at all.",
+        f"{Fore.GREEN}{target.name} writhes as holy energy courses through its undead body!\n\"You're welcome!\" {hero.heroine_name} chirps cheerfully.",
+        f"{Fore.GREEN}\"Let me fix that rotting problem for you!\" {hero.heroine_name} says.\nHoly fire engulfs {target.name}. That's one way to fix it.",
+        f"{Fore.GREEN}\"This might sting a bit!\" {hero.heroine_name} warns.\n{target.name} explodes in holy flames. \"Okay, more than a bit.\"",
+        f"{Fore.GREEN}Positive energy floods {target.name}!\n\"Healing hurts when you're dead!\" {hero.heroine_name} laughs.",
+    ]
+    
+    print(random.choice(snarky_messages))
+    print(f"{Fore.RED}{target.name} takes {displayed_damage} holy damage!{Style.RESET_ALL}")
+    time.sleep(0.5)
+    
+    if target.health <= 0:
+        death_messages = [
+            f"{Fore.YELLOW}☠️  {target.name} crumbles to dust! ☠️{Style.RESET_ALL}",
+            f"{Fore.YELLOW}☠️  {target.name} explodes in a shower of bone fragments! ☠️{Style.RESET_ALL}",
+            f"{Fore.YELLOW}☠️  {target.name} shrieks and dissolves into nothingness! ☠️{Style.RESET_ALL}",
+            f"{Fore.YELLOW}☠️  {target.name} is finally put to rest! ☠️{Style.RESET_ALL}",
+            f"{Fore.YELLOW}☠️  {target.name} collapses into a pile of ash! ☠️{Style.RESET_ALL}",
+            f"{Fore.YELLOW}☠️  Holy light consumes {target.name} completely! ☠️{Style.RESET_ALL}",
+        ]
+        print(random.choice(death_messages))
+        time.sleep(0.5)
+
+        # Undead don't resurrect again (already dead!)
+        # No resurrection check here
     
     return True
 
@@ -1450,11 +1789,8 @@ def execute_defend(hero):
     print(f"\n{Fore.CYAN}{hero.heroine_name} takes a defensive stance!{Style.RESET_ALL}")
     
     # Apply temporary defensive bonus
-    # We'll track this with a flag
     hero.is_defending = True
     hero.defend_bonus = 5
-    
-    print(f"{Fore.GREEN}Dodge and Parry increased by {hero.defend_bonus} for this turn!{Style.RESET_ALL}")
     
     return True
 
@@ -1542,7 +1878,7 @@ def get_miss_flavor(attacker, defender):
     
     return random.choice(flavors)
 
-def get_hit_flavor(attacker, defender, damage, is_crit):
+def get_hit_flavor(attacker, defender, damage, is_crit, weapon_type='melee'):
     """
     Get flavor text for a successful hit.
     
@@ -1551,6 +1887,7 @@ def get_hit_flavor(attacker, defender, damage, is_crit):
         defender: Defending character
         damage: Damage dealt
         is_crit: Whether this was a critical hit
+        weapon_type: Type of weapon used
         
     Returns:
         str: Flavor text
@@ -1560,28 +1897,48 @@ def get_hit_flavor(attacker, defender, damage, is_crit):
     attacker_name = attacker.heroine_name if hasattr(attacker, 'heroine_name') else attacker.name
     defender_name = defender.name if hasattr(defender, 'name') else defender.heroine_name
     
-    if is_crit:
-        flavors = [
-            f"{attacker_name} lands a CRITICAL HIT on {defender_name} for {damage} damage!",
-            f"💥 CRITICAL! {attacker_name} devastates {defender_name} for {damage} damage!",
-            f"{attacker_name} finds a weak spot! CRITICAL HIT for {damage} damage!",
-        ]
+    # Cap displayed damage to remaining HP (don't show overkill)
+    displayed_damage = min(damage, max(0, defender.health))
+    
+    if 'range' in weapon_type.lower():
+        # Ranged hit flavors
+        if is_crit:
+            flavors = [
+                f"{attacker_name} lands a CRITICAL SHOT on {defender_name} for {displayed_damage} damage!",
+                f"💥 CRITICAL! {attacker_name}'s projectile finds a vital spot on {defender_name} for {displayed_damage} damage!",
+                f"{attacker_name}'s shot pierces {defender_name}'s defenses! CRITICAL HIT for {displayed_damage} damage!",
+            ]
+        else:
+            flavors = [
+                f"{attacker_name}'s shot hits {defender_name} for {displayed_damage} damage!",
+                f"{attacker_name}'s projectile strikes {defender_name}, dealing {displayed_damage} damage!",
+                f"{defender_name} takes {displayed_damage} damage from {attacker_name}'s attack!",
+            ]
     else:
-        flavors = [
-            f"{attacker_name} hits {defender_name} for {damage} damage!",
-            f"{attacker_name} strikes {defender_name}, dealing {damage} damage!",
-            f"{defender_name} takes {damage} damage from {attacker_name}!",
-        ]
+        # Melee hit flavors
+        if is_crit:
+            flavors = [
+                f"{attacker_name} lands a CRITICAL HIT on {defender_name} for {displayed_damage} damage!",
+                f"💥 CRITICAL! {attacker_name} devastates {defender_name} for {displayed_damage} damage!",
+                f"{attacker_name} finds a weak spot! CRITICAL HIT for {displayed_damage} damage!",
+            ]
+        else:
+            flavors = [
+                f"{attacker_name} hits {defender_name} for {displayed_damage} damage!",
+                f"{attacker_name} strikes {defender_name}, dealing {displayed_damage} damage!",
+                f"{defender_name} takes {displayed_damage} damage from {attacker_name}!",
+            ]
     
     return random.choice(flavors)
 
-def execute_normal_attack(attacker, target):
+def execute_normal_attack(attacker, target, chosen_weapon=None):
     """
     Execute a normal attack.
     
     Args:
         attacker: Attacking character (hero or mob)
         target: Target character (mob or hero)
+        chosen_weapon: Weapon to use (for heroes)
         
     Returns:
         bool: True if executed
@@ -1591,7 +1948,7 @@ def execute_normal_attack(attacker, target):
     
     # Get attacker's rolls
     if is_hero:
-        attacker_rolls = get_heroine_rolls(attacker)
+        attacker_rolls = get_heroine_rolls(attacker, chosen_weapon=chosen_weapon)
     else:
         attacker_rolls = get_mob_rolls(attacker)
     
@@ -1602,33 +1959,35 @@ def execute_normal_attack(attacker, target):
     else:
         defender_rolls = get_mob_rolls(target)
     
+    # Get weapon type for flavor text
+    weapon_type = attacker_rolls.get('weapon_type', 'melee')
+    
     # Check for automatic miss
     if attacker_rolls['miss']:
-        miss_flavor = get_miss_flavor(attacker, target)
+        miss_flavor = get_miss_flavor(attacker, target, weapon_type)
         print(f"{Fore.CYAN}{miss_flavor}{Style.RESET_ALL}")
         time.sleep(0.5)
         return True
     
     # Check if attack hits
     if not check_hit(attacker_rolls['expertise_roll'], defender_rolls['dodge_roll'], defender_rolls['parry_roll']):
-        miss_flavor = get_miss_flavor(attacker, target)
+        miss_flavor = get_miss_flavor(attacker, target, weapon_type)
         print(f"{Fore.CYAN}{miss_flavor}{Style.RESET_ALL}")
         time.sleep(0.5)
         return True
     
-    # Calculate damage
-    damage = calculate_damage(
-        attacker_rolls['damage'],
-        attacker.stats,
-        attacker_rolls['crit_success'],
-        attacker_rolls['crit_mult']
-    )
+    # Damage is already calculated in get_heroine_rolls/get_mob_rolls
+    # It includes base damage + expertise + crit multiplier if applicable
+    damage = attacker_rolls['damage']
+    
+    # Cap damage to remaining HP for display
+    actual_damage = min(damage, target.health)
     
     # Apply damage
     target.health -= damage
     
-    # Flavor text
-    hit_flavor = get_hit_flavor(attacker, target, damage, attacker_rolls['crit_success'])
+    # Flavor text (use actual_damage for display)
+    hit_flavor = get_hit_flavor(attacker, target, actual_damage, attacker_rolls['crit'], weapon_type)
     print(f"{Fore.GREEN}{hit_flavor}{Style.RESET_ALL}")
     time.sleep(0.5)
     
@@ -1637,6 +1996,109 @@ def execute_normal_attack(attacker, target):
         target_name = target.name if hasattr(target, 'name') else target.heroine_name
         print(f"{Fore.YELLOW}☠️  {target_name} has been defeated! ☠️{Style.RESET_ALL}")
         time.sleep(0.5)
+        
+        # CHECK FOR BOSS RESURRECTION!
+        if hasattr(target, 'name'):  # It's a mob
+            if check_boss_resurrection(target):
+                # Boss resurrected! Combat continues!
+                print(f"\n{Fore.RED}⚔️  The battle is NOT over! ⚔️{Style.RESET_ALL}\n")
+                time.sleep(1)
+    
+    return True
+    
+
+def check_boss_resurrection(mob):
+    """
+    Check if a boss should resurrect as undead.
+    
+    Args:
+        mob: The defeated mob
+        
+    Returns:
+        bool: True if boss resurrected
+    """
+    # Check if mob has resurrection ability
+    if not hasattr(mob, 'resurrect_as_undead'):
+        return False
+    
+    # Check if already resurrected
+    if hasattr(mob, 'has_resurrected') and mob.has_resurrected:
+        return False
+    
+    # RESURRECTION SCENE!
+    print(f"\n{Fore.MAGENTA}{'='*60}")
+    print(f"{'='*60}")
+    print(f"⚠️  WAIT... SOMETHING'S HAPPENING... ⚠️")
+    print(f"{'='*60}")
+    print(f"{'='*60}{Style.RESET_ALL}\n")
+    
+    input("Press ENTER to continue...")
+    clear_screen()
+    
+    print(f"\n{Fore.CYAN}{mob.name}'s body lies motionless on the cold stone floor.{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Blood pools beneath the corpse.{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.GREEN}The party begins to relax...{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    input("Press ENTER to continue...")
+    
+    print(f"\n{Fore.YELLOW}But then...{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.RED}The corpse begins to TWITCH.{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.RED}Fingers curl. Limbs spasm.{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.RED}Dark energy swirls around the body like a vortex!{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    input("Press ENTER to continue...")
+    
+    print(f'\n{Fore.MAGENTA}{mob.name}\'s voice echoes from beyond death:{Style.RESET_ALL}')
+    print(f'{Fore.MAGENTA}"You fools... did you think DEATH could stop ME?"{Style.RESET_ALL}\n')
+    time.sleep(1)
+    
+    print(f'{Fore.MAGENTA}"I am a MASTER of the dark arts!"{Style.RESET_ALL}\n')
+    time.sleep(1)
+    
+    print(f'{Fore.MAGENTA}"Death is not my enemy... it is my SERVANT!"{Style.RESET_ALL}\n')
+    time.sleep(1)
+    
+    input("Press ENTER to continue...")
+    
+    print(f"\n{Fore.RED}The body CONVULSES violently!{Style.RESET_ALL}")
+    print(f"{Fore.RED}Flesh begins to slough away, revealing bone beneath!{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.RED}The corpse RISES, wreathed in necrotic flames!{Style.RESET_ALL}")
+    print(f"{Fore.RED}Where a man once stood, now floats a skeletal horror!{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    print(f"{Fore.RED}Empty eye sockets glow with unholy green fire!{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    input("Press ENTER to continue...")
+    
+    # Perform resurrection
+    mob.resurrect_as_undead()
+    
+    print(f"\n{Fore.MAGENTA}{'='*60}")
+    print(f"💀 {mob.name} HAS RISEN! 💀")
+    print(f"{'='*60}{Style.RESET_ALL}")
+    print(f"{Fore.RED}⚠️  PHASE 2: UNDEAD LICH FORM ⚠️{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}HP: {mob.health}/{mob.starting_health}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Creature Type: {mob.creature_type.upper()}{Style.RESET_ALL}")
+    # REMOVED: print(f"{Fore.GREEN}✨ Clerics can now damage this boss with healing spells! ✨{Style.RESET_ALL}")
+    print(f"{Fore.RED}⚠️  All stats have been enhanced! ⚠️{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}{'='*60}{Style.RESET_ALL}\n")
+    
+    print(f'{Fore.MAGENTA}{mob.name}: "Now... let us begin AGAIN!"{Style.RESET_ALL}\n')
+    
+    input("Press ENTER to continue the battle...")
     
     return True
 
@@ -1667,11 +2129,33 @@ def execute_player_turn(hero, all_heroes, all_mobs):
     # Execute chosen action
     if action_choice == 1:
         # ATTACK
-        display_target_menu(all_mobs)
-        target = get_target_choice(all_mobs)
+        
+        # Check if Cleric trying to attack
+        if hero.hero_class == 'Cleric':
+            print(f"\n{Fore.RED}❌ {hero.heroine_name} recoils in horror!{Style.RESET_ALL}")
+            print(f"{Fore.RED}\"I cannot harm the living! It would corrupt my very soul!\"")
+            print(f"She refuses to attack. Choose something else, genius.{Style.RESET_ALL}\n")
+            time.sleep(2)
+            return execute_player_turn(hero, all_heroes, all_mobs)  # Show menu again
+        
+        # Choose weapon
+        weapons = display_weapon_menu(hero)
+        chosen_weapon = get_weapon_choice(hero, weapons)
+        
+        print(f"\n{Fore.CYAN}{hero.heroine_name} readies {chosen_weapon}!{Style.RESET_ALL}\n")
+        time.sleep(0.5)
+        
+        if len(all_mobs) == 1:
+            # Only one target - auto-select
+            target = all_mobs[0]
+            print(f"{Fore.CYAN}{hero.heroine_name} attacks {target.name}!{Style.RESET_ALL}\n")
+        else:
+            # Multiple targets - let player choose
+            display_target_menu(all_mobs)
+            target = get_target_choice(all_mobs)
         
         if target:
-            execute_normal_attack(hero, target)
+            execute_normal_attack(hero, target, chosen_weapon)
             return True
     
     elif action_choice == 2:
@@ -1690,24 +2174,41 @@ def execute_player_turn(hero, all_heroes, all_mobs):
         
         # Determine target based on ability type
         if ability in ['Heal']:
-            # Single-target heal - choose ally
-            print(f"\n{Fore.YELLOW}Choose ally to heal:{Style.RESET_ALL}")
+            # Single-target heal - choose ally OR enemy (for "accidents")
+            
+            print(f"\n{Fore.YELLOW}Choose target:{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}ALLIES:{Style.RESET_ALL}")
             for i, ally in enumerate(all_heroes, 1):
                 if ally.health > 0:
                     print(f"  {i}. {ally.heroine_name} [HP: {ally.health}/{ally.starting_health}]")
             
+            print(f"\n{Fore.RED}ENEMIES (Why would you heal an enemy? Unless...):{Style.RESET_ALL}")
+            offset = len(all_heroes)
+            for i, mob in enumerate(all_mobs, offset + 1):
+                creature_hint = " [UNDEAD]" if mob.creature_type == 'undead' else ""
+                print(f"  {i}. {mob.name} [HP: {mob.health}/{mob.starting_health}]{creature_hint}")
+            
             while True:
                 try:
-                    choice = input(f"{Fore.GREEN}Enter target (1-{len(all_heroes)}): {Style.RESET_ALL}").strip()
+                    choice = input(f"{Fore.GREEN}Enter target (1-{len(all_heroes) + len(all_mobs)}): {Style.RESET_ALL}").strip()
                     choice_num = int(choice)
+                    
                     if 1 <= choice_num <= len(all_heroes):
+                        # Healing an ally
                         target = all_heroes[choice_num - 1]
-                        break
-                except ValueError:
+                        result = execute_ability(hero, ability, target, all_heroes, all_mobs)
+                        if not result:  # Heal was cancelled (full HP warning)
+                            return execute_player_turn(hero, all_heroes, all_mobs)
+                        return True
+                    elif len(all_heroes) < choice_num <= len(all_heroes) + len(all_mobs):
+                        # Healing an enemy (either accident or intentional undead damage)
+                        target = all_mobs[choice_num - len(all_heroes) - 1]
+                        result = execute_ability(hero, ability, target, all_heroes, all_mobs)
+                        if not result:
+                            return execute_player_turn(hero, all_heroes, all_mobs)
+                        return True
+                except (ValueError, IndexError):
                     continue
-            
-            execute_ability(hero, ability, target, all_heroes, all_mobs)
-            return True
         
         elif ability in ['AOE Heal']:
             # AOE heal - no target needed
@@ -1716,8 +2217,14 @@ def execute_player_turn(hero, all_heroes, all_mobs):
         
         elif ability in ['Power Strike']:
             # Attack ability - choose enemy
-            display_target_menu(all_mobs)
-            target = get_target_choice(all_mobs)
+            if len(all_mobs) == 1:
+                # Only one target - auto-select
+                target = all_mobs[0]
+                print(f"\n{Fore.CYAN}{hero.heroine_name} prepares a Power Strike against {target.name}!{Style.RESET_ALL}\n")
+            else:
+                # Multiple targets
+                display_target_menu(all_mobs)
+                target = get_target_choice(all_mobs)
             
             if target:
                 execute_ability(hero, ability, target, all_heroes, all_mobs)
@@ -1750,6 +2257,18 @@ def execute_mob_turn(mob, all_heroes):
     if not living_heroes:
         return False
     
+    # SPECIAL: Necromancer King taunts in Phase 2!
+    if hasattr(mob, 'phase') and mob.phase == 2 and random.randint(1, 100) <= 30:
+        taunts = [
+            f'{Fore.MAGENTA}{mob.name}: "You cannot kill what is already dead!"{Style.RESET_ALL}',
+            f'{Fore.MAGENTA}{mob.name}: "Your weapons are USELESS against me now!"{Style.RESET_ALL}',
+            f'{Fore.MAGENTA}{mob.name}: "I am ETERNAL! I am UNDYING!"{Style.RESET_ALL}',
+            f'{Fore.MAGENTA}{mob.name}: "Death has made me STRONGER!"{Style.RESET_ALL}',
+            f'{Fore.MAGENTA}{mob.name}: "Foolish mortals! You only delayed the inevitable!"{Style.RESET_ALL}',
+        ]
+        print(f"\n{random.choice(taunts)}\n")
+        time.sleep(1)
+    
     # Simple AI: Attack a random living hero
     target = random.choice(living_heroes)
     
@@ -1777,6 +2296,8 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
     Returns:
         str: 'victory', 'defeat', or 'fled'
     """
+    clear_screen()
+    
     print(f"\n{Fore.RED}{'='*60}")
     print(f"⚔️  COMBAT BEGINS at {location_name}! ⚔️")
     print(f"{'='*60}{Style.RESET_ALL}\n")
@@ -1792,15 +2313,20 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
         print(f"  {mob.name} [{mob.mob_type}] - HP: {mob.health}/{mob.starting_health}")
     
     print()
-    time.sleep(2)
+    input(f"\n{Fore.CYAN}Press ENTER to begin combat...{Style.RESET_ALL}")
     
     # Initialize combat tracking
-    turn_number = 1
+    round_number = 1
+    
+    # Keep reference to ALL mobs (including defeated) for status display
+    all_mobs_including_dead = mobs.copy()
     
     # Main combat loop
     while True:
+        clear_screen()
+        
         print(f"\n{Fore.YELLOW}{'='*60}")
-        print(f"TURN {turn_number}")
+        print(f"ROUND {round_number}")
         print(f"{'='*60}{Style.RESET_ALL}\n")
         time.sleep(0.5)
         
@@ -1813,20 +2339,30 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
         
         # Check victory condition before player turn
         if not living_mobs:
-            return handle_victory(heroes, mobs)
+            return handle_victory(heroes, all_mobs_including_dead)
         
         # Each living hero takes a turn
         for hero in living_heroes:
+            # Clear screen for each hero's turn
+            clear_screen()
+            
+            print(f"\n{Fore.YELLOW}{'='*60}")
+            print(f"ROUND {round_number}")
+            print(f"{'='*60}{Style.RESET_ALL}\n")
+            
             # Check if all mobs defeated mid-turn
             living_mobs = [m for m in mobs if m.health > 0]
             if not living_mobs:
-                return handle_victory(heroes, mobs)
+                return handle_victory(heroes, all_mobs_including_dead)
             
             # Execute hero's turn
             execute_player_turn(hero, heroes, living_mobs)
             
             # Remove dead mobs from list
             mobs = [m for m in mobs if m.health > 0]
+            
+            # Pause after each action
+            input(f"\n{Fore.CYAN}Press ENTER to continue...{Style.RESET_ALL}")
         
         # ====================================================================
         # ENEMY PHASE
@@ -1837,11 +2373,17 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
         
         # Check victory condition after player phase
         if not living_mobs:
-            return handle_victory(heroes, mobs)
+            return handle_victory(heroes, all_mobs_including_dead)
         
         # Check defeat condition before enemy phase
         if not living_heroes:
             return handle_defeat(heroes)
+        
+        clear_screen()
+        
+        print(f"\n{Fore.YELLOW}{'='*60}")
+        print(f"ROUND {round_number}")
+        print(f"{'='*60}{Style.RESET_ALL}\n")
         
         print(f"\n{Fore.RED}{'='*60}")
         print(f"ENEMY PHASE")
@@ -1850,6 +2392,13 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
         
         # Each living mob takes a turn
         for mob in living_mobs:
+            # Clear screen for each mob's turn
+            clear_screen()
+            
+            print(f"\n{Fore.YELLOW}{'='*60}")
+            print(f"ROUND {round_number}")
+            print(f"{'='*60}{Style.RESET_ALL}\n")
+            
             # Check if all heroes defeated mid-turn
             living_heroes = [h for h in heroes if h.health > 0]
             if not living_heroes:
@@ -1857,9 +2406,12 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
             
             # Execute mob's turn
             execute_mob_turn(mob, living_heroes)
+            
+            # Pause after each action
+            input(f"\n{Fore.CYAN}Press ENTER to continue...{Style.RESET_ALL}")
         
         # ====================================================================
-        # END OF TURN CLEANUP
+        # END OF ROUND CLEANUP
         # ====================================================================
         
         # Check defeat condition after enemy phase
@@ -1867,14 +2419,21 @@ def run_combat(heroes, mobs, location_name="Unknown Location"):
         if not living_heroes:
             return handle_defeat(heroes)
         
-        # Display current status
-        display_combat_status(heroes, mobs)
+        # Clear screen and display current status
+        clear_screen()
         
-        # Increment turn counter
-        turn_number += 1
+        print(f"\n{Fore.YELLOW}{'='*60}")
+        print(f"END OF ROUND {round_number}")
+        print(f"{'='*60}{Style.RESET_ALL}\n")
         
-        # Pause before next turn
-        input(f"\n{Fore.CYAN}Press ENTER to continue to next turn...{Style.RESET_ALL}")
+        # Display current status (including defeated mobs/heroes)
+        display_combat_status(heroes, all_mobs_including_dead)
+        
+        # Increment round counter
+        round_number += 1
+        
+        # Pause before next round
+        input(f"\n{Fore.CYAN}Press ENTER to continue to next round...{Style.RESET_ALL}")
 
 def display_combat_status(heroes, mobs):
     """
@@ -1882,7 +2441,7 @@ def display_combat_status(heroes, mobs):
     
     Args:
         heroes: List of all heroes
-        mobs: List of all mobs
+        mobs: List of all mobs (including defeated)
     """
     print(f"\n{Fore.CYAN}{'='*60}")
     print(f"CURRENT STATUS")
@@ -1904,10 +2463,9 @@ def display_combat_status(heroes, mobs):
         else:
             print(f"  {Fore.RED}{hero.heroine_name}: DEFEATED{Style.RESET_ALL}")
     
-    living_mobs = [m for m in mobs if m.health > 0]
-    if living_mobs:
-        print(f"\n{Fore.RED}ENEMIES:{Style.RESET_ALL}")
-        for mob in living_mobs:
+    print(f"\n{Fore.RED}ENEMIES:{Style.RESET_ALL}")
+    for mob in mobs:
+        if mob.health > 0:
             hp_percent = (mob.health / mob.starting_health) * 100
             
             if hp_percent > 66:
@@ -1918,6 +2476,8 @@ def display_combat_status(heroes, mobs):
                 color = Fore.RED
             
             print(f"  {color}{mob.name}: {mob.health}/{mob.starting_health} HP{Style.RESET_ALL}")
+        else:
+            print(f"  {Fore.RED}{mob.name}: DEFEATED{Style.RESET_ALL}")
     
     print()
 
@@ -1937,7 +2497,7 @@ def handle_victory(heroes, mobs):
     print(f"{'='*60}{Style.RESET_ALL}\n")
     time.sleep(1)
     
-    print(f"{Fore.YELLOW}All enemies have been defeated!{Style.RESET_ALL}\n")
+    print(f"{Fore.YELLOW}All enemies have been defeated! Suck it, monsters!{Style.RESET_ALL}\n")
     time.sleep(1)
     
     # Display surviving heroes
@@ -1946,10 +2506,134 @@ def handle_victory(heroes, mobs):
     for hero in living_heroes:
         print(f"  {hero.heroine_name}: {hero.health}/{hero.starting_health} HP")
     
+    # Display fallen heroes
+    dead_heroes = [h for h in heroes if h.health <= 0]
+    if dead_heroes:
+        print(f"\n{Fore.RED}Fallen Heroes:{Style.RESET_ALL}")
+        for hero in dead_heroes:
+            print(f"  {hero.heroine_name}: DEFEATED")
+    
     print()
     time.sleep(2)
     
+    # POST-BATTLE HEALING
+    post_battle_healing(heroes)
+    
+    # POST-BATTLE REVIVE (if any Clerics have the ability)
+    post_battle_revive_option(heroes)
+    
     return 'victory'
+
+def post_battle_healing(heroes):
+    """
+    Fully heal all living heroes after battle.
+    
+    Args:
+        heroes: List of all heroes
+    """
+    print(f"\n{Fore.CYAN}{'='*60}")
+    print(f"POST-BATTLE RECOVERY")
+    print(f"{'='*60}{Style.RESET_ALL}\n")
+    
+    print(f"{Fore.GREEN}The party takes a moment to catch their breath and tend to their wounds...{Style.RESET_ALL}\n")
+    time.sleep(1)
+    
+    for hero in heroes:
+        if hero.health > 0:
+            if hero.health < hero.starting_health:
+                healed_amount = hero.starting_health - hero.health
+                hero.health = hero.starting_health
+                print(f"{Fore.GREEN}{hero.heroine_name} recovers {healed_amount} HP! (Now at {hero.health}/{hero.starting_health}){Style.RESET_ALL}")
+            else:
+                print(f"{Fore.CYAN}{hero.heroine_name} is already at full health. Show-off.{Style.RESET_ALL}")
+    
+    print()
+    time.sleep(1)
+
+def post_battle_revive_option(heroes):
+    """
+    Allow Clerics to revive ONE dead party member (if they have the spell).
+    This is a framework for future implementation.
+    
+    Args:
+        heroes: List of all heroes
+        
+    Returns:
+        bool: True if any revives were performed
+    """
+    # Check for dead heroes
+    dead_heroes = [h for h in heroes if h.health <= 0]
+    
+    if not dead_heroes:
+        return False  # No one to revive
+    
+    # Check for living Clerics with revive ability
+    living_clerics = [h for h in heroes if h.health > 0 and h.hero_class == 'Cleric']
+    
+    if not living_clerics:
+        return False  # No Clerics to perform revival
+    
+    print(f"\n{Fore.MAGENTA}{'='*60}")
+    print(f"REVIVAL OPPORTUNITY")
+    print(f"{'='*60}{Style.RESET_ALL}\n")
+    
+    revive_performed = False
+    
+    for cleric in living_clerics:
+        # Check if Cleric has revive ability (for future implementation)
+        if not hasattr(cleric, 'has_revive') or not cleric.has_revive:
+            continue
+        
+        # Check if Cleric has already used their one revive for this dungeon
+        if hasattr(cleric, 'revive_used') and cleric.revive_used:
+            print(f"{Fore.YELLOW}{cleric.heroine_name} has already used their revive for this dungeon.{Style.RESET_ALL}")
+            continue
+        
+        print(f"{Fore.CYAN}{cleric.heroine_name} can revive ONE fallen ally!{Style.RESET_ALL}\n")
+        print(f"{Fore.YELLOW}Fallen heroes:{Style.RESET_ALL}")
+        
+        for i, dead_hero in enumerate(dead_heroes, 1):
+            print(f"  {i}. {dead_hero.heroine_name} [{dead_hero.hero_class}]")
+        
+        print(f"  0. Don't revive anyone")
+        
+        while True:
+            try:
+                choice = input(f"\n{Fore.GREEN}Choose hero to revive (0-{len(dead_heroes)}): {Style.RESET_ALL}").strip()
+                choice_num = int(choice)
+                
+                if choice_num == 0:
+                    print(f"{Fore.CYAN}{cleric.heroine_name} decides not to revive anyone. Cold.{Style.RESET_ALL}")
+                    break
+                
+                if 1 <= choice_num <= len(dead_heroes):
+                    revived_hero = dead_heroes[choice_num - 1]
+                    
+                    # Perform revival!
+                    print(f"\n{Fore.MAGENTA}{cleric.heroine_name} channels divine energy!{Style.RESET_ALL}")
+                    time.sleep(1)
+                    print(f"{Fore.MAGENTA}Golden light surrounds {revived_hero.heroine_name}...{Style.RESET_ALL}")
+                    time.sleep(1)
+                    print(f"{Fore.GREEN}✨ {revived_hero.heroine_name} gasps back to life! ✨{Style.RESET_ALL}\n")
+                    
+                    # Restore to 50% HP
+                    revived_hero.health = revived_hero.starting_health // 2
+                    
+                    print(f"{Fore.GREEN}{revived_hero.heroine_name} is revived with {revived_hero.health} HP!{Style.RESET_ALL}")
+                    
+                    # Mark revive as used
+                    cleric.revive_used = True
+                    revive_performed = True
+                    
+                    # Remove from dead list
+                    dead_heroes.remove(revived_hero)
+                    
+                    break
+                    
+            except ValueError:
+                continue
+    
+    return revive_performed
 
 def handle_defeat(heroes):
     """
@@ -2010,8 +2694,110 @@ def test_combat():
 # RUN TEST WHEN EXECUTED DIRECTLY
 # ============================================================================
 
+def test_undead_combat():
+    """
+    Test combat with undead mobs to see Cleric healing damage them!
+    """
+    import Slayer_Heroes as sh
+    import Slayer_Mobs as sm
+    
+    print(f"{Fore.CYAN}Creating test party with a Cleric...{Style.RESET_ALL}")
+    
+    # Create test heroes
+    warrior = sh.Warrior("Aria the Brave")
+    cleric = sh.Cleric("Lyra the Healer")
+    
+    heroes = [warrior, cleric]
+    
+    print(f"{Fore.CYAN}Creating UNDEAD enemies...{Style.RESET_ALL}")
+    
+    # Create undead mobs manually
+    from Slayer_Mobs import Mob
+    
+    skeleton1 = Mob(mob_species='skeleton', mob_type='regular', creature_type='undead')
+    skeleton2 = Mob(mob_species='skeleton', mob_type='minion', creature_type='undead')
+    zombie = Mob(mob_species='zombie', mob_type='regular', creature_type='undead')
+    
+    mobs = [skeleton1, skeleton2, zombie]
+    
+    print(f"{Fore.GREEN}Starting UNDEAD combat!{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}The Cleric can now damage undead with healing spells!{Style.RESET_ALL}\n")
+    time.sleep(2)
+    
+    # Run combat
+    result = run_combat(heroes, mobs, "Cursed Crypt")
+    
+    print(f"\n{Fore.YELLOW}Combat Result: {result.upper()}{Style.RESET_ALL}")
+    
+    return result
+
+def test_necromancer_king_boss():
+    """
+    Epic two-phase boss fight against the Necromancer King!
+    Phase 1: Living necromancer
+    Phase 2: Rises as undead lich (weak to healing!)
+    """
+    import Slayer_Heroes as sh
+    from Slayer_Mobs import NecromancerKing
+    
+    print(f"{Fore.CYAN}Creating a balanced party for the boss fight...{Style.RESET_ALL}")
+    
+    # Create a strong party
+    warrior = sh.Warrior("Aria the Brave")
+    cleric = sh.Cleric("Lyra the Healer")
+    wizard = sh.Wizard("Zara the Wise")
+    hunter = sh.Hunter("Kira the Swift")
+    
+    heroes = [warrior, cleric, wizard, hunter]
+    
+    # Buff them a bit for the boss fight
+    for hero in heroes:
+        hero.health = hero.starting_health + 20
+        hero.starting_health = hero.health
+    
+    print(f"{Fore.CYAN}Summoning the NECROMANCER KING...{Style.RESET_ALL}")
+    time.sleep(1)
+    
+    # Create the boss
+    boss = NecromancerKing("Valdris the Deathless")
+    
+    mobs = [boss]
+    
+    print(f"\n{Fore.RED}{'='*60}")
+    print(f"{Fore.RED}⚠️  BOSS BATTLE: NECROMANCER KING ⚠️{Style.RESET_ALL}")
+    print(f"{Fore.RED}{'='*60}{Style.RESET_ALL}\n")
+    
+    print(f"{Fore.YELLOW}You enter a massive throne room...{Style.RESET_ALL}")
+    time.sleep(1)
+    print(f"{Fore.YELLOW}A robed figure sits upon a throne of bones.{Style.RESET_ALL}")
+    time.sleep(1)
+    print(f'{Fore.RED}Valdris: "Welcome, mortals. You have come to die."{Style.RESET_ALL}')
+    time.sleep(1)
+    print(f'{Fore.RED}Valdris: "But know this... death is merely the BEGINNING!"{Style.RESET_ALL}\n')
+    time.sleep(2)
+    
+    input("Press ENTER to begin the boss fight...")
+    
+    # Run combat
+    result = run_combat(heroes, mobs, "The Necromancer's Throne Room")
+    
+    print(f"\n{Fore.YELLOW}Combat Result: {result.upper()}{Style.RESET_ALL}")
+    
+    if result == 'victory':
+        print(f"\n{Fore.GREEN}{'='*60}")
+        print(f"The Necromancer King has been vanquished!")
+        print(f"Both his living AND undead forms have been destroyed!")
+        print(f"The curse upon the land begins to lift...")
+        print(f"{'='*60}{Style.RESET_ALL}\n")
+    
+    return result
+
 if __name__ == "__main__":
-    test_combat()
+    # Uncomment whichever test you want to run:
+    
+    # test_combat()  # Normal combat
+    # test_undead_combat()  # Undead combat (Clerics can damage them!)
+    test_necromancer_king_boss()  # EPIC TWO-PHASE BOSS FIGHT!
 # ============================================================================
 # END OF SLAYER_COMBAT.PY
 # ============================================================================
