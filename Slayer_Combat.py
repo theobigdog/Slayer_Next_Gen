@@ -1490,7 +1490,8 @@ def execute_ability(hero, ability_name, target, all_heroes, all_mobs):
     """
     # Route to appropriate ability function
     if ability_name == 'Power Strike':
-        return execute_power_strike(hero, target)
+        # Power Strike doesn't need weapon selection - it uses currently equipped weapon
+        return execute_power_strike(hero, target, chosen_weapon=None)
     elif ability_name == 'Heal':
         return execute_heal(hero, target)
     elif ability_name == 'AOE Heal':
@@ -1852,32 +1853,6 @@ def calculate_damage(attacker_damage_roll, attacker_stats, is_crit, crit_mult):
     # Minimum 1 damage
     return max(1, final_damage)
 
-def get_miss_flavor(attacker, defender):
-    """
-    Get flavor text for a missed attack.
-    
-    Args:
-        attacker: Attacking character
-        defender: Defending character
-        
-    Returns:
-        str: Flavor text
-    """
-    import random
-    
-    attacker_name = attacker.heroine_name if hasattr(attacker, 'heroine_name') else attacker.name
-    defender_name = defender.name if hasattr(defender, 'name') else defender.heroine_name
-    
-    flavors = [
-        f"{attacker_name}'s attack misses {defender_name} completely!",
-        f"{defender_name} dodges {attacker_name}'s strike!",
-        f"{defender_name} parries {attacker_name}'s attack!",
-        f"{attacker_name} swings wide, missing {defender_name}!",
-        f"{defender_name} sidesteps {attacker_name}'s attack!",
-    ]
-    
-    return random.choice(flavors)
-
 def get_hit_flavor(attacker, defender, damage, is_crit, weapon_type='melee'):
     """
     Get flavor text for a successful hit.
@@ -1897,8 +1872,8 @@ def get_hit_flavor(attacker, defender, damage, is_crit, weapon_type='melee'):
     attacker_name = attacker.heroine_name if hasattr(attacker, 'heroine_name') else attacker.name
     defender_name = defender.name if hasattr(defender, 'name') else defender.heroine_name
     
-    # Cap displayed damage to remaining HP (don't show overkill)
-    displayed_damage = min(damage, max(0, defender.health))
+    # Damage is already capped in the calling function
+    displayed_damage = damage
     
     if 'range' in weapon_type.lower():
         # Ranged hit flavors
@@ -2220,7 +2195,7 @@ def execute_player_turn(hero, all_heroes, all_mobs):
             if len(all_mobs) == 1:
                 # Only one target - auto-select
                 target = all_mobs[0]
-                print(f"\n{Fore.CYAN}{hero.heroine_name} prepares a Power Strike against {target.name}!{Style.RESET_ALL}\n")
+                # REMOVED: print(f"\n{Fore.CYAN}{hero.heroine_name} prepares a Power Strike against {target.name}!{Style.RESET_ALL}\n")
             else:
                 # Multiple targets
                 display_target_menu(all_mobs)
