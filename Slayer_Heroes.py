@@ -36,8 +36,8 @@ def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, de
 def get_stats(hero_class : str, stats = stats) -> dict:
     index = stats.index[stats['hero_class'] == hero_class]
     return {
-        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['crit_cutoff'], 0),
-        'crit_mult' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_mult'][index]).values[0], 0.2, 1, stat_dice_cutoffs['crit_mult_cutoff'], 2),
+        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['crit_cutoff'], 0), #stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 20),
+        'crit_mult' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_mult'][index]).values[0], 0.2, 1, stat_dice_cutoffs['crit_mult_cutoff'], 2), # This one needs a float since it is multiplying the crit damage
         'low_miss' : (stats[stats['hero_class'] == hero_class]['low_miss'][index]).values[0],
         'high_miss' : (stats[stats['hero_class'] == hero_class]['high_miss'][index]).values[0],
         'luck' : stat_value_delta((stats[stats['hero_class'] == hero_class]['luck'][index]).values[0], 2, 1, stat_dice_cutoffs['luck_cutoff'], 0),
@@ -50,171 +50,74 @@ def get_stats(hero_class : str, stats = stats) -> dict:
         'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['aoe_heal_cutoff'], 0) if hero_class == 'Cleric' else 20,
         'low_st_health' : (stats[stats['hero_class'] == hero_class]['low_st_health'][index]).values[0],
         'high_st_health' : (stats[stats['hero_class'] == hero_class]['high_st_health'][index]).values[0],
-        'speed' : stat_value_delta((stats[stats['hero_class'] == hero_class]['speed'][index]).values[0], 2, 1, 20, 0),
     }
 
-def _get_base_ability(class_obj):
-    """
-    Get the base ability for this hero's class.
-    
-    Args:
-        class_obj: The hero object
-        
-    Returns:
-        str: Ability name
-    """
-    base_abilities = {
-        'Warrior': 'Power Strike',
-        'Shifter': 'Power Strike',
-        'Battle_Mage': 'Power Strike',
-        'Hunter': 'Power Strike',
-        'Wizard': 'Power Strike',
-        'Sapper': 'Power Strike',
-        'Cleric': 'Heal',
-    }
-    
-    return base_abilities.get(class_obj.hero_class, 'Power Strike')
-
-def get_all_abilities(class_obj):
-    """
-    Get list of all available abilities for this hero.
-    
-    Args:
-        class_obj: The hero object
-        
-    Returns:
-        list: All ability names (base + learned + equipment)
-    """
-    all_abilities = []
-    
-    if class_obj.abilities['base']:
-        all_abilities.append(class_obj.abilities['base'])
-    
-    all_abilities.extend(class_obj.abilities['learned'])
-    all_abilities.extend(class_obj.abilities['equipment'])
-    
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_abilities = []
-    for ability in all_abilities:
-        if ability not in seen:
-            seen.add(ability)
-            unique_abilities.append(ability)
-    
-    return unique_abilities
-
-def can_use_ability(class_obj, ability_name):
-    """
-    Check if hero can currently use this ability.
-    
-    Args:
-        class_obj: The hero object
-        ability_name: Name of ability to check
-        
-    Returns:
-        tuple: (bool can_use, str reason)
-    """
-    # Check if hero has this ability
-    all_abilities = get_all_abilities(class_obj)
-    if ability_name not in all_abilities:
-        return (False, "You don't have that ability!")
-    
-    # Check if on cooldown
-    if ability_name in class_obj.ability_cooldowns:
-        if class_obj.ability_cooldowns[ability_name] > 0:
-            return (False, f"On cooldown for {class_obj.ability_cooldowns[ability_name]} more turns!")
-    
-    # Check resource cost (for future mana/stamina system)
-    # For now, all abilities are free
-    
-    return (True, "")
-
-def reduce_cooldowns(class_obj):
-    """Reduce all ability cooldowns by 1 turn."""
-    for ability in list(class_obj.ability_cooldowns.keys()):
-        class_obj.ability_cooldowns[ability] -= 1
-        if class_obj.ability_cooldowns[ability] <= 0:
-            del class_obj.ability_cooldowns[ability]
-
-def initialize_char(class_obj):
-    """Initialize a hero character with stats and abilities."""
+def initialize_char (class_obj):
     class_obj.stats = get_stats(class_obj.hero_class)
     class_obj.starting_inv = get_starting_inv(class_obj.hero_class)
     class_obj.inv = class_obj.starting_inv.copy()
-    class_obj.starting_health = stat_value_delta(
-        acc.multi_roll(class_obj.stats['low_st_health'], class_obj.stats['high_st_health']), 
-        2, 1, 100, 0
-    )
+    class_obj.starting_health = stat_value_delta(acc.multi_roll(class_obj.stats['low_st_health'], class_obj.stats['high_st_health']), 2, 1, 100, 0)
     class_obj.health = class_obj.starting_health
-    class_obj.abilities = {
-        'base': _get_base_ability(class_obj),  # Class default ability
-        'learned': [],  # From ability scrolls (loot)
-        'equipment': []  # From equipped items
-    }
-    class_obj.ability_cooldowns = {}  # turn tracking
-    class_obj.resource = 100  # if mana/stamina added later
-    class_obj.max_resource = 100
     class_obj.is_dead = False
-    class_obj.is_defending = False  # For defend action
-    class_obj.defend_bonus = 0  # Bonus to dodge/parry when defending
-    
-    # Add methods to the object
-    class_obj.get_all_abilities = lambda: get_all_abilities(class_obj)
-    class_obj.can_use_ability = lambda ability_name: can_use_ability(class_obj, ability_name)
-    class_obj.reduce_cooldowns = lambda: reduce_cooldowns(class_obj)
-    class_obj._get_base_ability = lambda: _get_base_ability(class_obj)
 
 class Warrior:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Warrior'
         self.attack_style = 'both'
-        initialize_char(self)  # Remove the "self =" part!
+        self = initialize_char(self)
 
 
 class Shifter:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Shifter'
-        self.attack_style = 'both'
-        initialize_char(self)
+        self.attack_style = 'melee'
+        self = initialize_char(self)
 
-
+        
 class Battle_Mage:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Battle_Mage'
         self.attack_style = 'melee'
-        initialize_char(self)
+        self = initialize_char(self)
 
-
+        
 class Hunter:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Hunter'
         self.attack_style = 'range'
-        initialize_char(self)
+        self = initialize_char(self)
 
-
+        
 class Wizard:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Wizard'
         self.attack_style = 'range'
-        initialize_char(self)
+        self = initialize_char(self)
 
-
+        
 class Sapper:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Sapper'
         self.attack_style = 'melee'
-        initialize_char(self)
+        self = initialize_char(self)
 
 
 class Cleric:
-    def __init__(self, name: str):
+
+    def __init__ (self, name : str):
         self.heroine_name = name
         self.hero_class = 'Cleric'
         self.attack_style = 'range'
-        initialize_char(self)
+        self = initialize_char(self)
