@@ -8,6 +8,29 @@ import random
 from colorama import Fore, Back, Style, Cursor
 import time
 
+def get_turn_order(party: dict, mobs: list) -> list:
+    heroine_dice_cutoff = acc.get_dice_cutoffs()['speed_cutoff']
+    mob_dice_cutoff = acc.get_dice_cutoffs_mobs()['speed_cutoff']
+    entity_dict = {}
+    for heroine in party:
+        if not heroine.is_dead:
+            speed = heroine.stats['speed']
+            speed_roll = acc.multi_roll(1,heroine_dice_cutoff)
+            entity_dict[heroine] = speed + speed_roll
+    for mob in mobs:
+        speed = None
+        if not mob.is_dead:
+            if mob.enraged:
+                speed = mob.stats['enraged_speed']
+            else:
+                speed = mob.stats['speed']
+            speed_roll = acc.multi_roll(1,mob_dice_cutoff)
+            entity_dict[mob] = speed + speed_roll
+    return sorted(entity_dict, key=entity_dict.get, reverse=True)
+    
+    
+
+
 def play_game(party: dict) -> dict:
     party['narration'] = acc.yes_no(input('Would you like narrative?  '))
     if party['narration']:
@@ -18,9 +41,48 @@ def play_game(party: dict) -> dict:
     if party['narration']:
         nar.intro()
         nar.happy_intro()
-    mob = Slayer_Dwarf.Disgruntled_Dwarf()
-    combat.show_current_status(party['party'], mob)
+    mobs = [Slayer_Dwarf.Disgruntled_Dwarf()]
+    combat.show_current_status(party['party'], mobs)
     next()
+
+    turn_order = get_turn_order(party['party'], mobs)
+    #for entity in turn_order:
+        
+    """
+    for i in range(10):
+        turn_order = get_turn_order(party['party'], mobs)
+        print(f'Round{i}')
+        for entry in turn_order:
+            try:
+                print(f'{entry.heroine_name}:  {entry.hero_class}')
+            except(AttributeError):
+                print(f'{entry.name}')
+        print()
+    mobs[0].enraged = True
+    for i in range(10):
+        turn_order = get_turn_order(party['party'], mobs)
+        print(f'Round{i}')
+        for entry in turn_order:
+            try:
+                print(f'{entry.heroine_name}:  {entry.hero_class}')
+            except(AttributeError):
+                print(f'Enraged {entry.name}')
+        print()
+    mobs[0].is_dead = True
+    #party['party'][0].is_dead = True
+    #party['party'][2].is_dead = True
+    for i in range(10):
+            turn_order = get_turn_order(party['party'], mobs)
+            print(f'Round{i}')
+            for entry in turn_order:
+                try:
+                    print(f'{entry.heroine_name}:  {entry.hero_class}')
+                except(AttributeError):
+                    print(f'Enraged {entry.name}')
+            print()
+    """
+            
+
     '''
     #print([x for x in mob.inv]) ############
     #for x in mob.inv.keys():
