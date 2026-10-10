@@ -41,7 +41,7 @@ def get_stats(hero_class : str, stats = stats) -> dict:
         'low_miss' : (stats[stats['hero_class'] == hero_class]['low_miss'][index]).values[0],
         'high_miss' : (stats[stats['hero_class'] == hero_class]['high_miss'][index]).values[0],
         'luck' : stat_value_delta((stats[stats['hero_class'] == hero_class]['luck'][index]).values[0], 2, 1, stat_dice_cutoffs['luck_cutoff'], 0),
-        'speed' : (stats[stats['hero_class'] == hero_class]['speed'][index]).value[0],
+        'speed' : (stats[stats['hero_class'] == hero_class]['speed'][index]).values[0],
         'expertise' : stat_value_delta((stats[stats['hero_class'] == hero_class]['expertise'][index]).values[0], 5, 1, stat_dice_cutoffs['expertise_cutoff'], 0),
         'toughness' : stat_value_delta((stats[stats['hero_class'] == hero_class]['toughness'][index]).values[0], 2, 1, stat_dice_cutoffs['toughness_cutoff'], 0),
         'dodge' : stat_value_delta((stats[stats['hero_class'] == hero_class]['dodge'][index]).values[0], 1.5, 1, stat_dice_cutoffs['dodge_cutoff'], 0),
