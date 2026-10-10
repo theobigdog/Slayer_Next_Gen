@@ -13,4 +13,3 @@ bite,Bite,Krazy Kobolds,3,12,FALSE,melee,,
 fart,Gas Release,Krazy Kobolds,0,4,TRUE,aoe,"if hit, heroine loses next turn","aoe only affects same attack_style(melee), roll for each melee heroine whether they are affected or not"
 junk_attack,Junk Attack,Krazy Kobolds,2,10,TRUE,melee,"if hit, heroine next damage cut in half",
 terrifying_hiss,Terrifying His,Krazy Kobolds,0,0,TRUE,melee,"if ""hit"", cannot dodge for the rest of fight",
-s,,,,,,,,

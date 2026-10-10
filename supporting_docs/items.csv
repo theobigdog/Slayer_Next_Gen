@@ -1,20 +1,20 @@
 item,item_desc,classes,damage_range_low,damage_range_high,attack_type,source
 token_of_the_wise_wizard,Token of the Wise Wizard,"['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",0,1,other,starting
 plain_bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']",-5,-1,heal,starting
-bastard_sword,Bastard Sword (4-9 damage),['Warrior'],4,9,melee,starting
-battle_axe,Battle-Axe (2-12 damage),['Warrior'],2,12,melee,starting
-thors_hammer,Thor's Hammer (20-25 damage),['Warrior'],20,25,special_both,starting
-squirrel_claws,Squirrel Claws (6-11 damage),['Shifter'],6,11,melee,starting
-bear_maul,Bear Maul (18-27 damage),['Shifter'],18,27,special_melee,starting
-thick_broom_handle,Thick Broom Handle (5-8 damage),['Battle_Mage'],5,8,melee,starting
-flying_fist_of_judah,Flying Fist of Judah (19-27 damage),['Battle_Mage'],19,27,special_melee,starting
-hunting_knife,Hunting Knife (6-11 damage),['Hunter'],6,11,range,starting
-maple_recurve,Maple Recurve (20-27 damage),['Hunter'],20,27,special_range,starting
-basic_fire_bolt,Basic Fire Bolt (6-12 damage),['Wizard'],6,12,range,starting
-small_lightning_strike,Small Lightning Strike (6-9 damage),['Wizard'],6,9,range,starting
-fire_rain,Fire Rain (12-30 damage),['Wizard'],12,30,special_range,starting
-deep_scratch,Deep Scratch (2-3 damage),['Sapper'],2,3,melee,starting
-big_badda_boom,Big Badda Boom (50-75 damage),['Sapper'],50,75,aoe,starting
-healing_wand,Healing Wand (2-10 healing),['Cleric'],-10,-2,range,starting
-deep_meditation,Deep Meditation (13-30 healing),['Cleric'],-30,-13,special_range,starting
+bastard_sword,Bastard Sword,['Warrior'],4,9,melee,starting
+battle_axe,Battle-Axe,['Warrior'],2,12,melee,starting
+thors_hammer,Thor's Hammer,['Warrior'],20,25,special_both,starting
+squirrel_claws,Squirrel Claws,['Shifter'],6,11,melee,starting
+bear_maul,Bear Maul,['Shifter'],18,27,special_melee,starting
+thick_broom_handle,Thick Broom Handle,['Battle_Mage'],5,8,melee,starting
+flying_fist_of_judah,Flying Fist of Judah,['Battle_Mage'],19,27,special_melee,starting
+hunting_knife,Hunting Knife,['Hunter'],6,11,range,starting
+maple_recurve,Maple Recurve,['Hunter'],20,27,special_range,starting
+basic_fire_bolt,Basic Fire Bolt,['Wizard'],6,12,range,starting
+small_lightning_strike,Small Lightning Strike,['Wizard'],6,9,range,starting
+fire_rain,Fire Rain,['Wizard'],12,30,special_range,starting
+deep_scratch,Deep Scratch,['Sapper'],2,3,melee,starting
+big_badda_boom,Big Badda Boom,['Sapper'],50,75,aoe,starting
+healing_wand,Healing Wand,['Cleric'],-10,-2,range,starting
+deep_meditation,Deep Meditation,['Cleric'],-30,-13,special_range,starting
 vomit,Happy's Regurgitation,['Disgruntled Dwarf'],5,20,aoe,mob

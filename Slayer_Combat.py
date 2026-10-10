@@ -117,6 +117,43 @@ def update_health(initial_health : int, max_health : int, delta : int) -> int:
     else:
         return 0
 
+def display_inventory(inv):
+    items = acc.get_items()
+    inv_item_ct = len(inv)
+    for i in range(inv_item_ct):
+        item = inv[i]
+        data = items[items['item'] == item].iloc[0]
+        desc = data['item_desc']
+        low = data['damage_range_low']
+        high = data['damage_range_high']
+        if low >= 0:
+            print(f'{i + 1}:  {desc} ({low} - {high} damage)')
+        else:
+            print(f'{i + 1}:  {desc} ({-1 * high} - {-1 * low} healing)')
+
+
+def take_turn(heroine : object, party : list, mobs : list) -> set:
+    print(f'{heroine.heroine_name}\n')
+    inv = heroine.inv
+    inv_len = len(inv)
+    choices = [str(x) for x in list(range(1,inv_len + 1))]
+    choice = None
+    ok = False
+    print(choices)
+    while not ok:
+        display_inventory(inv)
+        choice = input("Pick the number for whatever item you feel like using. Not that it's going to matter...  ")
+        if choice in choices:
+            ok = True
+        else:
+            print(f'\nNo, numb-nuts, choose one of the numbers!\n')
+    choice = int(choice)
+    print(inv[choice-1])
+    return (party, mobs)
+
+def mob_turn():
+    None
+
 """
     'crit_cutoff' : 20,
         'crit_mult_cutoff' : 100,
