@@ -117,7 +117,7 @@ def update_health(initial_health : int, max_health : int, delta : int) -> int:
     else:
         return 0
 
-def display_inventory(inv):
+def display_inventory(inv : list) -> None:
     items = acc.get_items()
     inv_item_ct = len(inv)
     for i in range(inv_item_ct):
@@ -131,37 +131,81 @@ def display_inventory(inv):
         else:
             print(f'{i + 1}:  {desc} ({-1 * high} - {-1 * low} healing)')
 
+def get_target_choice(mobs : list, party : list) -> object:
+    counter = 1
+    mobs_len = len(mobs)
+    targets = {}
+    if mobs_len > 0:
+        print()
+        print('Mobs:')
+        for i in range(len(mobs)):
+            print(f'{counter}: {mobs[i].name}')
+            targets[counter] = mobs[i]
+            counter += 1
+    party_len = len(party)
+    if party_len > 0:
+        print()
+        print('Party Members:')
+        for i in range(party_len):
+            print(f'{counter}: {party[i].heroine_name}')
+            targets[counter] = party[i]
+            counter += 1
+    
+    target_choices = [str(x) for x in list(range(1,counter))]
+    target_choice = None
+    ok = False
+    while not ok:
+        target_choice = input("Pick the number for your target.  And, uh, good luck?  ")
+        if target_choice in target_choices:
+            ok = True
+        else:
+            print(f'\nJesus Christ, no, pick one of those numbers.  The one corresponding to who you want to fuck up, or whatever:  ')
+    target = targets[int(target_choice)]
+    return target
 
-def take_turn(heroine : object, party : list, mobs : list) -> set:
-    print(f'{heroine.heroine_name}\n')
+
+
+def player_turn(heroine : object, party : list, mobs : list) -> set:
     inv = heroine.inv
     inv_len = len(inv)
-    choices = [str(x) for x in list(range(1,inv_len + 1))]
-    choice = None
+    item_choices = [str(x) for x in list(range(1,inv_len + 1))]
+    item_choice = None
     ok = False
-    print(choices)
     while not ok:
+        print(f"\n{heroine.heroine_name}'s turn:")
         display_inventory(inv)
-        choice = input("Pick the number for whatever item you feel like using. Not that it's going to matter...  ")
-        if choice in choices:
+        item_choice = input("Pick the number for whatever item you feel like using. Not that it's going to matter...  ")
+        if item_choice in item_choices:
             ok = True
         else:
             print(f'\nNo, numb-nuts, choose one of the numbers!\n')
-    choice = int(choice)
-    print(inv[choice-1])
+
+    items = acc.get_items()
+    item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
+    #print(item)
+
+    mobs_len = len(mobs)
+    #mob_choices = list(range(1, mobs_len + 1))
+    mob_choice = None
+    if heroine.hero_class == 'Cleric':
+        mob_choice = get_target_choice(mobs, party)
+    elif item['damage_range_high'] < 0:
+        mob_choice = heroine
+    else:
+        if mobs_len > 1:
+            mob_choice = get_target_choice(mobs, [])
+        else:
+            mob_choice = mobs[0]
+    
+    heroine_rolls = get_heroine_rolls(heroine)
+    mob_rolls = None
+    if mob_choice in mobs:
+        mob_rolls = get_mob_rolls(mob_choice)
+
+    print(f'Heroine: {heroine.heroine_name}, Target: {mob_choice}')
+    print(heroine_rolls)
+    print(mob_rolls)
     return (party, mobs)
 
-def mob_turn():
-    None
-
-"""
-    'crit_cutoff' : 20,
-        'crit_mult_cutoff' : 100,
-        'miss_cutoff' : 30,
-        'luck_cutoff' : 20,
-        'expertise_cutoff' : 20,
-        'toughness_cutoff' : 20,
-        'dodge_cutoff' : 15,
-        'healing_chance_cutoff' : 20,
-    'scare' : 20
-    """
+def mob_turn(mob : object, party : list, mobs : list) -> set:
+    return (party, mobs)

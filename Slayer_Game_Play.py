@@ -48,7 +48,9 @@ def play_game(party: dict) -> dict:
     turn_order = get_turn_order(party['party'], mobs)
     for attacker in turn_order:
         if hasattr(attacker, 'hero_class'):
-            party['party'], mobs = combat.take_turn(attacker, party['party'], mobs)
+            party['party'], mobs = combat.player_turn(attacker, party['party'], mobs)
+        else:
+            party['party'], mobs = combat.mob_turn(attacker, party['party'], mobs)
 
 
     """
