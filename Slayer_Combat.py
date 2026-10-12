@@ -139,17 +139,19 @@ def get_target_choice(mobs : list, party : list) -> object:
         print()
         print('Mobs:')
         for i in range(len(mobs)):
-            print(f'{counter}: {mobs[i].name}')
-            targets[counter] = mobs[i]
-            counter += 1
+            if not mobs[i].is_dead:
+                print(f'{counter}: {mobs[i].name}')
+                targets[counter] = mobs[i]
+                counter += 1
     party_len = len(party)
     if party_len > 0:
         print()
         print('Party Members:')
         for i in range(party_len):
-            print(f'{counter}: {party[i].heroine_name}')
-            targets[counter] = party[i]
-            counter += 1
+            if not party[i].is_dead:
+                print(f'{counter}: {party[i].heroine_name}')
+                targets[counter] = party[i]
+                counter += 1
     
     target_choices = [str(x) for x in list(range(1,counter))]
     target_choice = None
@@ -165,9 +167,15 @@ def get_target_choice(mobs : list, party : list) -> object:
 
 
 
-def player_turn(heroine : object, party : list, mobs : list) -> set:
+def player_turn(heroine : object, party : list, mobs : list) -> tuple:
+    if heroine.is_dead:
+        return (party, mobs)
     inv = heroine.inv
     inv_len = len(inv)
+    if inv_len < 1:
+        print(f"{heroine.heroine_name} has no inventory, so I guess she's skipping this turn...")
+        next()
+        return (party, mobs)
     item_choices = [str(x) for x in list(range(1,inv_len + 1))]
     item_choice = None
     ok = False
@@ -207,5 +215,5 @@ def player_turn(heroine : object, party : list, mobs : list) -> set:
     print(mob_rolls)
     return (party, mobs)
 
-def mob_turn(mob : object, party : list, mobs : list) -> set:
+def mob_turn(mob : object, party : list, mobs : list) -> tuple:
     return (party, mobs)
