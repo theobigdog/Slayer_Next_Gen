@@ -138,7 +138,7 @@ def get_target_choice(mobs : list, party : list) -> object:
     if mobs_len > 0:
         print()
         print('Mobs:')
-        for i in range(len(mobs)):
+        for i in range(mobs_len):
             if not mobs[i].is_dead:
                 print(f'{counter}: {mobs[i].name}')
                 targets[counter] = mobs[i]
@@ -165,7 +165,36 @@ def get_target_choice(mobs : list, party : list) -> object:
     target = targets[int(target_choice)]
     return target
 
+def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_rolls, mob_rolls) -> tuple:
+    base_damage = acc.multi_roll(item['damage_range_low'], item['damage_range_high'])
+    attack_type = item['attack_type']
+    crit_mult = heroine_rolls['crit_mult']
+    is_crit = crit_mult > 1
+    damage_w_crit_mult = base_damage * crit_mult
+    damage = None
+    if len(mob_rolls.keys()) > 0:  # check to see if it is an attack or not
+        if mob_rolls['toughness']:
+            damage = damage_w_crit_mult / 2
+        else:
+            damage = damage_w_crit_mult
+        if mob_rolls['scare'] and heroine_rolls['fear']:
+            print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very site of them.  Way to go dipshit, you just lost that turn.")
+            return (party, mobs, heroine_rolls['luck'])
+        if heroine_rolls['miss']:
+            print(f"Wow, that was a big ol' whiff now wasn't it, {heroine.heroine_name}.")
+            return (party, mobs, heroine_rolls['luck'])
+        if mob_rolls['dodge']:
+            if heroine_rolls['expertise']:
+                # Place holder for adding in damage update
+                print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
+                return (party, mobs, heroine_rolls['luck'])
+            else:
+                print(f"You are probably not worthy of facing this foe.  {mob_choice.name} easily evades {heroine.heroine_name}'s attack.")
+                return (party, mobs, heroine_rolls['luck'])
 
+
+    #delete this eventually - just need the function to return something, no matter what, for now
+    return (party, mobs, heroine_rolls['luck'])
 
 def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     if heroine.is_dead:
@@ -190,7 +219,11 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
 
     items = acc.get_items()
     item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
+    item_attack_type = item['attack_type']
     #print(item)
+
+    if item_attack_type == 'aoe':
+        None
 
     mobs_len = len(mobs)
     #mob_choices = list(range(1, mobs_len + 1))
@@ -209,11 +242,9 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     mob_rolls = None
     if mob_choice in mobs:
         mob_rolls = get_mob_rolls(mob_choice)
-
-    print(f'Heroine: {heroine.heroine_name}, Target: {mob_choice}')
-    print(heroine_rolls)
-    print(mob_rolls)
-    return (party, mobs)
+        return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, mob_rolls)
+    else:
+        return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, {})
 
 def mob_turn(mob : object, party : list, mobs : list) -> tuple:
-    return (party, mobs)
+    return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to retrun whether they will have a second turn or not
