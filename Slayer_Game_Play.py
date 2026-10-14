@@ -41,31 +41,35 @@ def play_game(party: dict) -> dict:
     if party['narration']:
         nar.intro()
         nar.happy_intro()
+
     mobs = [Slayer_Dwarf.Disgruntled_Dwarf()]
-    #combat.show_current_status(party['party'], mobs)
-    #next()
 
-    turn_order = get_turn_order(party['party'], mobs)
-    for attacker in turn_order:
-        if not attacker.is_dead:
-            combat.show_current_status(party['party'], mobs)
-            next()
-            #luck_roll = False
-            if hasattr(attacker, 'hero_class'):
-                party['party'], mobs, luck_roll = combat.player_turn(attacker, party['party'], mobs)
-                if luck_roll and not attacker.is_dead:
-                    print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Hope you do better this time...")
-                    next()
-                    combat.show_current_status(party['party'], mobs)
-                    next()
-                    party['party'], mobs, _ = combat.player_turn(attacker, party['party'], mobs)
-            else:
-                party['party'], mobs, luck_roll = combat.mob_turn(attacker, party['party'], mobs)
-                if luck_roll and not attacker.is_dead:
-                    print(f"Well \"lucky\" you.  {attacker.name} gets a second attack!")
-                    next()
-                    combat.show_current_status(party['party'], mobs)
-                    next()
-                    party['party'], mobs, _ = combat.mob_turn(attacker, party['party'], mobs)
-
+    round_over = False
+    while not round_over:
+        alive_mobs = [x for x in mobs if not x.is_dead]
+        print(alive_mobs)
+        turn_order = get_turn_order(party['party'], mobs)
+        for attacker in turn_order:
+            if not attacker.is_dead and len(alive_mobs) > 0:
+                combat.show_current_status(party['party'], mobs)
+                next()
+                #luck_roll = False
+                if hasattr(attacker, 'hero_class'):
+                    party['party'], mobs, luck_roll = combat.player_turn(attacker, party['party'], mobs)
+                    if luck_roll and not attacker.is_dead:
+                        print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Hope you do better this time...")
+                        next()
+                        combat.show_current_status(party['party'], mobs)
+                        next()
+                        party['party'], mobs, _ = combat.player_turn(attacker, party['party'], mobs)
+                else:
+                    party['party'], mobs, luck_roll = combat.mob_turn(attacker, party['party'], mobs)
+                    if luck_roll and not attacker.is_dead:
+                        print(f"Well \"lucky\" you.  {attacker.name} gets a second attack!")
+                        next()
+                        combat.show_current_status(party['party'], mobs)
+                        next()
+                        party['party'], mobs, _ = combat.mob_turn(attacker, party['party'], mobs)
+        if party['wiped'] or len(alive_mobs) == 0:
+            round_over = True
     return party

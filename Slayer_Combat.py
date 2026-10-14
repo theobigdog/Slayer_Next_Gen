@@ -108,14 +108,30 @@ def get_mob_rolls(mob: object) -> dict:
         roll_results['scare'] = scare > mob_stats['scare']
     return roll_results
 
-def update_health(initial_health : int, max_health : int, delta : int) -> int:
+"""def update_health(initial_health : int, max_health : int, delta : int) -> int:
     new_health = initial_health - delta
     if new_health > max_health:
         return max_health
     elif new_health > 0:
         return new_health
     else:
-        return 0
+        return 0"""
+
+def update_health(to_update : object, delta : int) -> object:
+    new_health = to_update.health - delta
+    if new_health > to_update.starting_health:
+        to_update.health = to_update.starting_health
+    elif new_health > 0:
+        to_update.health = new_health
+    else:
+        to_update.health = 0
+        to_update.is_dead = True
+    return to_update
+
+
+def check_tough(tough : bool, name : str) -> None:
+    if tough:
+        print(f"{name}, being the tough muthafucka they are, was able to absorb half of the damage.  Wow, getting exciting now....   I'm so bored....")
 
 def display_inventory(inv : list) -> None:
     items = acc.get_items()
@@ -173,27 +189,41 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
     damage_w_crit_mult = base_damage * crit_mult
     damage = None
     if len(mob_rolls.keys()) > 0:  # check to see if it is an attack or not
-        if mob_rolls['toughness']:
+        tough = mob_rolls['toughness']
+        if tough:
             damage = damage_w_crit_mult / 2
         else:
             damage = damage_w_crit_mult
+        damage = int(damage)
         if mob_rolls['scare'] and heroine_rolls['fear']:
             print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very site of them.  Way to go dipshit, you just lost that turn.")
-            return (party, mobs, heroine_rolls['luck'])
+            next()
+            return (party, mobs, False)
         if heroine_rolls['miss']:
             print(f"Wow, that was a big ol' whiff now wasn't it, {heroine.heroine_name}.")
-            return (party, mobs, heroine_rolls['luck'])
+            next()
+            return (party, mobs, False)
         if mob_rolls['dodge']:
             if heroine_rolls['expertise']:
-                # Place holder for adding in damage update
+                mob_choice = update_health(mob_choice, damage)
                 print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
+                if mob_choice.is_dead:
+                    return (party, mobs, heroine_rolls['luck'])
+                check_tough(tough, mob_choice.name)
+                next()
                 return (party, mobs, heroine_rolls['luck'])
             else:
                 print(f"You are probably not worthy of facing this foe.  {mob_choice.name} easily evades {heroine.heroine_name}'s attack.")
+                next()
                 return (party, mobs, heroine_rolls['luck'])
-
-
-    #delete this eventually - just need the function to return something, no matter what, for now
+        mob_choice = update_health(mob_choice, damage)
+        print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
+        if mob_choice.is_dead:
+            return (party, mobs, heroine_rolls['luck'])
+        check_tough(tough, mob_choice.name)
+        next()
+        return (party, mobs, heroine_rolls['luck'])
+    #delete this eventually - just need the function to return something, no matter what
     return (party, mobs, heroine_rolls['luck'])
 
 def player_turn(heroine : object, party : list, mobs : list) -> tuple:
@@ -239,7 +269,7 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
             mob_choice = mobs[0]
     
     heroine_rolls = get_heroine_rolls(heroine)
-    mob_rolls = None
+    #mob_rolls = None
     if mob_choice in mobs:
         mob_rolls = get_mob_rolls(mob_choice)
         return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, mob_rolls)
