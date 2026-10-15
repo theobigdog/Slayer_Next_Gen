@@ -201,5 +201,5 @@ def get_party() -> dict:
                 "name" : name,
                 "party" : saved_party,
                 "wiped" : False,
-                "times_run_dungeon" : 0,
+                "times_run_dungeon" : 1,
             }
