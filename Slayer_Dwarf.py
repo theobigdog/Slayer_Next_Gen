@@ -43,11 +43,19 @@ def initialize_char(class_obj: object, mobs: pd.DataFrame, mob_equipment: pd.Dat
 
 class Disgruntled_Dwarf:
 
-    def __init__(self):
-        self.name = "Happy"
+    def __init__(self, name):
+        self.name = name
         self.mob_class = 'Disgruntled Dwarf'
         self = acc.initialize_mob(self, mobs, mob_equipment)
+        self.starting_ai = 'easy'  ####  This will toggle to something else when a give mob is enraged, especially for Happy
+        self.enraged_ai = 'hard'  ## I want the possibility of ai actually lowering if a mob is enraged, like they get bloodlust and are too overly aggressive and miss more or something like this
+    
+    def toggle_enraged(self, narrative : bool):
+        if self.health <= 0.5 * self.starting_health:
+            if narrative:
+                print(f"\n\n{self.name} suddenly bulges out in all directions.  He becomes a rippling mass of what looks like pure muscle - the veins in his neck and forearms swell to such a size, they look like they might rupture.\n")
+            self.enraged = True
+            self.starting_health = self.stats['enraged_hp']
+            self.health = self.stats['enraged_hp']
 
-    
-    
         

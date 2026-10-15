@@ -187,7 +187,7 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
         if mob_choice.health <= damage:
             damage = mob_choice.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
-            print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very site of them.  Way to go dipshit, you just lost that turn.")
+            print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very sight of them.  Way to go dipshit, you just lost that turn.")
             next()
             return (party, mobs, False)
         if heroine_rolls['miss']:
@@ -267,7 +267,35 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     else:
         return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, {})
 
+def party_wiped_taunt(mob : object, party : list) -> str:
+    items = acc.get_items()
+    melee_items = items[items['attacke_type'] == 'melee']
+    melee_names = set(melee_items['item'])
+
+    have_items = [(heroine, item_name) for heroine in party for item_name in heroine.inv if item_name in melee_names]
+    if len(have_items) > 0:
+        victim, item_name = random.choice(have_items)
+        item_desc = melee_items[melee_items['item'] == item_name].iloc[0]['item_desc']
+        victim2 = random.choice(party)
+        template = random.choice(acc.item_specific_wipe_taunts())
+        return template.format(mob=mob.name, victim=victim.heroine_name, item=item_desc, victim2=victim2.heroine_name)
+    victim = random.choice(party)
+    template = random.choice(acc.generic_wipe_taunts())
+    return template.format(mob=mob.name, victim=victim.heroine_name)
+
+    item_specific_wipe_taunts = [
+        f"{mob} walks over to pick up a fallen weapon, immediately hurling it into {acc.get_random_party_member(party).heroine_name}'s dead, mangled body.  \"Take That!!\", she screamed!!"
+    ]
+
 def mob_turn(mob : object, party : list, mobs : list) -> tuple:
     print('Mob Turn')
     next()
+    if mob.is_dead:
+        return (party, mobs, False)
+    if party['wiped']:
+        print(party_wiped_taunt(mob, party))
+        next()
+        return (party, mobs, False)
+    inv = mob.inv
+    
     return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to return whether they will have a second turn or not

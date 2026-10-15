@@ -157,6 +157,7 @@ def refresh_party(party : dict) ->dict:
     for heroine in party['party']:
         heroine.is_dead = False
         heroine.health = heroine.starting_health
+    party['narration'] = False
     return party
 
 def get_party() -> dict:
@@ -202,4 +203,5 @@ def get_party() -> dict:
                 "party" : saved_party,
                 "wiped" : False,
                 "times_run_dungeon" : 1,
+                "narration" : True,
             }
