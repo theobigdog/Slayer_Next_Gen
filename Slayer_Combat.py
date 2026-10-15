@@ -283,10 +283,6 @@ def party_wiped_taunt(mob : object, party : list) -> str:
     template = random.choice(acc.generic_wipe_taunts())
     return template.format(mob=mob.name, victim=victim.heroine_name)
 
-    item_specific_wipe_taunts = [
-        f"{mob} walks over to pick up a fallen weapon, immediately hurling it into {acc.get_random_party_member(party).heroine_name}'s dead, mangled body.  \"Take That!!\", she screamed!!"
-    ]
-
 def mob_turn(mob : object, party : list, mobs : list) -> tuple:
     print('Mob Turn')
     next()
@@ -297,5 +293,17 @@ def mob_turn(mob : object, party : list, mobs : list) -> tuple:
         next()
         return (party, mobs, False)
     inv = mob.inv
+
+    ai = mob.starting_ai
+    if mob.enraged:
+        ai = mob.enraged_ai
+
+        '''
+        easy: 1) random target, 2) "random" attack tendency towards weaker weapons
+
+        medium: 1) random target, 3
+
+        hard: 1) targets healers, 2) checks party general health, chooses aoe attack if this is the case 3) checks heroine low in health and try to take them out 4) tendency towards stronger weapons
+        '''
     
     return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to return whether they will have a second turn or not
