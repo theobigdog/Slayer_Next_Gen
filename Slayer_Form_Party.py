@@ -36,7 +36,7 @@ def print_recommended_classes(num_chars : int):
         print(acc.get_hero_classes()[rando])#
 
 def get_default_classes(party_count : int) -> list:
-    # 0: Warrior, 1: Shifter, 2: Battle_Mage, 3: Hunter, 4: Wizard, 5: Sapper, 6: Cleric
+    # 0: Warrior, 1: Shifter, 2: Battle_Mage, 3: Hunter, 4: Witch, 5: Sapper, 6: Cleric
     if party_count == 1:
         return ['Warrior']
     elif party_count == 2:
@@ -50,9 +50,9 @@ def get_default_classes(party_count : int) -> list:
     elif party_count == 6:
         return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper']
     elif party_count == 7:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Wizard']
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch']
     elif party_count == 8:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Wizard', 'Battle_Mage']
+        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch', 'Battle_Mage']
     else:
         return []
 
@@ -65,8 +65,8 @@ def get_hero(selection : str, name : str):
         return heroes.Battle_Mage(name)
     elif selection == 'Hunter':
         return heroes.Hunter(name)
-    elif selection == 'Wizard':
-        return heroes.Wizard(name)
+    elif selection == 'Witch':
+        return heroes.Witch(name)
     elif selection == 'Sapper':
         return heroes.Sapper(name)
     elif selection == 'Cleric':
@@ -151,6 +151,14 @@ def create_new_party(name: str) -> list:
                 new_party.append(get_hero(selection, auto_pick_name()))
     return new_party
 
+def refresh_party(party : dict) ->dict:
+    party['times_run_dungeon'] += 1
+    party['wiped'] = False
+    for heroine in party['party']:
+        heroine.is_dead = False
+        heroine.health = heroine.starting_health
+    return party
+
 def get_party() -> dict:
     name = get_name()
     saved_party = []
@@ -159,6 +167,7 @@ def get_party() -> dict:
         print(f"Ah yes, here you are: {name}... <snicker-snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
         next()
         wt()
+        saved_party = refresh_party(saved_party)
         acc.print_player_starting_summary(saved_party['party'])
         wt()
         Slayer_Combat.display_party_summary(saved_party['party'])
@@ -171,6 +180,7 @@ def get_party() -> dict:
             print(f"Oh, that's right, {name}, you were the moron projectile vomiting into that fountain last night.{whine()}  Welcome back.")
             next()
             wt()
+            saved_party = refresh_party(saved_party)
             acc.print_player_starting_summary(saved_party['party'])
             wt()
             Slayer_Combat.display_party_summary(saved_party['party'])
@@ -191,5 +201,5 @@ def get_party() -> dict:
                 "name" : name,
                 "party" : saved_party,
                 "wiped" : False,
-                "current_instance" : 0,
+                "times_run_dungeon" : 0,
             }

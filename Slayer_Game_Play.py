@@ -28,7 +28,12 @@ def get_turn_order(party: dict, mobs: list) -> list:
             entity_dict[mob] = speed + speed_roll
     return sorted(entity_dict, key=entity_dict.get, reverse=True)
     
-    
+def alive_mobs(mobs: list) -> bool:
+    living_mobs = [x for x in mobs if not x.is_dead]
+    return len(living_mobs) > 0
+
+def check_wiped(party : list) -> bool:
+    return all(heroine.is_dead for heroine in party)
 
 
 def play_game(party: dict) -> dict:
@@ -46,17 +51,14 @@ def play_game(party: dict) -> dict:
 
     round_over = False
     while not round_over:
-        alive_mobs = [x for x in mobs if not x.is_dead]
-        print(alive_mobs)
         turn_order = get_turn_order(party['party'], mobs)
         for attacker in turn_order:
-            if not attacker.is_dead and len(alive_mobs) > 0:
+            if not attacker.is_dead and alive_mobs(mobs):
                 combat.show_current_status(party['party'], mobs)
-                next()
-                #luck_roll = False
+                time.sleep(1.5)
                 if hasattr(attacker, 'hero_class'):
                     party['party'], mobs, luck_roll = combat.player_turn(attacker, party['party'], mobs)
-                    if luck_roll and not attacker.is_dead:
+                    if luck_roll and not attacker.is_dead and alive_mobs(mobs):
                         print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Hope you do better this time...")
                         next()
                         combat.show_current_status(party['party'], mobs)
@@ -64,12 +66,15 @@ def play_game(party: dict) -> dict:
                         party['party'], mobs, _ = combat.player_turn(attacker, party['party'], mobs)
                 else:
                     party['party'], mobs, luck_roll = combat.mob_turn(attacker, party['party'], mobs)
-                    if luck_roll and not attacker.is_dead:
+                    if luck_roll and not attacker.is_dead and alive_mobs(mobs):
                         print(f"Well \"lucky\" you.  {attacker.name} gets a second attack!")
                         next()
                         combat.show_current_status(party['party'], mobs)
                         next()
                         party['party'], mobs, _ = combat.mob_turn(attacker, party['party'], mobs)
-        if party['wiped'] or len(alive_mobs) == 0:
+        party['wiped'] = check_wiped(party['party'])
+        if party['wiped'] or not alive_mobs(mobs):
+            combat.show_current_status(party['party'], mobs)
+            next()
             round_over = True
     return party

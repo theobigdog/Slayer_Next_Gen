@@ -21,7 +21,7 @@ mob_equipment = pd.read_csv('supporting_docs/mob_equipment.csv')
 
 
 def get_hero_classes():
-    return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Wizard', 'Sapper', 'Cleric']
+    return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 
 def yes_no(response : str) -> bool:
     response = str(response).upper()

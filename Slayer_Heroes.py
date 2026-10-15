@@ -97,11 +97,11 @@ class Hunter:
         self = initialize_char(self)
 
         
-class Wizard:
+class Witch:
 
     def __init__ (self, name : str):
         self.heroine_name = name
-        self.hero_class = 'Wizard'
+        self.hero_class = 'Witch'
         self.attack_style = 'range'
         self = initialize_char(self)
 

@@ -16,7 +16,7 @@ def display_mob_summary(mob: dict):
     elif half_health:
         print(f"Current Health: {Fore.MAGENTA}{int(round(mob.health, 0))}{Style.RESET_ALL}/{mob.starting_health}")
     else:
-        print(f"Current Health: {mob.health}/{mob.starting_health}")
+        print(f"Current Health: {int(round(mob.health, 0))}/{mob.starting_health}")
 
 def display_party_summary(party : list):
     print()
@@ -30,12 +30,11 @@ def display_party_summary(party : list):
         else:
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {int(round(heroine.health, 0))}/{heroine.starting_health}")
 
-def show_current_status(party: dict, mobs: list):
+def show_current_status(party: list, mobs: list):
     wt()
     print('Enemy')
     for i in range(len(mobs)):
         display_mob_summary(mobs[i])
-        print()
     print()
     print('Party')
     display_party_summary(party)
@@ -108,15 +107,6 @@ def get_mob_rolls(mob: object) -> dict:
         roll_results['scare'] = scare > mob_stats['scare']
     return roll_results
 
-"""def update_health(initial_health : int, max_health : int, delta : int) -> int:
-    new_health = initial_health - delta
-    if new_health > max_health:
-        return max_health
-    elif new_health > 0:
-        return new_health
-    else:
-        return 0"""
-
 def update_health(to_update : object, delta : int) -> object:
     new_health = to_update.health - delta
     if new_health > to_update.starting_health:
@@ -127,7 +117,6 @@ def update_health(to_update : object, delta : int) -> object:
         to_update.health = 0
         to_update.is_dead = True
     return to_update
-
 
 def check_tough(tough : bool, name : str) -> None:
     if tough:
@@ -195,6 +184,8 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
         else:
             damage = damage_w_crit_mult
         damage = int(damage)
+        if mob_choice.health <= damage:
+            damage = mob_choice.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
             print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very site of them.  Way to go dipshit, you just lost that turn.")
             next()
@@ -219,6 +210,8 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
         mob_choice = update_health(mob_choice, damage)
         print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
         if mob_choice.is_dead:
+            print(f"{mob_choice.name} has been slain!!")
+            next()
             return (party, mobs, heroine_rolls['luck'])
         check_tough(tough, mob_choice.name)
         next()
@@ -228,13 +221,13 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
 
 def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     if heroine.is_dead:
-        return (party, mobs)
+        return (party, mobs, False)
     inv = heroine.inv
     inv_len = len(inv)
     if inv_len < 1:
         print(f"{heroine.heroine_name} has no inventory, so I guess she's skipping this turn...")
         next()
-        return (party, mobs)
+        return (party, mobs, False)
     item_choices = [str(x) for x in list(range(1,inv_len + 1))]
     item_choice = None
     ok = False
@@ -250,13 +243,12 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     items = acc.get_items()
     item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
     item_attack_type = item['attack_type']
-    #print(item)
 
     if item_attack_type == 'aoe':
         None
 
     mobs_len = len(mobs)
-    #mob_choices = list(range(1, mobs_len + 1))
+
     mob_choice = None
     if heroine.hero_class == 'Cleric':
         mob_choice = get_target_choice(mobs, party)
@@ -269,7 +261,6 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
             mob_choice = mobs[0]
     
     heroine_rolls = get_heroine_rolls(heroine)
-    #mob_rolls = None
     if mob_choice in mobs:
         mob_rolls = get_mob_rolls(mob_choice)
         return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, mob_rolls)
@@ -277,4 +268,6 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
         return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, {})
 
 def mob_turn(mob : object, party : list, mobs : list) -> tuple:
-    return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to retrun whether they will have a second turn or not
+    print('Mob Turn')
+    next()
+    return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to return whether they will have a second turn or not
