@@ -170,11 +170,11 @@ def get_target_choice(mobs : list, party : list) -> object:
     target = targets[int(target_choice)]
     return target
 
-def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_rolls, mob_rolls) -> tuple:
+def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object, party_dict : dict,  mobs : list, heroine_rolls : dict, mob_rolls : dict) -> tuple:
     base_damage = acc.multi_roll(item['damage_range_low'], item['damage_range_high'])
-    attack_type = item['attack_type']
+    attack_type = item['attack_type'] # to be used for future work
     crit_mult = heroine_rolls['crit_mult']
-    is_crit = crit_mult > 1
+    is_crit = crit_mult > 1 # will be used for auto commenting later
     damage_w_crit_mult = base_damage * crit_mult
     damage = None
     if len(mob_rolls.keys()) > 0:  # check to see if it is an attack or not
@@ -189,45 +189,49 @@ def get_heroine_turn_outcome(heroine, item,  mob_choice, party, mobs, heroine_ro
         if mob_rolls['scare'] and heroine_rolls['fear']:
             print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very sight of them.  Way to go dipshit, you just lost that turn.")
             next()
-            return (party, mobs, False)
+            return (party_dict, mobs, False)
         if heroine_rolls['miss']:
             print(f"Wow, that was a big ol' whiff now wasn't it, {heroine.heroine_name}.")
             next()
-            return (party, mobs, False)
+            return (party_dict, mobs, False)
         if mob_rolls['dodge']:
             if heroine_rolls['expertise']:
                 mob_choice = update_health(mob_choice, damage)
                 print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
                 if mob_choice.is_dead:
-                    return (party, mobs, heroine_rolls['luck'])
+                    print(f"{mob_choice.name} has been slain!!")
+                    next()
+                    return (party_dict, mobs, heroine_rolls['luck'])
                 check_tough(tough, mob_choice.name)
                 next()
-                return (party, mobs, heroine_rolls['luck'])
+                return (party_dict, mobs, heroine_rolls['luck'])
             else:
                 print(f"You are probably not worthy of facing this foe.  {mob_choice.name} easily evades {heroine.heroine_name}'s attack.")
                 next()
-                return (party, mobs, heroine_rolls['luck'])
+                return (party_dict, mobs, False)
         mob_choice = update_health(mob_choice, damage)
         print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
         if mob_choice.is_dead:
             print(f"{mob_choice.name} has been slain!!")
             next()
-            return (party, mobs, heroine_rolls['luck'])
+            return (party_dict, mobs, heroine_rolls['luck'])
         check_tough(tough, mob_choice.name)
         next()
-        return (party, mobs, heroine_rolls['luck'])
-    #delete this eventually - just need the function to return something, no matter what
-    return (party, mobs, heroine_rolls['luck'])
+        return (party_dict, mobs, heroine_rolls['luck'])
+    else:
+        print("Not a mob attack") # placeholder for adding in healing items such as bandages, etc
+        next()
+        return (party_dict, mobs, heroine_rolls['luck'])
 
-def player_turn(heroine : object, party : list, mobs : list) -> tuple:
+def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if heroine.is_dead:
-        return (party, mobs, False)
+        return (party_dict, mobs, False)
     inv = heroine.inv
     inv_len = len(inv)
     if inv_len < 1:
         print(f"{heroine.heroine_name} has no inventory, so I guess she's skipping this turn...")
         next()
-        return (party, mobs, False)
+        return (party_dict, mobs, False)
     item_choices = [str(x) for x in list(range(1,inv_len + 1))]
     item_choice = None
     ok = False
@@ -238,7 +242,7 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
         if item_choice in item_choices:
             ok = True
         else:
-            print(f'\nNo, numb-nuts, choose one of the numbers!\n')
+            print(f'\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n')
 
     items = acc.get_items()
     item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
@@ -251,7 +255,7 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
 
     mob_choice = None
     if heroine.hero_class == 'Cleric':
-        mob_choice = get_target_choice(mobs, party)
+        mob_choice = get_target_choice(mobs, party_dict['party'])
     elif item['damage_range_high'] < 0:
         mob_choice = heroine
     else:
@@ -263,35 +267,122 @@ def player_turn(heroine : object, party : list, mobs : list) -> tuple:
     heroine_rolls = get_heroine_rolls(heroine)
     if mob_choice in mobs:
         mob_rolls = get_mob_rolls(mob_choice)
-        return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, mob_rolls)
+        return get_heroine_turn_outcome(heroine, item, mob_choice, party_dict, mobs, heroine_rolls, mob_rolls)
     else:
-        return get_heroine_turn_outcome(heroine, item, mob_choice, party, mobs, heroine_rolls, {})
+        return get_heroine_turn_outcome(heroine, item, mob_choice, party_dict, mobs, heroine_rolls, {})
 
 def party_wiped_taunt(mob : object, party : list) -> str:
-    items = acc.get_items()
-    melee_items = items[items['attacke_type'] == 'melee']
-    melee_names = set(melee_items['item'])
+    # first make sure at least one heroine exists (may need to adjust to starting count of party, per encounter?) and still has a melee item, if we want to include item-specific taunts
+    if len(party) > 1 :
+        items = acc.get_items()
+        melee_items = items[items['attack_type'] == 'melee']
+        melee_names = set(melee_items['item'])
+        have_items = [(heroine, item_name) for heroine in party for item_name in heroine.inv if item_name in melee_names]
+        # if anyone has a melee weapon, which may need to be refined by hero_class or something to avoid things like Sappers' "Deep Scratch", there is a 50:50 chance of doing item-specific or non-item-specific taunts so that both lists are actually used haha
+        if len(have_items) > 0:
+            do_item_taunt = random.choice([True, False])
+            if do_item_taunt:
+                victim, item_name = random.choice(have_items)
+                victim2 = random.choice([x for x in party if x != victim])
+                item_desc = melee_items[melee_items['item'] == item_name].iloc[0]['item_desc']
+                template = random.choice([random.choice(acc.item_specific_wipe_taunts())])
+                return template.format(mob=mob.name, victim=victim.heroine_name, item=item_desc, victim2=victim2.heroine_name)
+        # emergency backup if noone has an item - can't really see this happening but hey, it's here
+        victim = random.choice(party)
+        victim2 = random.choice([x for x in party if x != victim])
+        template = random.choice(acc.generic_wipe_taunts())
+        return template.format(mob=mob.name, victim=victim.heroine_name, victim2=victim2.heroine_name)
+    elif len(party) == 1:
+        return f"{mob.name} walks over to {party[0].heroine_name}'s mangled corpse and spits on it.  \"What kind of FUCKING idiot attempts a dungeon encounter solo?!\""
+    #  Because I'm sure Claude will ding me if I don't include the "possibility" below!!  So how closely do you read my code, Claude?  LOL!!
+    else:
+        return "No party members.  Right...."
+    
+def choose_mob_item(inv : list, ai : str, party_dict : dict) -> dict:
+    mob_items = acc.get_mob_equipment()
+    mob_inv = mob_items[(mob_items['item'].isin(inv)) & (mob_items['attack_style'] == 'melee')].to_dict('records') ###### since we haven't worked on aoe or ranged attacks logic, just doing melee for now, this will need to be fixed, especially for when higher ai is factored in
+    if ai == 'easy':
+        return random.choice(mob_inv)
+    return random.choice(mob_inv) # for now it just always returns this, but this will update with other ai mode updates
 
-    have_items = [(heroine, item_name) for heroine in party for item_name in heroine.inv if item_name in melee_names]
-    if len(have_items) > 0:
-        victim, item_name = random.choice(have_items)
-        item_desc = melee_items[melee_items['item'] == item_name].iloc[0]['item_desc']
-        victim2 = random.choice(party)
-        template = random.choice(acc.item_specific_wipe_taunts())
-        return template.format(mob=mob.name, victim=victim.heroine_name, item=item_desc, victim2=victim2.heroine_name)
-    victim = random.choice(party)
-    template = random.choice(acc.generic_wipe_taunts())
-    return template.format(mob=mob.name, victim=victim.heroine_name)
+def get_target_mob(mobs : list, ai : str) -> object:
+    if ai == 'easy':
+        return random.choice(mobs)
+    return random.choice(mobs) # for now it just always returns this, but this will update with other ai mode updates
 
-def mob_turn(mob : object, party : list, mobs : list) -> tuple:
-    print('Mob Turn')
-    next()
+def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict : dict, mobs : list, mob_rolls : dict, target_rolls : dict) -> tuple:
+    base_delta = acc.multi_roll(item['damage_low'], item['damage_high'])
+    attack_style = item['attack_style'] # for future use
+    crit_mult = mob_rolls['crit_mult']
+    is_crit = crit_mult > 1 # intended to be used for autocommenting, for future work
+    delta_w_crit = base_delta * crit_mult
+    if item['damage_high'] < 0:
+        healing = int(delta_w_crit)
+        if target.health - healing > target.starting_health:
+            healing = target.starting_health - target.health
+        if hasattr(target, 'mob_class'):
+            if not mob_rolls['heal']:
+                print(f"{mob.name} attempts to heal {target.name if target.name != mob.name else 'himself'} with {item['item_desc']}, but fucks up and nothing happens.  Idiot!")
+                next()
+                return (party_dict, mobs, False)
+            if mob == target:
+                mob = update_health(mob, healing)
+                print(f"Using their {item['item_desc']}, {mob.name} heals for {healing} hp.  Oh dear.")
+                next()
+                return (party_dict, mobs, mob_rolls['luck'])
+            else:
+                target = update_health(target, healing)
+                print(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  So suck it!")
+                next()
+                return (party_dict, mobs, mob_rolls['luck'])
+        else:
+            return (party_dict, mobs, mob_rolls['luck']) # add logic for mob healing party members              
+    else:
+        if hasattr(target, 'hero_class'):
+            tough = target_rolls['toughness']
+            damage = int(delta_w_crit)
+            if tough:
+                damage = int(damage / 2)
+            if target.health <= damage:
+                damage = target.health
+            if mob_rolls['miss']:
+                print(f"{mob.name} attempts to attack {target.heroine_name} with their {item['item_desc']}, but misses widely.")
+                next()
+                return (party_dict, mobs, False)
+            if target_rolls['dodge']:
+                if mob_rolls['expertise']:
+                    target = update_health(target, damage)
+                    print(f"Despite their best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+                    if target.is_dead:
+                        print(f"Oh drats.  {target.heroine_name} has been slain.  Whatever will you do")
+                        next()
+                        return (party_dict, mobs, mob_rolls['luck'])
+                    check_tough(tough, target.heroine_name)
+                    next()
+                    return (party_dict, mobs, mob_rolls['luck'])
+                else:
+                    print(f"Wow, {target.heroine_name} actually dodged {mob.name}'s attack.  Truly didn't see that coming.")
+                    next()
+                    return(party_dict, mobs, False)
+            target = update_health(target, damage)
+            print(f"{mob.name} bashes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+            if target.is_dead:
+                print(f"Oh dear.  {target.heroine_name} has been slain.  One less heroine for this run.  Whoops.")
+                next()
+                return (party_dict, mobs, mob_rolls['luck'])
+            check_tough(tough, target.heroine_name)
+            next()
+            return (party_dict, mobs, mob_rolls['luck'])
+
+def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
     if mob.is_dead:
-        return (party, mobs, False)
-    if party['wiped']:
-        print(party_wiped_taunt(mob, party))
+        return (party_dict, mobs, False)
+    if party_dict['wiped']:
+        print(party_wiped_taunt(mob, party_dict['party']))
         next()
-        return (party, mobs, False)
+        return (party_dict, mobs, False)
+
+    print(f"{mob.name}'s turn:\n\n")
     inv = mob.inv
 
     ai = mob.starting_ai
@@ -301,9 +392,26 @@ def mob_turn(mob : object, party : list, mobs : list) -> tuple:
         '''
         easy: 1) random target, 2) "random" attack tendency towards weaker weapons
 
-        medium: 1) random target, 3
+        medium: 1) random target, 2) add more criteria later, 3)starts healing themself or mob-party-members
 
-        hard: 1) targets healers, 2) checks party general health, chooses aoe attack if this is the case 3) checks heroine low in health and try to take them out 4) tendency towards stronger weapons
+        hard: 1) targets healers, 2) checks party general health, chooses aoe attack if this is the case 3) checks heroine low in health and try to take them out 4) tendency towards stronger weapons, 5) can heal self and/or mob-party, strongly, with aoe and single-target options
+
         '''
-    
-    return (party, mobs, False)# "False" is a placeholder for the "luck" roll of the mob, to return whether they will have a second turn or not
+    item = choose_mob_item(inv, ai, party_dict)
+    if item['damage_high'] < 0:
+        living_mobs = [x for x in mobs if not x.is_dead]
+        if len(living_mobs) > 0:
+            mob_choice = get_target_mob(living_mobs, ai)
+            mob_rolls = get_mob_rolls(mob)
+            return get_mob_turn_outcome(mob, mob_choice, item, party_dict, mobs, mob_rolls, {})
+        else:
+            return (party_dict, mobs, False)
+    else:
+        living_heroines = [x for x in party_dict['party'] if not x.is_dead]
+        if len(living_heroines) > 0:
+            target = get_target_mob(living_heroines, ai)
+            mob_rolls = get_mob_rolls(mob)
+            target_rolls = get_heroine_rolls(target)
+            return get_mob_turn_outcome(mob, target, item, party_dict, mobs, mob_rolls, target_rolls)
+        else:
+            return (party_dict, mobs, False)

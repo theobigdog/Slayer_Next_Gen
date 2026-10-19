@@ -177,27 +177,29 @@ def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame)
     index = mobs.index[mobs['mob_class'] == mob.mob_class]
     mob.attack_style = mobs[mobs['mob_class'] == mob.mob_class]['attack_style'][index].values[0]
     mob.stats = get_mob_stats(mob.mob_class, mobs)
-    #mob.stats = mob.stats[0]
     mob.inv = get_mob_inv(mob.mob_class, mob_equipment)
     mob.starting_health = mob.stats['starting_hp']
     mob.health = mob.stats['starting_hp']
     mob.is_dead = False
     mob.enraged = False
+    mob.starting_ai = mobs[mobs['mob_class'] == mob.mob_class]['ai'][index].values[0]
+    mob.enraged_ai = mobs[mobs['mob_class'] == mob.mob_class]['enraged_ai'][index].values[0]
+    return mob
 
 def get_random_party_member(party: list) -> object:
     return party[random.randint(0,len(party)-1)]
 
 def generic_wipe_taunts() -> list:
     return [
-        "{mob} casually stands over {victim}'s corpse, mumbling, \"Not today....\""
-        "{mob} shouts in triumph!"
-        "{mob} starts to shake, then suddenly begins to bellow with terrible, evil laughter.  \"Puny weaklings!\""
-        "{mob} sits atop {victim}'s head, grinding in, real deep."
-        "{mob} begins to pick at what remains of {victim}.  Well that was easy!"
+        "{mob} casually stands over {victim}'s corpse, mumbling, \"Not today....\"",
+        "{mob} shouts in triumph!",
+        "{mob} starts to shake, then suddenly begins to bellow with terrible, evil laughter.  \"Puny weaklings!\"",
+        "{mob} sits atop {victim}'s head, grinding in, real deep.",
+        "{mob} begins to pick at what remains of {victim}.  \"Well that was easy!\"",
     ]
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s dead, mangled body.  \"Take That!!\", she screamed!!"
-        "{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\""
+        "{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s dead, mangled body.  \"Take That!!\", she screamed!!",
+        "{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"",
     ]

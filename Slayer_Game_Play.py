@@ -74,9 +74,9 @@ def play_game(party: dict) -> dict:
 
     mobs = [Slayer_Dwarf.Disgruntled_Dwarf('Happy'), Slayer_Dwarf.Disgruntled_Dwarf('Sneezy')]
 
-    encounter_over = False
+    #encounter_over = False
     round = 0
-    while not encounter_over:
+    while not party['wiped'] and alive_mobs(mobs):
         round += 1
         turn_order = get_turn_order(party['party'], mobs)
         for attacker in turn_order:
@@ -85,22 +85,23 @@ def play_game(party: dict) -> dict:
                 combat.show_current_status(party['party'], mobs)
                 time.sleep(0.5)
                 if hasattr(attacker, 'hero_class'): # player's turn with the given heroine
-                    party['party'], mobs, luck_roll = combat.player_turn(attacker, party['party'], mobs)
+                    party, mobs, luck_roll = combat.player_turn(attacker, party, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
                         print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Hope you do better this time...")
                         next()
                         combat.show_current_status(party['party'], mobs)
-                        party['party'], mobs, _ = combat.player_turn(attacker, party['party'], mobs)
+                        party, mobs, _ = combat.player_turn(attacker, party, mobs)
                 else: # mob's turn with the given mob(attacker)
-                    party['party'], mobs, luck_roll = combat.mob_turn(attacker, party['party'], mobs)
-                    if luck_roll and not attacker.is_dead and alive_mobs(mobs):#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toble this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
+                    party, mobs, luck_roll = combat.mob_turn(attacker, party, mobs)
+                    party['wiped'] = check_wiped(party['party'])
+                    if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toble this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
                         print(f"Well \"lucky\" you.  {attacker.name} gets a second attack!")
                         next()
                         combat.show_current_status(party['party'], mobs)
-                        party['party'], mobs, _ = combat.mob_turn(attacker, party['party'], mobs)
-        party['wiped'] = check_wiped(party['party'])
+                        party, mobs, _ = combat.mob_turn(attacker, party , mobs)
+                party['wiped'] = check_wiped(party['party'])
         if party['wiped'] or not alive_mobs(mobs):
             combat.show_current_status(party['party'], mobs)
             next()
-            encounter_over = True
+            #encounter_over = True
     return party
