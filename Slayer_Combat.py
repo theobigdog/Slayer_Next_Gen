@@ -30,8 +30,9 @@ def display_party_summary(party : list):
         else:
             print(f"{heroine.heroine_name}:  {heroine.hero_class}, {int(round(heroine.health, 0))}/{heroine.starting_health}")
 
-def show_current_status(party: list, mobs: list):
-    wt()
+def show_current_status(party: list, mobs: list, round_num: int):
+    wt() 
+    print(f'Round:{round_num}\n\n')
     print('Enemy')
     for i in range(len(mobs)):
         display_mob_summary(mobs[i])
@@ -118,9 +119,11 @@ def update_health(to_update : object, delta : int) -> object:
         to_update.is_dead = True
     return to_update
 
-def check_tough(tough : bool, name : str) -> None:
-    if tough:
-        print(f"{name}, being the tough muthafucka they are, was able to absorb half of the damage.  Wow, getting exciting now....   I'm so bored....")
+def check_tough(tough : bool, target : object) -> None:
+    if tough and hasattr(target, 'hero_class'):
+        print(f"{target.heroine_name}, being the tough muthafucka she is, shrugs off half the damage.  Hell yeah!")
+    elif tough and hasattr(target, 'mob_class'):
+        print(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF of the initial damage inflicted!")
 
 def display_inventory(inv : list) -> None:
     items = acc.get_items()
@@ -140,14 +143,6 @@ def get_target_choice(mobs : list, party : list) -> object:
     counter = 1
     mobs_len = len(mobs)
     targets = {}
-    if mobs_len > 0:
-        print()
-        print('Mobs:')
-        for i in range(mobs_len):
-            if not mobs[i].is_dead:
-                print(f'{counter}: {mobs[i].name}')
-                targets[counter] = mobs[i]
-                counter += 1
     party_len = len(party)
     if party_len > 0:
         print()
@@ -157,16 +152,24 @@ def get_target_choice(mobs : list, party : list) -> object:
                 print(f'{counter}: {party[i].heroine_name}')
                 targets[counter] = party[i]
                 counter += 1
+    if mobs_len > 0:
+        print()
+        print('Mobs:')
+        for i in range(mobs_len):
+            if not mobs[i].is_dead:
+                print(f'{counter}: {mobs[i].name}')
+                targets[counter] = mobs[i]
+                counter += 1
     
     target_choices = [str(x) for x in list(range(1,counter))]
     target_choice = None
     ok = False
     while not ok:
-        target_choice = input("Pick the number for your target.  And, uh, good luck?  ")
+        target_choice = input("Pick the number for your target.  Make 'em regret it.  ")
         if target_choice in target_choices:
             ok = True
         else:
-            print(f'\nJesus Christ, no, pick one of those numbers.  The one corresponding to who you want to fuck up, or whatever:  ')
+            print(f'\nWhoa, no, one of THOSE numbers.  The one belonging to whoever you\'d like to fuck up:  ')
     target = targets[int(target_choice)]
     return target
 
@@ -187,11 +190,11 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
         if mob_choice.health <= damage:
             damage = mob_choice.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
-            print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very sight of them.  Way to go dipshit, you just lost that turn.")
+            print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very sight of them.  Honestly?  Fair.  That's a lost turn, though.")
             next()
             return (party_dict, mobs, False)
         if heroine_rolls['miss']:
-            print(f"Wow, that was a big ol' whiff now wasn't it, {heroine.heroine_name}.")
+            print(f"Wow, that was a big ol' whiff, now wasn't it, {heroine.heroine_name}.")
             next()
             return (party_dict, mobs, False)
         if mob_rolls['dodge']:
@@ -202,11 +205,11 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
                     print(f"{mob_choice.name} has been slain!!")
                     next()
                     return (party_dict, mobs, heroine_rolls['luck'])
-                check_tough(tough, mob_choice.name)
+                check_tough(tough, mob_choice)
                 next()
                 return (party_dict, mobs, heroine_rolls['luck'])
             else:
-                print(f"You are probably not worthy of facing this foe.  {mob_choice.name} easily evades {heroine.heroine_name}'s attack.")
+                print(f"{mob_choice.name} slips out of the way like a greased weasel.  {heroine.heroine_name}'s attack finds only air.")
                 next()
                 return (party_dict, mobs, False)
         mob_choice = update_health(mob_choice, damage)
@@ -215,7 +218,7 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             print(f"{mob_choice.name} has been slain!!")
             next()
             return (party_dict, mobs, heroine_rolls['luck'])
-        check_tough(tough, mob_choice.name)
+        check_tough(tough, mob_choice)
         next()
         return (party_dict, mobs, heroine_rolls['luck'])
     else:
@@ -235,14 +238,21 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     item_choices = [str(x) for x in list(range(1,inv_len + 1))]
     item_choice = None
     ok = False
-    while not ok:
+    if len(item_choices) > 1:
+        while not ok:
+            print(f"\n{heroine.heroine_name}'s turn:")
+            display_inventory(inv)
+            item_choice = input("Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ")
+            if item_choice in item_choices:
+                ok = True
+            else:
+                print(f'\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n')
+    else:
         print(f"\n{heroine.heroine_name}'s turn:")
         display_inventory(inv)
-        item_choice = input("Pick the number for whatever item you feel like using. Not that it's going to matter...  ")
-        if item_choice in item_choices:
-            ok = True
-        else:
-            print(f'\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n')
+        print(f"Looks like {heroine.heroine_name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
+        next()
+        item_choice = 1
 
     items = acc.get_items()
     item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
@@ -257,7 +267,7 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if heroine.hero_class == 'Cleric':
         mob_choice = get_target_choice(mobs, party_dict['party'])
     elif item['damage_range_high'] < 0:
-        mob_choice = heroine
+        mob_choice = get_target_choice([], party_dict['party'])
     else:
         if mobs_len > 1:
             mob_choice = get_target_choice(mobs, [])
@@ -322,7 +332,7 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
             healing = target.starting_health - target.health
         if hasattr(target, 'mob_class'):
             if not mob_rolls['heal']:
-                print(f"{mob.name} attempts to heal {target.name if target.name != mob.name else 'himself'} with {item['item_desc']}, but fucks up and nothing happens.  Idiot!")
+                print(f"{mob.name} attempts to heal {target.name if target.name != mob.name else 'themself'} with {item['item_desc']}, but fucks up and nothing happens.  Idiot!")
                 next()
                 return (party_dict, mobs, False)
             if mob == target:
@@ -332,7 +342,7 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
                 return (party_dict, mobs, mob_rolls['luck'])
             else:
                 target = update_health(target, healing)
-                print(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  So suck it!")
+                print(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  Ugh, teamwork.  Gross.")
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
         else:
@@ -352,25 +362,25 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
             if target_rolls['dodge']:
                 if mob_rolls['expertise']:
                     target = update_health(target, damage)
-                    print(f"Despite their best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+                    print(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
                     if target.is_dead:
-                        print(f"Oh drats.  {target.heroine_name} has been slain.  Whatever will you do")
+                        print(f"NOOO!  {target.heroine_name} has been slain!  We'll remember you, bud.")
                         next()
                         return (party_dict, mobs, mob_rolls['luck'])
-                    check_tough(tough, target.heroine_name)
+                    check_tough(tough, target)
                     next()
                     return (party_dict, mobs, mob_rolls['luck'])
                 else:
-                    print(f"Wow, {target.heroine_name} actually dodged {mob.name}'s attack.  Truly didn't see that coming.")
+                    print(f"HELL YES!  {target.heroine_name} dodges {mob.name}'s attack like a goddamn ninja!")
                     next()
                     return(party_dict, mobs, False)
             target = update_health(target, damage)
             print(f"{mob.name} bashes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
             if target.is_dead:
-                print(f"Oh dear.  {target.heroine_name} has been slain.  One less heroine for this run.  Whoops.")
+                print(f"Oh shit.  {target.heroine_name} has been slain.  She'll be back next run, but damn, that one hurt.")
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
-            check_tough(tough, target.heroine_name)
+            check_tough(tough, target)
             next()
             return (party_dict, mobs, mob_rolls['luck'])
 

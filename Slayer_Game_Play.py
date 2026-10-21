@@ -37,12 +37,12 @@ def check_wiped(party : list) -> bool:
 
 
 def play_game(party: dict) -> dict:
-    if party['narration']:
+    """if party['narration']:  #### THIS NEEDS TO BE COMMENTED BACK IN when working on narration, I just don't want to have to deal with it for every test during dev haha
         party['narration'] = acc.yes_no(input('Would you like narrative?  '))
         if party['narration']:
-            print("Really?  It's super boring, but, whatever.")
+            print("Really?  Oh hell yes, I've been practicing my voices.")
         else:
-            print("Oh I see how it is.  Fine.  I'll just shutup then.")
+            print("Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.")
         next()
         if party['narration']:
             nar.intro()
@@ -55,6 +55,7 @@ def play_game(party: dict) -> dict:
             second = acc.yes_no(input(f"Oh, so no I assumed wrong you you do need narrative again, or did you mean you didn't want repeated narrative?")) 
         time.sleep(0.3)
         print("But wait, bone-head, you're still not clearly answering my question.....")
+        time.sleep(0.75)
         print("I could go on like this all day....")
         time.sleep(0.3)
         print('Oh, right.  Sorry.')
@@ -64,44 +65,44 @@ def play_game(party: dict) -> dict:
         if party['narration']:
             print("Shirley you can't be serious....")
             time.sleep(0.3)
-            print(f"Sorry, I'll stop calling you \"Shirley\", {party.name}...")
+            print(f"Sorry, I'll stop calling you \"Shirley\", {party['name']}...")
             time.sleep(0.7)
-            print('You masochistic fuck.')
+            print('You beautiful masochist.')
             time.sleep(1)
         else:
-            print('What a jerk!  Fine.  Grabbing a roll of duct tape....')
-            next()
+            print('Understood.  Grabbing a roll of duct tape for my own mouth....')
+            next()"""
 
     mobs = [Slayer_Dwarf.Disgruntled_Dwarf('Happy'), Slayer_Dwarf.Disgruntled_Dwarf('Sneezy')]
 
     #encounter_over = False
-    round = 0
+    round_num = 0
     while not party['wiped'] and alive_mobs(mobs):
-        round += 1
+        round_num += 1
         turn_order = get_turn_order(party['party'], mobs)
         for attacker in turn_order:
             if not attacker.is_dead and alive_mobs(mobs):
-                print(f"Round {round}:\n\n")
-                combat.show_current_status(party['party'], mobs)
+                #print(f"Round {round}:\n\n")
+                combat.show_current_status(party['party'], mobs, round_num)
                 time.sleep(0.5)
                 if hasattr(attacker, 'hero_class'): # player's turn with the given heroine
                     party, mobs, luck_roll = combat.player_turn(attacker, party, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
-                        print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Hope you do better this time...")
+                        print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Make it count!")
                         next()
-                        combat.show_current_status(party['party'], mobs)
+                        combat.show_current_status(party['party'], mobs, round_num)
                         party, mobs, _ = combat.player_turn(attacker, party, mobs)
-                else: # mob's turn with the given mob(attacker)
+                else: # mob-group's turn with the given mob(attacker)
                     party, mobs, luck_roll = combat.mob_turn(attacker, party, mobs)
                     party['wiped'] = check_wiped(party['party'])
-                    if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toble this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
-                        print(f"Well \"lucky\" you.  {attacker.name} gets a second attack!")
+                    if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
+                        print(f"Oh, shit.  {attacker.name} gets a second attack!  Brace yourselves!")
                         next()
-                        combat.show_current_status(party['party'], mobs)
+                        combat.show_current_status(party['party'], mobs, round_num)
                         party, mobs, _ = combat.mob_turn(attacker, party , mobs)
                 party['wiped'] = check_wiped(party['party'])
         if party['wiped'] or not alive_mobs(mobs):
-            combat.show_current_status(party['party'], mobs)
+            combat.show_current_status(party['party'], mobs, round_num)
             next()
             #encounter_over = True
     return party

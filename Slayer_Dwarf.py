@@ -52,7 +52,7 @@ class Disgruntled_Dwarf:
         if self.health <= 0.5 * self.starting_health:
             if narrative:
                 print(f"\n\n{self.name} suddenly bulges out in all directions.  He becomes a rippling mass of what looks like pure muscle - the veins in his neck and forearms swell to such a size, they look like they might rupture.\n")
-                print(f"\"Oh lassies, you really fucked up now!\"  Now?  NOW I'M ANGRY!!!!")
+                print(f"\"Oh lassies, you really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")
             self.enraged = True
             self.starting_health = self.stats['enraged_hp']
             self.health = self.stats['enraged_hp']

@@ -15,17 +15,17 @@ auto_name_choices = {
 
 def get_name() -> str:
     print("Greetings!")
-    name = str(input(f'What is your name?  If you have one that is.  {whine()}.  Your name, please:  ')).title()
+    name = str(input(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ')).title()
     unacceptable = True
     while unacceptable:
         if name.upper() in db:
             print('No.')
             time.sleep(2)
-            name = str(input(f"Your name!  Your real fucking name!  Jesus Christ!  {whine()}.  "))
+            name = str(input(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  "))
         else:
             unacceptable = False
     print()
-    print(f"That's gotta be the very lamest name I've heard, and I've been hosting this game for... some time....  You're killing me.")
+    print(f"Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
     return name
         
 def print_recommended_classes(num_chars : int):
@@ -102,19 +102,34 @@ def create_new_party(name: str) -> list:
                 party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
         except(ValueError):
             party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
-    if party_count <= 3:
+    if party_count == 1:
+        print("One?  One.  You chose One.  One....  Ok, One it is....")
+        time.sleep(2)
+    elif party_count <= 3:
         print(f'{party_count}?!  Ballsy, I like it!')
         time.sleep(2)
     wt()
     print_recommended_classes(party_count)
     print()
     choose_composition = acc.yes_no(input("Would you like to choose the composition of your party?  "))
+    if choose_composition:
+        print("My recommendations are garbage, so take them with a grain of salt....")
+        next()
+    else:
+        print("Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear!")
+        next()
     print()
     choose_names = acc.yes_no(input("Would you like to choose the names of your party members?  "))
+    if choose_names:
+        print("Probably a wise choice.  I'm shit at naming.")
+        next()
+    else:
+        print("Oh hell yes, I LOVE naming people.  Prepare to be emotionally attached, and perhaps disgusted a little bit too.")
+        next()
     if choose_composition:
-        print()
-        print("Fair enough, but I doubt you'll get the composition right, so suck it.")
-        time.sleep(2)
+        #print()
+        #print("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.")
+        #time.sleep(2)
         wt()
         acc.print_classes()
         print()
@@ -129,25 +144,31 @@ def create_new_party(name: str) -> list:
             selection = input("\nWhich Class would you like to add?  ")
             while selection not in acc.get_hero_classes():
                 print()
-                selection = input("Let's try again.  Of the listed Class options, which would you like to add?  ")
+                selection = input("Let's try that again.  Of the listed Class options, which would you like to add?  ")
             if choose_names:
                 print()
                 name_choice = str(input("Ok, let's have a name for her:  "))
+                while name_choice.upper() in db:
+                    name_choice = str(input('....  No.  Try again, please, Bubba.  '))
                 new_party.append(get_hero(selection, name_choice))
             else:
                 new_party.append(get_hero(selection, auto_pick_name()))
     else:
+        print()
+        print("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.")
+        time.sleep(2)
         members = get_default_classes(party_count)
         print()
-        print("I figured as much.  Where is your sense of originality?")
         time.sleep(2)
         wt()
         for i in range(party_count):
             selection = members[i]
             if choose_names:
                 name_choice = str(input("Ok, let's have a name for your " + selection + ":  "))
+                while name_choice.upper() in db:
+                    name_choice = str(input('....  No.  Try again, please, Bubba.  '))
                 new_party.append(get_hero(selection, name_choice))
-            else:
+            else: 
                 new_party.append(get_hero(selection, auto_pick_name()))
     return new_party
 
@@ -165,7 +186,7 @@ def get_party() -> dict:
     saved_party = []
     try:
         saved_party = acc.load_party(name)
-        print(f"Ah yes, here you are: {name}... <snicker-snicker>... God I still think that name is so fucking stupid!  \nOk are you ready to rock and ro......{whine()}\nYou're a dumbass for trying to play again.\nAnd I have schizophrenia.")
+        print(f"Ah yes, here you are: {name}!  The legend returns!  \nOk, are you ready to rock and ro......{whine()}\nSorry.  I'm thrilled.  Genuinely.  This is my thrilled face.")
         next()
         wt()
         saved_party = refresh_party(saved_party)
@@ -175,10 +196,12 @@ def get_party() -> dict:
         next()
         return saved_party
     except(FileNotFoundError):
-        name = str(input(f"I don't recognize you.  What was that name again?  "))
+        print('Hmmmm.....')
+        time.sleep(1)
+        name = str(input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  "))
         try:
             saved_party = acc.load_party(name)
-            print(f"Oh, that's right, {name}, you were the moron projectile vomiting into that fountain last night.{whine()}  Welcome back.")
+            print(f"Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.")
             next()
             wt()
             saved_party = refresh_party(saved_party)
@@ -190,7 +213,7 @@ def get_party() -> dict:
         except(FileNotFoundError):
             print(f"No, I've never seen you.")
             time.sleep(2)
-            print(f"Let's just make you a fresh party, mkay?")
+            print(f"Let's just make you a fresh party, mkay, {name}?")
             time.sleep(3)
             saved_party = create_new_party(name)
             wt()

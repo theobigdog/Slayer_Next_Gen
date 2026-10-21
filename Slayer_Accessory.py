@@ -9,10 +9,12 @@ import pandas as pd
 #from dataclasses import dataclass
 import joblib as jb
 
+init()
+
 yes = ['YES','Y']
 no = ['NO','N']
 
-whines = ["Jesus Christ this game is pissing me off!  Sorry, I'm good, I'm good", "Would you stop that shit?  And I mean, right now!  Oh sorry", "I'm ready to kill somebody right now", "I just have zero patience for this shit, do I have to keep doing this?", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "I don't care.  I just don't even fucking care anymore.  What?  Oh!"]
+whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls", "I haven't had a day off since the Third Age, but sure, let's go", "I'm running on four hours of sleep and pure spite, but for YOU? Anything", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
 
 items = pd.read_csv('supporting_docs/items.csv')
 stats = pd.read_csv('supporting_docs/hero_stats.csv')
@@ -39,7 +41,7 @@ def next():
                 done = True
 
 def wt():
-    init()
+    #init()
     winterm = WinTerm()
     winterm.erase_screen(mode=2)
     print()
@@ -200,6 +202,8 @@ def generic_wipe_taunts() -> list:
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s dead, mangled body.  \"Take That!!\", she screamed!!",
-        "{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"",
+        "{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\nJesus Christ, what a CUNT!!",
+        "{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\nI hope you come back and teach these bitches a lesson!!",
+        "{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
+        "With her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.\"  Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
     ]
