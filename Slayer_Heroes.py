@@ -47,8 +47,8 @@ def get_stats(hero_class : str, stats = stats) -> dict:
         'dodge' : stat_value_delta((stats[stats['hero_class'] == hero_class]['dodge'][index]).values[0], 1.5, 1, stat_dice_cutoffs['dodge_cutoff'], 0),
         'parry' : stat_value_delta((stats[stats['hero_class'] == hero_class]['parry'][index]).values[0], 2, 1, stat_dice_cutoffs['parry_cutoff'], 0),
         'fear' : stat_value_delta((stats[stats['hero_class'] == hero_class]['fear'][index]).values[0], 2, 1, stat_dice_cutoffs['fear_cutoff'], 0),
-        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], 5, 1, stat_dice_cutoffs['heal_cutoff'], 0) if hero_class == 'Cleric' else 100,
-        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['aoe_heal_cutoff'], 0) if hero_class == 'Cleric' else 20,
+        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], 5, 1, stat_dice_cutoffs['heal_cutoff'], 0),# if hero_class == 'Cleric' else 100,
+        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], 2, 1, stat_dice_cutoffs['aoe_heal_cutoff'], 0),# if hero_class == 'Cleric' else 20,
         'low_st_health' : (stats[stats['hero_class'] == hero_class]['low_st_health'][index]).values[0],
         'high_st_health' : (stats[stats['hero_class'] == hero_class]['high_st_health'][index]).values[0],
     }
