@@ -29,10 +29,9 @@ def get_turn_order(party: dict, mobs: list) -> list:
     return sorted(entity_dict, key=entity_dict.get, reverse=True)
     
 def alive_mobs(mobs: list) -> bool:
-    living_mobs = [x for x in mobs if not x.is_dead]
-    return len(living_mobs) > 0
+    return any(not mob.is_dead for mob in mobs)
 
-def check_wiped(party : list) -> bool:
+def check_wiped(party: list) -> bool:
     return all(heroine.is_dead for heroine in party)
 
 

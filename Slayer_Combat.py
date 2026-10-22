@@ -181,6 +181,15 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
     damage_w_crit_mult = base_damage * crit_mult
     damage = None
     if len(mob_rolls.keys()) > 0:  # check to see if it is an attack or not
+        if attack_type == 'heal' and heroine.hero_class != 'Cleric':
+            healing = int(damage_w_crit_mult)
+            if healing > (mob_choice.starting_health - mob_choice.health):
+                healing = mob_choice.starting_health - mob_choice.health
+            mob_choice = update_health(mob_choice, healing)
+            print(f"{heroine.heroine_name} takes it upon herself to use her {item['item_desc']} to heal {mob_choice.name} for {healing} hp")
+            print(f"I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
+            next()
+            return (party_dict, mobs, heroine_rolls['luck'])
         tough = mob_rolls['toughness']
         if tough:
             damage = damage_w_crit_mult / 2
@@ -222,7 +231,19 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
         next()
         return (party_dict, mobs, heroine_rolls['luck'])
     else:
-        print("Not a mob attack") # placeholder for adding in healing items such as bandages, etc
+        if attack_type == 'heal' and heroine.hero_class != 'Cleric':
+            if heroine_rolls['miss']:
+                print(f"{heroine.heroine_name} tries to heal {'herself' if heroine == mob_choice else mob_choice.heroine_name}, but does a piss-poor job and just ends up wasting her turn.  Doh!")
+                next()
+                return (party_dict, mobs, False)
+            healing = int(damage_w_crit_mult)
+            if healing > (mob_choice.starting_health - mob_choice.health):
+                healing = mob_choice.starting_health - mob_choice.health
+            mob_choice = update_health(mob_choice, healing)
+            print(f"{heroine.heroine_name} quickly uses {item['item_desc']} to heal {'herself' if heroine == mob_choice else mob_choice.heroine_name} for {healing} hp")
+            print(f"I'm so proud of you!")
+            next()
+            return (party_dict, mobs, heroine_rolls['luck'])
         next()
         return (party_dict, mobs, heroine_rolls['luck'])
 
@@ -266,7 +287,7 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     mob_choice = None
     if heroine.hero_class == 'Cleric':
         mob_choice = get_target_choice(mobs, party_dict['party'])
-    elif item['damage_range_high'] < 0:
+    elif item_attack_type == "heal":
         mob_choice = get_target_choice([], party_dict['party'])
     else:
         if mobs_len > 1:
