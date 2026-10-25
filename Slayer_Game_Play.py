@@ -37,23 +37,23 @@ def check_wiped(party: list) -> bool:
     return all(heroine.is_dead for heroine in party)
 
 
-def play_game(party: dict) -> dict:
-    """if party['narration']:  #### THIS NEEDS TO BE COMMENTED BACK IN when working on narration, I just don't want to have to deal with it for every test during dev haha
-        party['narration'] = acc.yes_no(input('Would you like narrative?  '))
-        if party['narration']:
+def play_game(party_dict: dict) -> dict:
+    if party_dict['times_run_dungeon'] == 1:  #### THIS NEEDS TO BE COMMENTED BACK IN when working on narration, I just don't want to have to deal with it for every test during dev haha
+        party_dict['narration'] = acc.yes_no(input('Would you like narrative?  '))
+        if party_dict['narration']:
             print("Really?  Oh hell yes, I've been practicing my voices.")
         else:
             print("Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.")
         next()
-        if party['narration']:
+        if party_dict['narration']:
             nar.intro()
             nar.happy_intro()
     else:
         first = acc.yes_no(input(f"I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?"))
         if first:
-            second = acc.yes_no(input(f"Uh, yes you DO want me to provide narrative, or not?"))
+            _ = acc.yes_no(input(f"Uh, yes you DO want me to provide narrative, or not?"))
         else:
-            second = acc.yes_no(input(f"Oh, so no I assumed wrong you you do need narrative again, or did you mean you didn't want repeated narrative?")) 
+            _ = acc.yes_no(input(f"Oh, so no I assumed wrong you you do need narrative again, or did you mean you didn't want repeated narrative?")) 
         time.sleep(0.3)
         print("But wait, bone-head, you're still not clearly answering my question.....")
         time.sleep(0.75)
@@ -62,39 +62,39 @@ def play_game(party: dict) -> dict:
         print('Oh, right.  Sorry.')
         time.sleep(0.2)
 
-        party['narration'] = acc.yes_no(input(f"Ok, for realsies, would you like narration?")) # need to change this as a final question, which phrases it in such a way that it is very clear now
-        if party['narration']:
+        party_dict['narration'] = acc.yes_no(input(f"Ok, for realsies, would you like narration?")) # need to change this as a final question, which phrases it in such a way that it is very clear now
+        if party_dict['narration']:
             print("Shirley you can't be serious....")
             time.sleep(0.3)
-            print(f"Sorry, I'll stop calling you \"Shirley\", {party['name']}...")
+            print(f"Sorry, I'll stop calling you \"Shirley\", {party_dict['name']}...")
             time.sleep(0.7)
             print('You beautiful masochist.')
             time.sleep(1)
         else:
             print('Understood.  Grabbing a roll of duct tape for my own mouth....')
-            next()"""
+            next()
 
     buddy1 = random.choice(happy_buddy_names)
     buddy2 = random.choice([x for x in happy_buddy_names if x != buddy1])
     mobs = [Slayer_Dwarf.Disgruntled_Dwarf('Happy'), Slayer_Dwarf.Drunk_Dwarf(buddy1), Slayer_Dwarf.Drunk_Dwarf(buddy2)]
 
-    #encounter_over = False
+    encounter_over = False
     round_num = 0
-    while not party['wiped'] and alive_mobs(mobs):
+    while not party_dict['wiped'] and alive_mobs(mobs) and not encounter_over:
         round_num += 1
-        turn_order = get_turn_order(party['party'], mobs)
+        turn_order = get_turn_order(party_dict['party'], mobs)
         for attacker in turn_order:
             if not attacker.is_dead and alive_mobs(mobs):
                 #print(f"Round {round}:\n\n")
-                combat.show_current_status(party['party'], mobs, round_num)
+                combat.show_current_status(party_dict['party'], mobs, round_num)
                 time.sleep(0.5)
                 if hasattr(attacker, 'hero_class'): # player's turn with the given heroine
-                    party, mobs, luck_roll = combat.player_turn(attacker, party, mobs)
+                    party_dict, mobs, luck_roll = combat.player_turn(attacker, party_dict, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
                         print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Make it count!")
                         next()
-                        combat.show_current_status(party['party'], mobs, round_num)
-                        party, mobs, _ = combat.player_turn(attacker, party, mobs)
+                        combat.show_current_status(party_dict['party'], mobs, round_num)
+                        party_dict, mobs, _ = combat.player_turn(attacker, party_dict, mobs)
                     for mob in mobs:
                         if not mob.is_dead:
                             response_attack = False
@@ -107,19 +107,30 @@ def play_game(party: dict) -> dict:
                                 if response <= (mob.stats['turn'] * 100):
                                     response_attack = True
                             if response_attack:
-                                party, mobs, _ = combat.mob_turn(mob, party, mobs)
+                                party_dict, mobs, _ = combat.mob_turn(mob, party_dict, mobs)
                                 
                 else: # mob-group's turn with the given mob(attacker)
-                    party, mobs, luck_roll = combat.mob_turn(attacker, party, mobs)
-                    party['wiped'] = check_wiped(party['party'])
-                    if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
+                    party_dict, mobs, luck_roll = combat.mob_turn(attacker, party_dict, mobs)
+                    party_dict['wiped'] = check_wiped(party_dict['party'])
+                    if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party_dict['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
                         print(f"Oh, shit.  {attacker.name} gets a second attack!  Brace yourselves!")
                         next()
-                        combat.show_current_status(party['party'], mobs, round_num)
-                        party, mobs, _ = combat.mob_turn(attacker, party , mobs)
-                party['wiped'] = check_wiped(party['party'])
-        if party['wiped'] or not alive_mobs(mobs):
-            combat.show_current_status(party['party'], mobs, round_num)
+                        combat.show_current_status(party_dict['party'], mobs, round_num)
+                        party_dict, mobs, _ = combat.mob_turn(attacker, party_dict , mobs)
+                party_dict['wiped'] = check_wiped(party_dict['party'])
+                if mobs[0].is_dead and mobs[0].mob_class == 'Disgruntled Dwarf' and alive_mobs(mobs) and not party_dict['wiped']:
+                    #party_dict = mobs[0].trigger_happy_wipe(party_dict, True)
+                    #party_dict = acc.refresh_party(party_dict, False)
+                    encounter_over = True
+                    break
+        if party_dict['wiped'] or not alive_mobs(mobs):
+            combat.show_current_status(party_dict['party'], mobs, round_num)
             next()
-            #encounter_over = True
-    return party
+    if (party_dict['wiped'] or mobs[0].is_dead) and mobs[0].mob_class == 'Disgruntled Dwarf':
+        if mobs[0].is_dead:
+            party_dict = mobs[0].trigger_happy_wipe(party_dict, True)
+        else:
+            party_dict = mobs[0].trigger_happy_wipe(party_dict, False)
+        party_dict = acc.refresh_party(party_dict, False)
+
+    return party_dict

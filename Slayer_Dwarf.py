@@ -43,7 +43,7 @@ def initialize_char(class_obj: object, mobs: pd.DataFrame, mob_equipment: pd.Dat
 
 class Disgruntled_Dwarf:
 
-    def __init__(self, name):
+    def __init__(self, name : str):
         self.name = name
         self.mob_class = 'Disgruntled Dwarf'
         self = acc.initialize_mob(self, mobs, mob_equipment)
@@ -60,9 +60,27 @@ class Disgruntled_Dwarf:
         self.starting_health = self.stats['enraged_hp']
         self.health = self.stats['enraged_hp']
 
+    def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool) -> dict:
+        if happy_killed:
+            print('Add Immortal Happy -> wipes the party anyway narration')
+            party_dict = acc.wipe_party(party_dict)
+        else:
+            print('Add wipe narration here')
+        #party_dict = acc.wipe_party(party_dict)  Only actually necessary if Happy is killed i think
+        print('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
+        party_dict = acc.get_loot(self, party_dict)
+        print('Add specific Happy narration here for gett stat increases, to explain how it works even, maybe?  Actual stats will never be shown, just set and updated in the background, so nothing should actually print from this function when finished.')
+        print(f'1 idea:  "Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!')
+        print(f'Don\'t ask me who improved in what, or by how much.')
+        print(F'Also, I would expect this to occur again after each successful encounter you wee lassies may face.')
+        next()
+        party_dict = acc.get_stat_increases(party_dict)
+        return party_dict
+
+
 class Drunk_Dwarf:
 
-    def __init__(self, name):
+    def __init__(self, name : str):
         self.name = name
         self.mob_class = 'Drunk Dwarf'
         self = acc.initialize_mob(self, mobs, mob_equipment)

@@ -172,15 +172,6 @@ def create_new_party(name: str) -> list:
                 new_party.append(get_hero(selection, auto_pick_name()))
     return new_party
 
-def refresh_party(party : dict) ->dict:
-    party['times_run_dungeon'] += 1
-    party['wiped'] = False
-    for heroine in party['party']:
-        heroine.is_dead = False
-        heroine.health = heroine.starting_health
-    party['narration'] = False
-    return party
-
 def get_party() -> dict:
     name = get_name()
     saved_party = []
@@ -189,7 +180,7 @@ def get_party() -> dict:
         print(f"Ah yes, here you are: {name}!  The legend returns!  \nOk, are you ready to rock and ro......{whine()}\nSorry.  I'm thrilled.  Genuinely.  This is my thrilled face.")
         next()
         wt()
-        saved_party = refresh_party(saved_party)
+        saved_party = acc.refresh_party(saved_party, True)
         acc.print_player_starting_summary(saved_party['party'])
         wt()
         Slayer_Combat.display_party_summary(saved_party['party'])
@@ -204,7 +195,7 @@ def get_party() -> dict:
             print(f"Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.")
             next()
             wt()
-            saved_party = refresh_party(saved_party)
+            saved_party = acc.refresh_party(saved_party, True)
             acc.print_player_starting_summary(saved_party['party'])
             wt()
             Slayer_Combat.display_party_summary(saved_party['party'])

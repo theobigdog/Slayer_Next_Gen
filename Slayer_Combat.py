@@ -143,8 +143,9 @@ def get_target_choice(mobs : list, party : list) -> object:
     counter = 1
     living_mobs = [x for x in mobs if not x.is_dead]
     mobs_len = len(living_mobs)
-    if mobs_len == 1:
-        return living_mobs[0]
+    living_targets = [x for x in party if not x.is_dead] + living_mobs
+    if len(living_targets) == 1:
+        return living_targets[0]
     targets = {}
     party_len = len(party)
     if party_len > 0:
@@ -222,7 +223,10 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             if heroine_rolls['expertise']:
                 mob_choice = update_health(mob_choice, damage)
                 print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
-                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health  and not mob_choice.enraged:
+                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.enraged and mob_choice.is_dead:
+                    party_dict = acc.wipe_party(party_dict)
+                    return (party_dict, mobs, False)
+                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health and not mob_choice.enraged:
                     mob_choice.toggle_enraged()
                     next()
                     return (party_dict, mobs, False)
@@ -239,6 +243,9 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
                 return (party_dict, mobs, False)
         mob_choice = update_health(mob_choice, damage)
         print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
+        if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.enraged and mob_choice.is_dead:
+            party_dict = acc.wipe_party(party_dict)
+            return (party_dict, mobs, False)
         if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health and not mob_choice.enraged:
             mob_choice.toggle_enraged()
             next()
@@ -315,10 +322,10 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     elif item_attack_type == "heal":
         mob_choice = get_target_choice([], party_dict['party'])
     else:
-        if mobs_len > 1:
-            mob_choice = get_target_choice(mobs, [])
-        else:
-            mob_choice = mobs[0]
+        #if mobs_len > 1:
+        mob_choice = get_target_choice(mobs, [])
+       # else:
+           # mob_choice = mobs[0]
     
     heroine_rolls = get_heroine_rolls(heroine)
     if mob_choice in mobs:

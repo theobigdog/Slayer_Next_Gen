@@ -208,3 +208,31 @@ def item_specific_wipe_taunts() -> list:
         "{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
         "With her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.\"  Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
     ]
+
+def get_loot(mob : object, party_dict : dict) -> dict:
+    print('Add looting process here, per party member, from specific mob loot-tables in the items.csv')
+    next()
+    return party_dict
+
+def get_stat_increases(party_dict : dict) -> dict:
+    print('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
+    next()
+    return party_dict
+
+def refresh_party(party : dict, increment : bool) -> dict:
+    if increment:
+        party['times_run_dungeon'] += 1
+    party['wiped'] = False
+    for heroine in party['party']:
+        heroine.is_dead = False
+        heroine.health = heroine.starting_health
+    #party['narration'] = False  ####  Claude, this line may cause an issue yeah?  When the party gets refreshed after Happy, then even if narration was desired, it will stop after this point, won't it?  Can you look into what all may need to be fixed to make this work correctly, please?
+    return party
+
+def wipe_party(party_dict : dict) -> dict:
+    party_dict['wiped'] = True
+    for heroine in party_dict['party']:
+        heroine.is_dead = True
+        heroine.health = 0
+    return party_dict
+
