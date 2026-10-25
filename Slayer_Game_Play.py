@@ -8,6 +8,8 @@ import random
 from colorama import Fore, Back, Style, Cursor
 import time
 
+happy_buddy_names = ['Burpy', 'Gassy', 'Smelly', 'Grumpy', 'Hairy', 'Slappy', 'Fuck-Head']
+
 def get_turn_order(party: dict, mobs: list) -> list:
     heroine_dice_cutoff = acc.get_dice_cutoffs()['speed_cutoff']
     mob_dice_cutoff = acc.get_dice_cutoffs_mobs()['speed_cutoff']
@@ -72,7 +74,9 @@ def play_game(party: dict) -> dict:
             print('Understood.  Grabbing a roll of duct tape for my own mouth....')
             next()"""
 
-    mobs = [Slayer_Dwarf.Disgruntled_Dwarf('Happy'), Slayer_Dwarf.Disgruntled_Dwarf('Sneezy')]
+    buddy1 = random.choice(happy_buddy_names)
+    buddy2 = random.choice([x for x in happy_buddy_names if x != buddy1])
+    mobs = [Slayer_Dwarf.Disgruntled_Dwarf('Happy'), Slayer_Dwarf.Drunk_Dwarf(buddy1), Slayer_Dwarf.Drunk_Dwarf(buddy2)]
 
     #encounter_over = False
     round_num = 0
@@ -91,6 +95,20 @@ def play_game(party: dict) -> dict:
                         next()
                         combat.show_current_status(party['party'], mobs, round_num)
                         party, mobs, _ = combat.player_turn(attacker, party, mobs)
+                    for mob in mobs:
+                        if not mob.is_dead:
+                            response_attack = False
+                            if mob.enraged:
+                                response = acc.multi_roll(1,100)
+                                if response <= (mob.stats['enraged_turn'] * 100):
+                                    response_attack = True
+                            else:
+                                response = acc.multi_roll(1,100)
+                                if response <= (mob.stats['turn'] * 100):
+                                    response_attack = True
+                            if response_attack:
+                                party, mobs, _ = combat.mob_turn(mob, party, mobs)
+                                
                 else: # mob-group's turn with the given mob(attacker)
                     party, mobs, luck_roll = combat.mob_turn(attacker, party, mobs)
                     party['wiped'] = check_wiped(party['party'])

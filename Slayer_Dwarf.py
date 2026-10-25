@@ -47,14 +47,23 @@ class Disgruntled_Dwarf:
         self.name = name
         self.mob_class = 'Disgruntled Dwarf'
         self = acc.initialize_mob(self, mobs, mob_equipment)
+        self.is_boss = True
+        self.enraged = False
         
-    def toggle_enraged(self, narrative : bool):
-        if self.health <= 0.5 * self.starting_health:
-            if narrative:
-                print(f"\n\n{self.name} suddenly bulges out in all directions.  He becomes a rippling mass of what looks like pure muscle - the veins in his neck and forearms swell to such a size, they look like they might rupture.\n")
-                print(f"\"Oh lassies, you really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")
-            self.enraged = True
-            self.starting_health = self.stats['enraged_hp']
-            self.health = self.stats['enraged_hp']
+    def toggle_enraged(self):
+        print(f"\n\n{self.name} gasps loudly.  \"Now that one fucking hurt!!\"")
+        next()
+        print(f"\n{self.name} suddenly bulges out in all directions.  He becomes a rippling mass of what looks like pure muscle - the veins in his neck and forearms swell to such a size, they look like they might rupture.\n")
+        print(f"\"Oh lassies,\" he growls, \"you really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")
+        self.is_dead = False
+        self.enraged = True
+        self.starting_health = self.stats['enraged_hp']
+        self.health = self.stats['enraged_hp']
 
-        
+class Drunk_Dwarf:
+
+    def __init__(self, name):
+        self.name = name
+        self.mob_class = 'Drunk Dwarf'
+        self = acc.initialize_mob(self, mobs, mob_equipment)
+        self.is_boss = False

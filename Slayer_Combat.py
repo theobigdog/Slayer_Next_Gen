@@ -45,7 +45,7 @@ def get_heroine_rolls(heroine: object) -> dict:  ### In this function, "cutoffs"
     heroine_stats = heroine.stats
     heroine_dice_cutoffs = acc.get_dice_cutoffs()
     crit = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['crit_cutoff'])
-    miss = acc.multi_roll(heroine_stats['low_miss'], heroine_stats['high_miss'])
+    hit = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['hit_cutoff'])#heroine_stats['hit'])
     luck = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['luck_cutoff'])
     expertise = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['expertise_cutoff'])
     toughness = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['toughness_cutoff'])
@@ -54,19 +54,19 @@ def get_heroine_rolls(heroine: object) -> dict:  ### In this function, "cutoffs"
     fear = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['fear_cutoff'])
     heal = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['heal_cutoff'])
     aoe_heal = acc.multi_roll(heroine_dice_cutoffs['low'], heroine_dice_cutoffs['aoe_heal_cutoff'])
-    if crit > heroine_stats['crit']:
+    if crit <= heroine_stats['crit']:
         roll_results['crit_mult'] = heroine_stats['crit_mult'] # crit roll is higher than cutoff, so the crit_mult is returned
     else:
         roll_results['crit_mult'] = 1 # if not a crit, multiplier is 1
-    roll_results['miss'] = miss < heroine_dice_cutoffs['miss_threshold']
-    roll_results['luck'] = luck > heroine_stats['luck']
-    roll_results['expertise'] = expertise > heroine_stats['expertise']
-    roll_results['toughness'] = toughness > heroine_stats['toughness']
-    roll_results['dodge'] = dodge > heroine_stats['dodge']
-    roll_results['parry'] = parry > heroine_stats['parry']
-    roll_results['fear'] = fear > heroine_stats['fear']
-    roll_results['heal'] = heal > heroine_stats['heal']
-    roll_results['aoe_heal'] = aoe_heal > heroine_stats['aoe_heal']
+    roll_results['hit'] = hit <= heroine_stats['hit']
+    roll_results['luck'] = luck <= heroine_stats['luck']
+    roll_results['expertise'] = expertise <= heroine_stats['expertise']
+    roll_results['toughness'] = toughness <= heroine_stats['toughness']
+    roll_results['dodge'] = dodge <= heroine_stats['dodge']
+    roll_results['parry'] = parry <= heroine_stats['parry']
+    roll_results['fear'] = fear <= heroine_stats['fear']
+    roll_results['heal'] = heal <= heroine_stats['heal']
+    roll_results['aoe_heal'] = aoe_heal <= heroine_stats['aoe_heal']
     return roll_results
 
 def get_mob_rolls(mob: object) -> dict:
@@ -75,7 +75,7 @@ def get_mob_rolls(mob: object) -> dict:
     enraged = mob.enraged
     mob_dice_cutoffs = acc.get_dice_cutoffs_mobs()
     crit = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['crit_cutoff'])
-    miss = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['miss_cutoff'])
+    hit = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['hit_cutoff'])
     luck = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['luck_cutoff'])
     expertise = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['expertise_cutoff'])
     toughness = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['toughness_cutoff'])
@@ -83,29 +83,29 @@ def get_mob_rolls(mob: object) -> dict:
     heal = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['healing_chance_cutoff'])
     scare = acc.multi_roll(mob_dice_cutoffs['low'], mob_dice_cutoffs['scare_cutoff'])
     if enraged:
-        if crit > mob_stats['enraged_crit_chance']:
+        if crit <= mob_stats['enraged_crit_chance']:
             roll_results['crit_mult'] = mob_stats['enraged_crit']
         else:
             roll_results['crit_mult'] = 1
-        roll_results['miss'] = miss < mob_stats['enraged_miss']
-        roll_results['luck'] = luck > mob_stats['enraged_luck']
-        roll_results['expertise'] = expertise > mob_stats['enraged_expertise']
-        roll_results['toughness'] = toughness > mob_stats['enraged_toughness']
-        roll_results['dodge'] = dodge > mob_stats['enraged_dodge']
-        roll_results['heal'] = heal > mob_stats['enraged_healing_chance']
-        roll_results['scare'] = scare > mob_stats['enraged_scare']
+        roll_results['hit'] = hit <= mob_stats['enraged_hit']
+        roll_results['luck'] = luck <= mob_stats['enraged_luck']
+        roll_results['expertise'] = expertise <= mob_stats['enraged_expertise']
+        roll_results['toughness'] = toughness <= mob_stats['enraged_toughness']
+        roll_results['dodge'] = dodge <= mob_stats['enraged_dodge']
+        roll_results['heal'] = heal <= mob_stats['enraged_healing']
+        roll_results['scare'] = scare <= mob_stats['enraged_scare']
     else:
-        if crit > mob_stats['crit_chance']:
+        if crit <= mob_stats['crit_chance']:
             roll_results['crit_mult'] = mob_stats['crit']
         else:
             roll_results['crit_mult'] = 1
-        roll_results['miss'] = miss < mob_stats['miss']
-        roll_results['luck'] = luck > mob_stats['luck']
-        roll_results['expertise'] = expertise > mob_stats['expertise']
-        roll_results['toughness'] = toughness > mob_stats['toughness']
-        roll_results['dodge'] = dodge > mob_stats['dodge']
-        roll_results['heal'] = heal > mob_stats['healing_chance']
-        roll_results['scare'] = scare > mob_stats['scare']
+        roll_results['hit'] = hit <= mob_stats['hit']
+        roll_results['luck'] = luck <= mob_stats['luck']
+        roll_results['expertise'] = expertise <= mob_stats['expertise']
+        roll_results['toughness'] = toughness <= mob_stats['toughness']
+        roll_results['dodge'] = dodge <= mob_stats['dodge']
+        roll_results['heal'] = heal <= mob_stats['healing']
+        roll_results['scare'] = scare <= mob_stats['scare']
     return roll_results
 
 def update_health(to_update : object, delta : int) -> object:
@@ -141,7 +141,10 @@ def display_inventory(inv : list) -> None:
 
 def get_target_choice(mobs : list, party : list) -> object:
     counter = 1
-    mobs_len = len(mobs)
+    living_mobs = [x for x in mobs if not x.is_dead]
+    mobs_len = len(living_mobs)
+    if mobs_len == 1:
+        return living_mobs[0]
     targets = {}
     party_len = len(party)
     if party_len > 0:
@@ -194,20 +197,24 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             print(f"{heroine.heroine_name} takes it upon herself to use her {item['item_desc']} to heal {mob_choice.name} for {healing} hp")
             print(f"I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
             next()
-            return (party_dict, mobs, heroine_rolls['luck'])
+            return (party_dict, mobs, False)
         tough = mob_rolls['toughness']
         if tough:
             damage = damage_w_crit_mult / 2
         else:
             damage = damage_w_crit_mult
         damage = int(damage)
+        #if mob_choice.mob_class == 'Disgruntled Dwarf' and (mob_choice.health < 0.5 * mob_choice.starting_health or mob_choice.health <= damage):
+         #   mob_choice.toggle_enraged()
+          #  next()
+           # return (party_dict, mobs, False)
         if mob_choice.health <= damage:
             damage = mob_choice.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
             print(f"As {heroine.heroine_name} approaches {mob_choice.name}, she uncontrollably recoils at the very sight of them.  Honestly?  Fair.  That's a lost turn, though.")
             next()
             return (party_dict, mobs, False)
-        if heroine_rolls['miss']:
+        if not heroine_rolls['hit']:
             print(f"Wow, that was a big ol' whiff, now wasn't it, {heroine.heroine_name}.")
             next()
             return (party_dict, mobs, False)
@@ -215,6 +222,10 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             if heroine_rolls['expertise']:
                 mob_choice = update_health(mob_choice, damage)
                 print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
+                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health  and not mob_choice.enraged:
+                    mob_choice.toggle_enraged()
+                    next()
+                    return (party_dict, mobs, False)
                 if mob_choice.is_dead:
                     print(f"{mob_choice.name} has been slain!!")
                     next()
@@ -228,6 +239,10 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
                 return (party_dict, mobs, False)
         mob_choice = update_health(mob_choice, damage)
         print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
+        if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health and not mob_choice.enraged:
+            mob_choice.toggle_enraged()
+            next()
+            return (party_dict, mobs, False)
         if mob_choice.is_dead:
             print(f"{mob_choice.name} has been slain!!")
             next()
@@ -292,7 +307,7 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if item_attack_type == 'aoe':
         None
 
-    mobs_len = len(mobs)
+    mobs_len = len([x for x in mobs if not x.is_dead])
 
     mob_choice = None
     if heroine.hero_class == 'Cleric':
@@ -381,12 +396,15 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
     else:
         if hasattr(target, 'hero_class'):
             tough = target_rolls['toughness']
+            parry = target_rolls['parry'] and item['attack_style'] == 'melee'
             damage = int(delta_w_crit)
             if tough:
                 damage = int(damage / 2)
+            if parry:
+                damage = int(damage / 2)
             if target.health <= damage:
                 damage = target.health
-            if mob_rolls['miss']:
+            if not mob_rolls['hit']:
                 print(f"{mob.name} attempts to attack {target.heroine_name} with their {item['item_desc']}, but misses widely.")
                 next()
                 return (party_dict, mobs, False)
@@ -394,10 +412,16 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
                 if mob_rolls['expertise']:
                     target = update_health(target, damage)
                     print(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+                    if parry and not target.is_dead:
+                        print(f"But {target.heroine_name} manages to deflect half of the damage!  Way to go!")
+                        #next()
+                        #return (party_dict, mobs, mob_rolls['luck'])
                     if target.is_dead:
                         print(f"NOOO!  {target.heroine_name} has been slain!  We'll remember you, bud.")
                         next()
                         return (party_dict, mobs, mob_rolls['luck'])
+                    #if parry:
+                       # print(f"But {target.heroine_name} manages to deflect half of the damage!  Way to go!")
                     check_tough(tough, target)
                     next()
                     return (party_dict, mobs, mob_rolls['luck'])
@@ -411,6 +435,8 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
                 print(f"Oh shit.  {target.heroine_name} has been slain.  She'll be back next run, but damn, that one hurt.")
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
+            if parry:
+                print(f"But {target.heroine_name} manages to parry half of the damage!  Incredible!")
             check_tough(tough, target)
             next()
             return (party_dict, mobs, mob_rolls['luck'])
@@ -423,7 +449,7 @@ def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
         next()
         return (party_dict, mobs, False)
 
-    print(f"{mob.name}'s turn:\n\n")
+    print(f"\n\n{mob.name}'s turn:\n")
     inv = mob.inv
 
     ai = mob.starting_ai
