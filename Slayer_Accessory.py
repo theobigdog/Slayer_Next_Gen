@@ -1,6 +1,6 @@
 import random
 from msvcrt import kbhit, getch
-#import time
+import time
 from colorama import Fore, Back, Style, Cursor, win32, init
 from colorama.winterm import WinTerm
 import pandas as pd
@@ -79,6 +79,8 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
         'aoe_heal_cutoff' : 100,#20,
     }
 
+db = ["DICK BUBBLE","DICK-BUBBLE","DICKBUBBLE","DICK BUBBLES", "DICKBUBBLES","DICK-BUBBLES","DICK-BBL","DICKBBL", "DICK-BBLS", "DICKBBLS", "DICK BBL", "DICK BBLS"]
+
 def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine
     return {
         'crit_cutoff' : 100,#20,
@@ -124,6 +126,28 @@ def print_player_starting_summary(party : list, items : pd.DataFrame = items):
         print(f"Starting Health: {int(round(dudette.starting_health, 0))}")
         print()
     next()
+
+def check_bad_name(name : str) -> str:
+    name = name.strip()
+    while name.upper() in db or name == '':
+        print('No.')
+        time.sleep(2)
+        if name.upper() in db:
+            name = input(f'No, Bubba!  {whine()}.  Try again!  ').title().strip()
+        else:
+            name = input(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  ").title().strip()
+    return name
+
+def check_bad_heroine_name(name : str) -> str:
+    name = name.strip()
+    while name.upper() in db or name == '':
+        print('Nope.')
+        time.sleep(2)
+        if name.upper() in db:
+            name = input(f"Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.  ").strip()
+        else:
+            name = input(f"Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.  ").strip()
+    return name
 
 def get_items() -> pd.DataFrame:
     return items

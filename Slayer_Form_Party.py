@@ -16,14 +16,7 @@ auto_name_choices = {
 def get_name() -> str:
     print("Greetings!")
     name = str(input(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ')).title()
-    unacceptable = True
-    while unacceptable:
-        if name.upper() in db:
-            print('No.')
-            time.sleep(2)
-            name = str(input(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  "))
-        else:
-            unacceptable = False
+    name = acc.check_bad_name(name)
     print()
     print(f"Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
     return name
@@ -31,9 +24,8 @@ def get_name() -> str:
 def print_recommended_classes(num_chars : int):
     print('\nRecommended Party Composition (based on party-size):')
     print()    
-    for i in range(num_chars):
-        rando = random.randint(1,len(acc.get_hero_classes())-1)
-        print(acc.get_hero_classes()[rando])#
+    for _ in range(num_chars):
+        print(random.choice(acc.get_hero_classes()))
 
 def get_default_classes(party_count : int) -> list:
     # 0: Warrior, 1: Shifter, 2: Battle_Mage, 3: Hunter, 4: Witch, 5: Sapper, 6: Cleric
@@ -79,8 +71,6 @@ def auto_pick_name():
     middle = auto_name_choices['middle'][random.randint(0,len(auto_name_choices['middle']) - 1)]
     last = auto_name_choices['last'][random.randint(0, len(auto_name_choices['last']) - 1)]
     return first + ' ' + middle + ' ' + last
-
-db = ["DICK-BUBBLE","DICK BUBBLE","DICK BUBBLES","DICK-BUBBLES","DICK-BBL","DICK BBL", "DICKBBL"]
 
 def print_current_party(party : list):
     for member in party:
@@ -148,8 +138,7 @@ def create_new_party(name: str) -> list:
             if choose_names:
                 print()
                 name_choice = str(input("Ok, let's have a name for her:  "))
-                while name_choice.upper() in db:
-                    name_choice = str(input('....  No.  Try again, please, Bubba.  '))
+                name_choice = acc.check_bad_heroine_name(name_choice)
                 new_party.append(get_hero(selection, name_choice))
             else:
                 new_party.append(get_hero(selection, auto_pick_name()))
@@ -165,8 +154,7 @@ def create_new_party(name: str) -> list:
             selection = members[i]
             if choose_names:
                 name_choice = str(input("Ok, let's have a name for your " + selection + ":  "))
-                while name_choice.upper() in db:
-                    name_choice = str(input('....  No.  Try again, please, Bubba.  '))
+                name_choice = acc.check_bad_heroine_name(name_choice)
                 new_party.append(get_hero(selection, name_choice))
             else: 
                 new_party.append(get_hero(selection, auto_pick_name()))
@@ -189,7 +177,8 @@ def get_party() -> dict:
     except(FileNotFoundError):
         print('Hmmmm.....')
         time.sleep(1)
-        name = str(input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  "))
+        name = str(input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  ")).title()
+        name = acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)
             print(f"Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.")

@@ -107,6 +107,7 @@ def play_game(party_dict: dict) -> dict:
                                 if response <= (mob.stats['turn'] * 100):
                                     response_attack = True
                             if response_attack:
+                                party_dict['wiped'] = check_wiped(party_dict['party'])
                                 party_dict, mobs, _ = combat.mob_turn(mob, party_dict, mobs)
                                 
                 else: # mob-group's turn with the given mob(attacker)

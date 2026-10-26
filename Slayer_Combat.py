@@ -160,10 +160,9 @@ def get_target_choice(mobs : list, party : list) -> object:
         print()
         print('Mobs:')
         for i in range(mobs_len):
-            if not mobs[i].is_dead:
-                print(f'{counter}: {mobs[i].name}')
-                targets[counter] = mobs[i]
-                counter += 1
+            print(f'{counter}: {living_mobs[i].name}')
+            targets[counter] = living_mobs[i]
+            counter += 1
     
     target_choices = [str(x) for x in list(range(1,counter))]
     target_choice = None
@@ -277,7 +276,7 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             next()
             return (party_dict, mobs, heroine_rolls['luck'])
         next()
-        return (party_dict, mobs, heroine_rolls['luck'])
+        return (party_dict, mobs, False)
 
 def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if heroine.is_dead:
@@ -299,7 +298,7 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
             if item_choice in item_choices:
                 ok = True
             else:
-                print(f'\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n')
+                print(f"\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n")
     else:
         print(f"\n{heroine.heroine_name}'s turn:")
         display_inventory(inv)
@@ -380,8 +379,8 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
     is_crit = crit_mult > 1 # intended to be used for autocommenting, for future work
     delta_w_crit = base_delta * crit_mult
     if item['damage_high'] < 0:
-        healing = int(delta_w_crit)
-        if target.health - healing > target.starting_health:
+        healing = -int(delta_w_crit)
+        if target.health + healing > target.starting_health:
             healing = target.starting_health - target.health
         if hasattr(target, 'mob_class'):
             if not mob_rolls['heal']:
@@ -389,17 +388,19 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
                 next()
                 return (party_dict, mobs, False)
             if mob == target:
-                mob = update_health(mob, healing)
+                mob = update_health(mob, -healing)
                 print(f"Using their {item['item_desc']}, {mob.name} heals for {healing} hp.  Oh dear.")
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
             else:
-                target = update_health(target, healing)
+                target = update_health(target, -healing)
                 print(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  Ugh, teamwork.  Gross.")
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
         else:
-            return (party_dict, mobs, mob_rolls['luck']) # add logic for mob healing party members              
+            print('Need logic for mobs healing party members, in case we decide to do this.  I say no luck roll for it, though.')
+            next()
+            return (party_dict, mobs, False) # add logic for mob healing party members              
     else:
         if hasattr(target, 'hero_class'):
             tough = target_rolls['toughness']
@@ -445,6 +446,10 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
             if parry:
                 print(f"But {target.heroine_name} manages to parry half of the damage!  Incredible!")
             check_tough(tough, target)
+            next()
+            return (party_dict, mobs, mob_rolls['luck'])
+        else:
+            print('Filler for mobs attacking each other, if I decide to have a berserker spell or perhaps a witch can cast confusion or something that makes mobs attack each other, or just randomly in general (party or other mobs can be attacked?).  Might be fun.')
             next()
             return (party_dict, mobs, mob_rolls['luck'])
 
