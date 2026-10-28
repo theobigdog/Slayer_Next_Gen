@@ -1,13 +1,11 @@
 import random
 from msvcrt import kbhit, getch
 import time
-from colorama import Fore, Back, Style, Cursor, win32, init
+from colorama import init
 from colorama.winterm import WinTerm
 import pandas as pd
-#import uuid
-#import csv
-#from dataclasses import dataclass
 import joblib as jb
+import sys
 
 init()
 
@@ -29,7 +27,7 @@ def yes_no(response : str) -> bool:
     response = str(response).upper()
     while (response not in yes) and (response not in no):
         response = str(input("Let's pretend you didn't type that and try again.  Yes or No?:  ")).upper()
-    return True if response in yes else False
+    return response in yes
 
 def next():
     done = False
@@ -41,7 +39,6 @@ def next():
                 done = True
 
 def wt():
-    #init()
     winterm = WinTerm()
     winterm.erase_screen(mode=2)
     print()
@@ -51,10 +48,10 @@ def end(full = False):
     print()
     print("The End.")
     if full:
-        x = "Fill stuff in here later"
+        pass # TO Do - full ending
     print()
     print()
-    exit()
+    sys.exit()
 
 def multi_roll(low_range : int, high_range : int) -> int:
     return random.randint(low_range, high_range)
@@ -62,37 +59,34 @@ def multi_roll(low_range : int, high_range : int) -> int:
 def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs
     return {
         'low' : 1,
-        'crit_cutoff' : 100,#20,
-        'crit_mult_cutoff' : 2.5, ##  Does it even make sense to have this?
-        #'low_miss' : 1,
-        #'high_miss' : 100,
-        #'miss_threshold' : 70,
+        'crit_cutoff' : 100,
+        'crit_mult_cutoff' : 2.5,
         'hit_cutoff' : 100,
-        'luck_cutoff' : 100,#20,
+        'luck_cutoff' : 100,
         'speed_cutoff' : 40,
-        'expertise_cutoff' : 100,#50,
-        'toughness_cutoff' : 100,#20,
-        'dodge_cutoff' : 100,#15,
-        'parry_cutoff' : 100,#20,
-        'fear_cutoff' : 100,#20,
+        'expertise_cutoff' : 100,
+        'toughness_cutoff' : 100,
+        'dodge_cutoff' : 100,
+        'parry_cutoff' : 100,
+        'fear_cutoff' : 100,
         'heal_cutoff' : 100,
-        'aoe_heal_cutoff' : 100,#20,
+        'aoe_heal_cutoff' : 100,
     }
 
 db = ["DICK BUBBLE","DICK-BUBBLE","DICKBUBBLE","DICK BUBBLES", "DICKBUBBLES","DICK-BUBBLES","DICK-BBL","DICKBBL", "DICK-BBLS", "DICKBBLS", "DICK BBL", "DICK BBLS"]
 
 def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine
     return {
-        'crit_cutoff' : 100,#20,
-        'crit_mult_cutoff' : 5, ## Does it even make sense to have this?
-        'hit_cutoff' : 100,#30,
-        'luck_cutoff' : 100,#20,
+        'crit_cutoff' : 100,
+        'crit_mult_cutoff' : 5,
+        'hit_cutoff' : 100,
+        'luck_cutoff' : 100,
         'speed_cutoff' : 40,
-        'expertise_cutoff' : 100,#20,
-        'toughness_cutoff' : 100,#20,
-        'dodge_cutoff' : 100,#15,
-        'healing_chance_cutoff' : 100,#20,
-        'scare_cutoff' : 100,#20,
+        'expertise_cutoff' : 100,
+        'toughness_cutoff' : 100,
+        'dodge_cutoff' : 100,
+        'healing_chance_cutoff' : 100,
+        'scare_cutoff' : 100,
         'low' : 1,
     }
 
@@ -103,18 +97,17 @@ def print_classes():
         print(hero_class)
 
 def save_party(party : dict):
-    jb.dump(party, f"saved_parties/{party['name'].title()}.pkl")
-    print(f"Your party has been saved as {party['name'].title()}.")
-    print(f"Keep track of this saved name if you want to recover your party: {party['name'].title()}")
+    name = party['name'].title()
+    jb.dump(party, f"saved_parties/{name}.pkl")
+    print(f"Your party has been saved as {name}.")
+    print(f"Keep track of this saved name if you want to recover your party: {name}")
     next()
 
-def load_party(name : str = 'saved_parties/default.pkl') -> list:
+def load_party(name : str) -> dict:
     return jb.load(f'saved_parties/{name.title()}.pkl')
 
 def whine() -> str:
-    whine_itself = whines[random.randint(0, len(whines)-1)]
-    whine_itself = str("..." + whine_itself)
-    return whine_itself
+    return "..." + random.choice(whines)
 
 def print_player_starting_summary(party : list, items : pd.DataFrame = items):
     for dudette in party:
@@ -184,15 +177,13 @@ def get_mob_stats(mob_class: str, mobs: pd.DataFrame) -> dict:
         'enraged_toughness': mobs[mobs['mob_class'] == mob_class]['enraged_toughness'][index].values[0],
         'dodge': mobs[mobs['mob_class'] == mob_class]['dodge'][index].values[0],
         'enraged_dodge': mobs[mobs['mob_class'] == mob_class]['enraged_dodge'][index].values[0],
-        #'healing_chance': mobs[mobs['mob_class'] == mob_class]['healing_chance'][index].values[0],
-        #'enraged_healing_chance': mobs[mobs['mob_class'] == mob_class]['enraged_healing_chance'][index].values[0],
         'healing': mobs[mobs['mob_class'] == mob_class]['healing'][index].values[0],
         'enraged_healing': mobs[mobs['mob_class'] == mob_class]['enraged_healing'][index].values[0],
         'scare': mobs[mobs['mob_class'] == mob_class]['scare'][index].values[0],
         'enraged_scare': mobs[mobs['mob_class'] == mob_class]['enraged_scare'][index].values[0],
     }
 
-def get_mob_inv(mob_class: object, mob_equipment: pd.DataFrame = mob_equipment):
+def get_mob_inv(mob_class: str) -> list:
     inv = []
     for row in mob_equipment.index:
         item_class = mob_equipment['mob_class'].iat[row]
@@ -200,11 +191,11 @@ def get_mob_inv(mob_class: object, mob_equipment: pd.DataFrame = mob_equipment):
             inv.append(mob_equipment['item'].iat[row])
     return inv
 
-def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame):
+def initialize_mob(mob: object, mobs: pd.DataFrame):
     index = mobs.index[mobs['mob_class'] == mob.mob_class]
     mob.attack_style = mobs[mobs['mob_class'] == mob.mob_class]['attack_style'][index].values[0]
     mob.stats = get_mob_stats(mob.mob_class, mobs)
-    mob.inv = get_mob_inv(mob.mob_class, mob_equipment)
+    mob.inv = get_mob_inv(mob.mob_class)
     mob.starting_health = mob.stats['starting_hp']
     mob.health = mob.stats['starting_hp']
     mob.is_dead = False
@@ -212,9 +203,6 @@ def initialize_mob(mob: object, mobs: pd.DataFrame, mob_equipment: pd.DataFrame)
     mob.starting_ai = mobs[mobs['mob_class'] == mob.mob_class]['ai'][index].values[0]
     mob.enraged_ai = mobs[mobs['mob_class'] == mob.mob_class]['enraged_ai'][index].values[0]
     return mob
-
-def get_random_party_member(party: list) -> object:
-    return party[random.randint(0,len(party)-1)]
 
 def generic_wipe_taunts() -> list:
     return [
@@ -250,7 +238,6 @@ def refresh_party(party : dict, increment : bool) -> dict:
     for heroine in party['party']:
         heroine.is_dead = False
         heroine.health = heroine.starting_health
-    #party['narration'] = False  ####  Claude, this line may cause an issue yeah?  When the party gets refreshed after Happy, then even if narration was desired, it will stop after this point, won't it?  Can you look into what all may need to be fixed to make this work correctly, please?
     return party
 
 def wipe_party(party_dict : dict) -> dict:

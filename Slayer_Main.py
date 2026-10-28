@@ -6,17 +6,12 @@ import Slayer_Game_Play as gp
 
 wt()
 gr.slayer_opening()
-#next()
+#next() # Once the gr.slayer_opening() is set to "non-dev" settings, I want the player to get a look at the opening, so I want next here when the game is ready for real play
 wt()
-party = fp.get_party()
-gp.play_game(party)
-#next()
-#acc.refresh_party(party)  #######  use this between every game to reset each heroine
-temp_save = acc.yes_no(input(f"Would you like to save your game (as {party['name'].title()})?  "))
-if temp_save:
-    acc.save_party(party)
-#gr.loser_banner()
+party_dict = fp.get_party()
+party_dict = gp.play_game(party_dict)
+confirm_save = acc.yes_no(input(f"Would you like to save your game (as {party_dict['name'].title()})?  "))
+if confirm_save:
+    acc.save_party(party_dict)
+#gr.loser_banner() # I don't need to see this banner every test, put this back in when the game is done
 end()
-
-
-

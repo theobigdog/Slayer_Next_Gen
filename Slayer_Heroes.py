@@ -1,8 +1,5 @@
 import Slayer_Accessory as acc
 import random
-from colorama import Fore, Back, Style, Cursor, win32, init
-import pandas as pd
-import numpy as np
 from ast import literal_eval
 
 stat_dice_cutoffs = acc.get_dice_cutoffs()
@@ -18,16 +15,16 @@ def get_starting_inv(hero_class : str, items = items) -> list:
         if hero_class in current_class and current_source == 'starting':
             starting_inv.append(items['item'].iat[row])
     return starting_inv
-
-    # val = starting number
-    # adjuster = desired adj-range delta,
-    # lower_limit = lower cutoff for adj,
-    # upper_limit = upper cutoff for adj,
-    # decimals = number of decimal places in adj if val is a float
+    
 def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, decimals : int = 0) -> float: #### adjusts stat-cutoffs so there is more variability within each class
+    """ val = starting number
+    adjuster = desired adj-range delta,
+    lower_limit = lower cutoff for adj,
+    upper_limit = upper cutoff for adj,
+    decimals = number of decimal places in adj if val is a float"""
     adj = lower_limit - 1
     while not(lower_limit <= adj and adj <= upper_limit):
-        if type(val) == np.float64:
+        if isinstance(val, float):
             adj = round(val + random.randint(-1,1) * random.random() * adjuster, decimals)
         else:
             adj = int(round(val + random.randint(-1,1) * random.random() * adjuster, decimals))
@@ -38,11 +35,8 @@ def get_stats(hero_class : str, stats = stats) -> dict:
     adj = 5
     low = 1
     return {
-        #'low' : low,
-        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], adj, low, stat_dice_cutoffs['crit_cutoff'], 0), #stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], 2, 20),
+        'crit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_chance'][index]).values[0], adj, low, stat_dice_cutoffs['crit_cutoff'], 0),
         'crit_mult' : stat_value_delta((stats[stats['hero_class'] == hero_class]['crit_mult'][index]).values[0], 0.2, low, stat_dice_cutoffs['crit_mult_cutoff'], 2), # This one needs a float since it is multiplying the crit damage
-        #'low_miss' : (stats[stats['hero_class'] == hero_class]['low_miss'][index]).values[0],
-        #'high_miss' : (stats[stats['hero_class'] == hero_class]['high_miss'][index]).values[0],
         'hit' : stat_value_delta((stats[stats['hero_class'] == hero_class]['hit'][index]).values[0], adj, low, stat_dice_cutoffs['hit_cutoff'], 0),
         'luck' : stat_value_delta((stats[stats['hero_class'] == hero_class]['luck'][index]).values[0], adj, low, stat_dice_cutoffs['luck_cutoff'], 0),
         'speed' : (stats[stats['hero_class'] == hero_class]['speed'][index]).values[0],
@@ -51,20 +45,20 @@ def get_stats(hero_class : str, stats = stats) -> dict:
         'dodge' : stat_value_delta((stats[stats['hero_class'] == hero_class]['dodge'][index]).values[0], adj, low, stat_dice_cutoffs['dodge_cutoff'], 0),
         'parry' : stat_value_delta((stats[stats['hero_class'] == hero_class]['parry'][index]).values[0], adj, low, stat_dice_cutoffs['parry_cutoff'], 0),
         'fear' : stat_value_delta((stats[stats['hero_class'] == hero_class]['fear'][index]).values[0], adj, low, stat_dice_cutoffs['fear_cutoff'], 0),
-        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], adj, low, stat_dice_cutoffs['heal_cutoff'], 0),# if hero_class == 'Cleric' else 100,
-        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], adj, low, stat_dice_cutoffs['aoe_heal_cutoff'], 0),# if hero_class == 'Cleric' else 20,
+        'heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['heal_chance'][index]).values[0], adj, low, stat_dice_cutoffs['heal_cutoff'], 0),
+        'aoe_heal' : stat_value_delta((stats[stats['hero_class'] == hero_class]['aoe_heal_chance'][index]).values[0], adj, low, stat_dice_cutoffs['aoe_heal_cutoff'], 0),
         'low_st_health' : (stats[stats['hero_class'] == hero_class]['low_st_health'][index]).values[0],
         'high_st_health' : (stats[stats['hero_class'] == hero_class]['high_st_health'][index]).values[0],
     }
 
-def initialize_char (class_obj):
-    class_obj.stats = get_stats(class_obj.hero_class)
-    class_obj.starting_inv = get_starting_inv(class_obj.hero_class)
-    class_obj.inv = class_obj.starting_inv.copy()
-    class_obj.starting_health = stat_value_delta(acc.multi_roll(class_obj.stats['low_st_health'], class_obj.stats['high_st_health']), 2, 1, 100, 0)
-    class_obj.health = class_obj.starting_health
-    class_obj.is_dead = False
-    return class_obj
+def initialize_char (heroine):
+    heroine.stats = get_stats(heroine.hero_class)
+    heroine.starting_inv = get_starting_inv(heroine.hero_class)
+    heroine.inv = heroine.starting_inv.copy()
+    heroine.starting_health = stat_value_delta(acc.multi_roll(heroine.stats['low_st_health'], heroine.stats['high_st_health']), 2, 1, 100, 0)
+    heroine.health = heroine.starting_health
+    heroine.is_dead = False
+    return heroine
 
 class Warrior:
 
@@ -72,7 +66,7 @@ class Warrior:
         self.heroine_name = name
         self.hero_class = 'Warrior'
         self.attack_style = 'both'
-        self = initialize_char(self)
+        initialize_char(self)
 
 
 class Shifter:
@@ -81,7 +75,7 @@ class Shifter:
         self.heroine_name = name
         self.hero_class = 'Shifter'
         self.attack_style = 'melee'
-        self = initialize_char(self)
+        initialize_char(self)
 
         
 class Battle_Mage:
@@ -90,7 +84,7 @@ class Battle_Mage:
         self.heroine_name = name
         self.hero_class = 'Battle_Mage'
         self.attack_style = 'melee'
-        self = initialize_char(self)
+        initialize_char(self)
 
         
 class Hunter:
@@ -99,7 +93,7 @@ class Hunter:
         self.heroine_name = name
         self.hero_class = 'Hunter'
         self.attack_style = 'range'
-        self = initialize_char(self)
+        initialize_char(self)
 
         
 class Witch:
@@ -108,7 +102,7 @@ class Witch:
         self.heroine_name = name
         self.hero_class = 'Witch'
         self.attack_style = 'range'
-        self = initialize_char(self)
+        initialize_char(self)
 
         
 class Sapper:
@@ -117,7 +111,7 @@ class Sapper:
         self.heroine_name = name
         self.hero_class = 'Sapper'
         self.attack_style = 'melee'
-        self = initialize_char(self)
+        initialize_char(self)
 
 
 class Cleric:
@@ -126,4 +120,4 @@ class Cleric:
         self.heroine_name = name
         self.hero_class = 'Cleric'
         self.attack_style = 'range'
-        self = initialize_char(self)
+        initialize_char(self)
