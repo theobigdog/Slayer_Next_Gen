@@ -35,43 +35,45 @@ def check_wiped(party: list) -> bool:
 
 
 def play_game(party_dict: dict) -> dict:
-    if party_dict['times_run_dungeon'] == 1:
-        party_dict['narration'] = acc.yes_no(input('Would you like narrative?  '))
-        if party_dict['narration']:
-            print("Really?  Oh hell yes, I've been practicing my voices.")
-        else:
-            print("Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.")
-        next()
-        if party_dict['narration']:
-            nar.intro()
-            nar.happy_intro()
-    else:
-        first = acc.yes_no(input("I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?  "))
-        if first:
-            _ = acc.yes_no(input("Uh, yes you DO want me to provide narrative, or not?  "))
-        else:
-            _ = acc.yes_no(input("Oh, so no I assumed wrong you do need narrative again, or did you mean you didn't want repeated narrative?  ")) 
-        time.sleep(0.3)
-        print("But wait, bone-head, you're still not clearly answering my question.....")
-        time.sleep(0.75)
-        print("I could go on like this all day....")
-        time.sleep(0.3)
-        print('Oh, right.  Sorry.')
-        time.sleep(0.2)
-
-        party_dict['narration'] = acc.yes_no(input("Ok, for realsies, would you like narration?  "))
-        if party_dict['narration']:
-            print("Shirley you can't be serious....")
-            time.sleep(0.3)
-            print(f"Sorry, I'll stop calling you \"Shirley\", {party_dict['name']}...")
-            time.sleep(0.7)
-            print('You beautiful masochist.')
-            time.sleep(1)
-        else:
-            print('Understood.  Grabbing a roll of duct tape for my own mouth.')
-            time.sleep(0.5)
-            print('Umm....  May I at least have a small breathing hole?  I have a deviated septum and I\'m a mouth-breather....')
+    dev_mode = acc.dev_mode()
+    if not dev_mode:
+        if party_dict['times_run_dungeon'] == 1:
+            party_dict['narration'] = acc.yes_no(input('Would you like narrative?  '))
+            if party_dict['narration']:
+                print("Really?  Oh hell yes, I've been practicing my voices.")
+            else:
+                print("Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.")
             next()
+            if party_dict['narration']:
+                nar.intro()
+                nar.happy_intro()
+        else:
+            first = acc.yes_no(input("I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?  "))
+            if first:
+                _ = acc.yes_no(input("Uh, yes you DO want me to provide narrative, or not?  "))
+            else:
+                _ = acc.yes_no(input("Oh, so no I assumed wrong you do need narrative again, or did you mean you didn't want repeated narrative?  ")) 
+            time.sleep(0.3)
+            print("But wait, bone-head, you're still not clearly answering my question.....")
+            time.sleep(0.75)
+            print("I could go on like this all day....")
+            time.sleep(0.3)
+            print('Oh, right.  Sorry.')
+            time.sleep(0.2)
+
+            party_dict['narration'] = acc.yes_no(input("Ok, for realsies, would you like narration?  "))
+            if party_dict['narration']:
+                print("Shirley you can't be serious....")
+                time.sleep(0.3)
+                print(f"Sorry, I'll stop calling you \"Shirley\", {party_dict['name']}...")
+                time.sleep(0.7)
+                print('You beautiful masochist.')
+                time.sleep(1)
+            else:
+                print('Understood.  Grabbing a roll of duct tape for my own mouth.')
+                time.sleep(0.5)
+                print('Umm....  May I at least have a small breathing hole?  I have a deviated septum and I\'m a mouth-breather....')
+                next()
 
     happy = Slayer_Dwarf.Disgruntled_Dwarf('Happy')
     buddy1, buddy2 = random.sample(happy_buddy_names, 2)

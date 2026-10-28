@@ -9,6 +9,8 @@ import sys
 
 init()
 
+
+
 yes = ['YES','Y']
 no = ['NO','N']
 
@@ -19,6 +21,8 @@ stats = pd.read_csv('supporting_docs/hero_stats.csv')
 mobs = pd.read_csv('supporting_docs/mobs.csv')
 mob_equipment = pd.read_csv('supporting_docs/mob_equipment.csv')
 
+def dev_mode() -> bool:
+    return True
 
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']

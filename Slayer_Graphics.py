@@ -1,4 +1,4 @@
-import Slayer_Accessory as sa
+import Slayer_Accessory as acc
 import random
 import time
 import cursor
@@ -28,17 +28,17 @@ def append_letters (statement: str, line: int, colors: dict) -> str:
             print('No.')
     return text_line
 
-def upd_gap(gap: float, divisor: float) -> float:
+def upd_gap(gap: float, divisor: float) -> tuple:
     time.sleep(gap)
     gap = gap / (0.0125 + divisor)
     divisor = divisor + 0.0005
     return gap, divisor
 
-def cursor_pos() -> int:
+def cursor_pos():
     print(Cursor.POS(5,5))
 
-def next_letter(top_end: int, colors_list: list, gap: float, divisor: float, statement: str) -> int:
-    for cyles in range(1, top_end):
+def next_letter(top_end: int, colors_list: list, gap: float, divisor: float, statement: str) -> tuple:
+    for _ in range(1, top_end):
         random_colors = random.randint(0, len(colors_list)-1)
         cursor_pos()
         if statement == slayer:
@@ -46,15 +46,20 @@ def next_letter(top_end: int, colors_list: list, gap: float, divisor: float, sta
         elif statement == loser:
             normalizer = L_L
         else:
-            print('No.')
+            pass # leave room for other potential graphics
         for line in range(len(normalizer)):
             print(append_letters(statement, line, colors_list[random_colors]))
         gap, divisor = upd_gap(gap, divisor)
     return gap, divisor
 
 def slayer_opening():
-    gap = 0.05  # swap back to 0.15
-    divisor = 2 # swap back to 1.01
+    dev_mode = acc.dev_mode()
+    if dev_mode:
+        gap = 0.05
+        divisor = 2
+    else:
+        gap = 0.15
+        divisor = 1.01
     cursor.set_cursor_visible(False)
     gap, divisor = next_letter(40, colors_, gap, divisor, slayer)
     gap, divisor = next_letter(25, colors_s, gap, divisor, slayer)
@@ -63,7 +68,7 @@ def slayer_opening():
     gap, divisor = next_letter(27, colors_slay, gap, divisor, slayer)
     gap, divisor = next_letter(25, colors_slaye, gap, divisor, slayer)
     cursor_pos()
-    for line in range(0, len(sl_S)):
+    for line in range(len(sl_S)):
         print(append_letters(slayer, line, colors_slayer[0]))
     time.sleep(0.35)
     print(Cursor.POS(155,19), "v 2.0")
@@ -74,12 +79,17 @@ def slayer_opening():
     print(reset)
 
 def loser_banner():
-    gap = 0.05 # swap back to 0.45
-    divisor = 2 # swap back to 1.1
+    dev_mode = acc.dev_mode()
+    if dev_mode:
+        gap = 0.05
+        divisor = 2
+    else:
+        gap = 0.45
+        divisor = 1.1
     cursor.set_cursor_visible(False)
-    for cycles in range(1,10): #4
-        for version in range(0,6):
-            sa.wt()
+    for _ in range(1,10):
+        for version in range(6):
+            acc.wt()
             x = random.randint(1,50)
             y = random.randint(1,20)
             print(Cursor.POS(x,y))
@@ -89,7 +99,7 @@ def loser_banner():
             gap = gap / divisor
         time.sleep(gap)
         gap = gap / divisor
-    sa.wt()
+    acc.wt()
     x = random.randint(1,50)
     y = random.randint(1,20)
     print(Cursor.POS(x,y))

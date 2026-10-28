@@ -2,9 +2,7 @@ import Slayer_Accessory as acc
 from Slayer_Accessory import wt, next, whine
 import Slayer_Combat
 import Slayer_Heroes as heroes
-import joblib as jb
 import random
-from colorama import Fore, Back, Style, Cursor
 import time
 
 auto_name_choices = {
@@ -15,7 +13,7 @@ auto_name_choices = {
 
 def get_name() -> str:
     print("Greetings!")
-    name = str(input(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ')).title()
+    name = input(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ').title()
     name = acc.check_bad_name(name)
     print()
     print(f"Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
@@ -67,9 +65,9 @@ def get_hero(selection : str, name : str):
         return heroes.Warrior(name)
 
 def auto_pick_name():
-    first = auto_name_choices['first'][random.randint(0,len(auto_name_choices['first']) - 1)]
-    middle = auto_name_choices['middle'][random.randint(0,len(auto_name_choices['middle']) - 1)]
-    last = auto_name_choices['last'][random.randint(0, len(auto_name_choices['last']) - 1)]
+    first = random.choice(auto_name_choices['first'])
+    middle = random.choice(auto_name_choices['middle'])
+    last = random.choice(auto_name_choices['last'])
     return first + ' ' + middle + ' ' + last
 
 def print_current_party(party : list):
@@ -90,7 +88,7 @@ def create_new_party(name: str) -> list:
                 value_ok = True
             else:
                 party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
-        except(ValueError):
+        except ValueError:
             party_count = input("I don't think that's a proper integer.  Try again (1 - 8):  ")
     if party_count == 1:
         print("One?  One.  You chose One.  One....  Ok, One it is....")
@@ -117,13 +115,7 @@ def create_new_party(name: str) -> list:
         print("Oh hell yes, I LOVE naming people.  Prepare to be emotionally attached, and perhaps disgusted a little bit too.")
         next()
     if choose_composition:
-        #print()
-        #print("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.")
-        #time.sleep(2)
-        wt()
-        acc.print_classes()
-        print()
-        for i in range(party_count):
+        for _ in range(party_count):
             wt()
             print_current_party(new_party)
             print()
@@ -137,7 +129,7 @@ def create_new_party(name: str) -> list:
                 selection = input("Let's try that again.  Of the listed Class options, which would you like to add?  ")
             if choose_names:
                 print()
-                name_choice = str(input("Ok, let's have a name for her:  "))
+                name_choice = input("Ok, let's have a name for her:  ")
                 name_choice = acc.check_bad_heroine_name(name_choice)
                 new_party.append(get_hero(selection, name_choice))
             else:
@@ -150,10 +142,9 @@ def create_new_party(name: str) -> list:
         print()
         time.sleep(2)
         wt()
-        for i in range(party_count):
-            selection = members[i]
+        for selection in members:
             if choose_names:
-                name_choice = str(input("Ok, let's have a name for your " + selection + ":  "))
+                name_choice = input("Ok, let's have a name for your " + selection + ":  ")
                 name_choice = acc.check_bad_heroine_name(name_choice)
                 new_party.append(get_hero(selection, name_choice))
             else: 
@@ -174,10 +165,10 @@ def get_party() -> dict:
         Slayer_Combat.display_party_summary(saved_party['party'])
         next()
         return saved_party
-    except(FileNotFoundError):
+    except FileNotFoundError:
         print('Hmmmm.....')
         time.sleep(1)
-        name = str(input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  ")).title()
+        name = input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  ").title()
         name = acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)
@@ -190,7 +181,7 @@ def get_party() -> dict:
             Slayer_Combat.display_party_summary(saved_party['party'])
             next()
             return saved_party
-        except(FileNotFoundError):
+        except FileNotFoundError:
             print(f"No, I've never seen you.")
             time.sleep(2)
             print(f"Let's just make you a fresh party, mkay, {name}?")
