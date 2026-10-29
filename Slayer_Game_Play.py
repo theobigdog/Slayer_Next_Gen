@@ -6,7 +6,7 @@ import Slayer_Narration as nar
 import random
 import time
 
-happy_buddy_names = ['Burpy', 'Gassy', 'Smelly', 'Grumpy', 'Hairy', 'Slappy', 'Fuck-Head']
+happy_buddy_names = ['Burpy', 'Gassy', 'Smelly', 'Grumpy', 'Hairy', 'Slappy', 'Fuck-Head', 'Bloaty']
 
 def get_turn_order(party: list, mobs: list) -> list:
     heroine_dice_cutoff = acc.get_dice_cutoffs()['speed_cutoff']

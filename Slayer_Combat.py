@@ -171,7 +171,7 @@ def get_target_choice(mobs : list, party : list, healing : bool = False) -> obje
         oopses = [
             "\nWhoa, no, one of THOSE numbers.  Choose the one belonging to whoever you'd like to fuck up:  ",
         ]
-    target_choices = [str[x] for x in range(1, counter)]
+    target_choices = [str(x) for x in range(1, counter)]
     target_choice = None
     ok = False
     while not ok:

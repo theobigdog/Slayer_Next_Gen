@@ -1,9 +1,10 @@
 import Slayer_Accessory as acc
 from Slayer_Accessory import wt, next, whine
-import Slayer_Combat
+import Slayer_Combat as combat
 import Slayer_Heroes as heroes
 import random
 import time
+from colorama import Fore, Style
 
 auto_name_choices = {
     'first' : ["Ath","Jodum","Prinny","Bubba","The Cake","Tedless","Muffy","Bildo","T-Bear","Miss Beans","Billy","Djub-Djub"],
@@ -16,7 +17,7 @@ def get_name() -> str:
     name = input(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ').title()
     name = acc.check_bad_name(name)
     print()
-    print(f"Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
+    print("Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
     return name
         
 def print_recommended_classes(num_chars : int):
@@ -26,45 +27,24 @@ def print_recommended_classes(num_chars : int):
         print(random.choice(acc.get_hero_classes()))
 
 def get_default_classes(party_count : int) -> list:
-    # 0: Warrior, 1: Shifter, 2: Battle_Mage, 3: Hunter, 4: Witch, 5: Sapper, 6: Cleric
-    if party_count == 1:
-        return ['Warrior']
-    elif party_count == 2:
-        return ['Warrior', 'Cleric']
-    elif party_count == 3:
-        return ['Warrior', 'Cleric', 'Hunter']
-    elif party_count == 4:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter']
-    elif party_count == 5:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric']
-    elif party_count == 6:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper']
-    elif party_count == 7:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch']
-    elif party_count == 8:
-        return ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch', 'Battle_Mage']
-    else:
-        return []
+    default_order =  ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch', 'Battle_Mage']
+    return default_order[:party_count]
 
-def get_hero(selection : str, name : str):
-    if selection == 'Warrior':
-        return heroes.Warrior(name)
-    elif selection == 'Shifter':
-        return heroes.Shifter(name)
-    elif selection == 'Battle_Mage':
-        return heroes.Battle_Mage(name)
-    elif selection == 'Hunter':
-        return heroes.Hunter(name)
-    elif selection == 'Witch':
-        return heroes.Witch(name)
-    elif selection == 'Sapper':
-        return heroes.Sapper(name)
-    elif selection == 'Cleric':
-        return heroes.Cleric(name)
-    else:
-        return heroes.Warrior(name)
 
-def auto_pick_name():
+def get_hero(selection : str, name : str) -> object:
+    hero_classes = {
+        'Warrior' : heroes.Warrior,
+        'Shifter' : heroes.Shifter,
+        'Battle_Mage' : heroes.Battle_Mage,
+        'Hunter' : heroes.Hunter,
+        'Witch' : heroes.Witch,
+        'Sapper' : heroes.Sapper,
+        'Cleric' : heroes.Cleric,
+    }
+    hero_class = hero_classes.get(selection, heroes.Warrior) # if the selection is unrecognized, Warrior by default    
+    return hero_class(name)
+
+def auto_pick_name() -> str:
     first = random.choice(auto_name_choices['first'])
     middle = random.choice(auto_name_choices['middle'])
     last = random.choice(auto_name_choices['last'])
@@ -73,6 +53,11 @@ def auto_pick_name():
 def print_current_party(party : list):
     for member in party:
         print(f"Hero:  {member.heroine_name}, Class:  {member.hero_class}")
+
+def name_heroine(prompt : str, choose_names : bool) -> str:
+    if choose_names:
+        return acc.check_bad_heroine_name(input(prompt))
+    return auto_pick_name()
 
 def create_new_party(name: str) -> list:
     new_party = []
@@ -123,17 +108,11 @@ def create_new_party(name: str) -> list:
             print()
             print_recommended_classes(party_count)
             print()
-            selection = input("\nWhich Class would you like to add?  ")
+            selection = input("\nWhich Class would you like to add?  ").strip().title().replace(' ', '_')
             while selection not in acc.get_hero_classes():
-                print()
-                selection = input("Let's try that again.  Of the listed Class options, which would you like to add?  ")
-            if choose_names:
-                print()
-                name_choice = input("Ok, let's have a name for her:  ")
-                name_choice = acc.check_bad_heroine_name(name_choice)
-                new_party.append(get_hero(selection, name_choice))
-            else:
-                new_party.append(get_hero(selection, auto_pick_name()))
+                selection = input("\nLet's try that again.  Of the listed Class options, which would you like to add?  ").strip().title().replace(' ', '_')
+            heroine_name = name_heroine('\nOk, let\'s have a name for her:  ', choose_names)
+            new_party.append(get_hero(selection, heroine_name))
     else:
         print()
         print("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.")
@@ -143,58 +122,49 @@ def create_new_party(name: str) -> list:
         time.sleep(2)
         wt()
         for selection in members:
-            if choose_names:
-                name_choice = input("Ok, let's have a name for your " + selection + ":  ")
-                name_choice = acc.check_bad_heroine_name(name_choice)
-                new_party.append(get_hero(selection, name_choice))
-            else: 
-                new_party.append(get_hero(selection, auto_pick_name()))
+            heroine_name = name_heroine(f"Ok, let's have a name for your {selection}:  ", choose_names)
+            new_party.append(get_hero(selection, heroine_name))
     return new_party
+
+def welcome_back(saved_party : dict) -> dict:
+    next()
+    wt()
+    saved_party = acc.refresh_party(saved_party, True)
+    acc.print_player_starting_summary(saved_party['party'])
+    wt()
+    combat.display_party_summary(saved_party['party'])
+    next()
+    return saved_party
 
 def get_party() -> dict:
     name = get_name()
-    saved_party = []
     try:
         saved_party = acc.load_party(name)
         print(f"Ah yes, here you are: {name}!  The legend returns!  \nOk, are you ready to rock and ro......{whine()}\nSorry.  I'm thrilled.  Genuinely.  This is my thrilled face.")
-        next()
-        wt()
-        saved_party = acc.refresh_party(saved_party, True)
-        acc.print_player_starting_summary(saved_party['party'])
-        wt()
-        Slayer_Combat.display_party_summary(saved_party['party'])
-        next()
-        return saved_party
+        return welcome_back(saved_party)
     except FileNotFoundError:
         print('Hmmmm.....')
         time.sleep(1)
-        name = input(f"I don't recognize you, and I don't think you're on The List.\nWhat was that name again?  ").title()
+        name = input(f"I don't recognize you, and I don't think you're on {Fore.RED + Style.BRIGHT}The List{Style.RESET_ALL}.\nWhat was that name again?  ").title()
         name = acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)
             print(f"Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.")
-            next()
-            wt()
-            saved_party = acc.refresh_party(saved_party, True)
-            acc.print_player_starting_summary(saved_party['party'])
-            wt()
-            Slayer_Combat.display_party_summary(saved_party['party'])
-            next()
-            return saved_party
+            return welcome_back(saved_party)
         except FileNotFoundError:
             print(f"No, I've never seen you.")
             time.sleep(2)
             print(f"Let's just make you a fresh party, mkay, {name}?")
             time.sleep(3)
-            saved_party = create_new_party(name)
+            new_party = create_new_party(name)
             wt()
-            acc.print_player_starting_summary(saved_party)
+            acc.print_player_starting_summary(new_party)
             wt()
-            Slayer_Combat.display_party_summary(saved_party)
+            combat.display_party_summary(new_party)
             next()
             return {
                 "name" : name,
-                "party" : saved_party,
+                "party" : new_party,
                 "wiped" : False,
                 "times_run_dungeon" : 1,
                 "narration" : True,
