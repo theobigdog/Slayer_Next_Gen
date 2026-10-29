@@ -99,6 +99,8 @@ def play_game(party_dict: dict) -> dict:
                             turn_stat = 'enraged_turn' if mob.enraged else 'turn'
                             if acc.multi_roll(1,100) <= mob.stats[turn_stat]:
                                 party_dict['wiped'] = check_wiped(party_dict['party'])
+                                combat.show_current_status(party_dict['party'], mobs, round_num)
+                                print(f"{mob.name}, that insane bastard, moves like a horny jack-rabbit on a date and gets an extra attack.  Boo.")
                                 party_dict, mobs, _ = combat.mob_turn(mob, party_dict, mobs)
                                 
                 else: # mob-group's turn with the given mob(attacker)

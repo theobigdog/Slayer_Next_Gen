@@ -124,11 +124,10 @@ def check_tough(tough : bool, target : object) -> None:
         print(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF of the initial damage inflicted!")
 
 def display_inventory(inv : list) -> None:
-    items = acc.get_items()
     inv_item_ct = len(inv)
     for i in range(inv_item_ct):
         item = inv[i]
-        data = items[items['item'] == item].iloc[0]
+        data = acc.get_item(item)
         desc = data['item_desc']
         low = data['damage_range_low']
         high = data['damage_range_high']
@@ -137,40 +136,50 @@ def display_inventory(inv : list) -> None:
         else:
             print(f'{i + 1}:  {desc} ({-1 * high} - {-1 * low} healing)')
 
-def get_target_choice(mobs : list, party : list) -> object:
-    counter = 1
+def get_target_choice(mobs : list, party : list, healing : bool = False) -> object:
+    living_party = [x for x in party if not x.is_dead]
     living_mobs = [x for x in mobs if not x.is_dead]
-    mobs_len = len(living_mobs)
-    living_targets = [x for x in party if not x.is_dead] + living_mobs
+    living_targets = living_party + living_mobs
     if len(living_targets) == 1:
         return living_targets[0]
     targets = {}
-    party_len = len(party)
-    if party_len > 0:
-        print()
-        print('Party Members:')
-        for i in range(party_len):
-            if not party[i].is_dead:
-                print(f'{counter}: {party[i].heroine_name}')
-                targets[counter] = party[i]
-                counter += 1
-    if mobs_len > 0:
-        print()
-        print('Mobs:')
-        for i in range(mobs_len):
-            print(f'{counter}: {living_mobs[i].name}')
-            targets[counter] = living_mobs[i]
+    counter = 1
+    if len(living_party) > 0:
+        print('\nParty Members:')
+        for heroine in living_party:
+            print(f'{counter}: {heroine.heroine_name}')
+            targets[counter] = heroine
             counter += 1
-    
-    target_choices = [str(x) for x in list(range(1,counter))]
+    if len(living_mobs) > 0:
+        print('\nMobs:')
+        for mob in living_mobs:
+            print(f'{counter}: {mob.name}')
+            targets[counter] = mob
+            counter += 1
+    if healing:
+        prompts = [
+            "Pick the number for whoever needs a little TLC.  ",
+            "Who gets the healing love this time?  Pick a number.  ",
+        ]
+        oopses = [
+            "\nNo, no, one of THOSE numbers.  Somebody's bleeding over here, hurry up:  "
+        ]
+    else:
+        prompts = [
+            "Pick the number for your target.  Make 'em regret it.  ",
+        ]
+        oopses = [
+            "\nWhoa, no, one of THOSE numbers.  Choose the one belonging to whoever you'd like to fuck up:  ",
+        ]
+    target_choices = [str[x] for x in range(1, counter)]
     target_choice = None
     ok = False
     while not ok:
-        target_choice = input("Pick the number for your target.  Make 'em regret it.  ")
+        target_choice = input(random.choice(prompts))
         if target_choice in target_choices:
             ok = True
         else:
-            print('\nWhoa, no, one of THOSE numbers.  The one belonging to whoever you\'d like to fuck up:  ')
+            print(random.choice(oopses))
     target = targets[int(target_choice)]
     return target
 
@@ -211,30 +220,15 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             print(f"Wow, that was a big ol' whiff, now wasn't it, {heroine.heroine_name}.")
             next()
             return (party_dict, mobs, False)
-        if mob_rolls['dodge']:
-            if heroine_rolls['expertise']:
-                mob_choice = update_health(mob_choice, damage)
-                print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
-                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.enraged and mob_choice.is_dead:
-                    party_dict = acc.wipe_party(party_dict)
-                    return (party_dict, mobs, False)
-                if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.health < 0.5 * mob_choice.starting_health and not mob_choice.enraged:
-                    mob_choice.enrage()
-                    next()
-                    return (party_dict, mobs, False)
-                if mob_choice.is_dead:
-                    print(f"{mob_choice.name} has been slain!!")
-                    next()
-                    return (party_dict, mobs, heroine_rolls['luck'])
-                check_tough(tough, mob_choice)
-                next()
-                return (party_dict, mobs, heroine_rolls['luck'])
-            else:
-                print(f"{mob_choice.name} slips out of the way like a greased weasel.  {heroine.heroine_name}'s attack finds only air.")
-                next()
-                return (party_dict, mobs, False)
+        if mob_rolls['dodge'] and not heroine_rolls['expertise']:
+            print(f"{mob_choice.name} slips out of the way like a greased weasel.  {heroine.heroine_name}'s attack finds only air.")
+            next()
+            return (party_dict, mobs, False)
         mob_choice = update_health(mob_choice, damage)
-        print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
+        if mob_rolls['dodge']: # it dodged, but her expertise beat it
+            print(f"Despite their best effort to evade the attack, {heroine.heroine_name} successfully contacts {mob_choice.name} for {damage} hp.")
+        else:
+            print(f"{heroine.heroine_name} slams {mob_choice.name} with her {item['item_desc']} for {damage} hp.")
         if mob_choice.mob_class == 'Disgruntled Dwarf' and mob_choice.enraged and mob_choice.is_dead:
             party_dict = acc.wipe_party(party_dict)
             return (party_dict, mobs, False)
@@ -243,7 +237,7 @@ def get_heroine_turn_outcome(heroine : object, item : dict,  mob_choice : object
             next()
             return (party_dict, mobs, False)
         if mob_choice.is_dead:
-            print(f"{mob_choice.name} has been slain!!")
+            print(f"{mob_choice.name} has been slain!!  Take THAT motherfucker!!")
             next()
             return (party_dict, mobs, heroine_rolls['luck'])
         check_tough(tough, mob_choice)
@@ -280,36 +274,34 @@ def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
         print(f"{heroine.heroine_name} has no inventory, so I guess she's skipping this turn...")
         next()
         return (party_dict, mobs, False)
-    item_choices = [str(x) for x in list(range(1,inv_len + 1))]
+    item_choices = [str(x) for x in range(1, inv_len + 1)]
     item_choice = None
     ok = False
+    print(f"\n{heroine.heroine_name}'s turn:")
+    display_inventory(inv)
     if len(item_choices) > 1:
         while not ok:
-            print(f"\n{heroine.heroine_name}'s turn:")
-            display_inventory(inv)
             item_choice = input("Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ")
             if item_choice in item_choices:
                 ok = True
             else:
-                print(f"\nNo, numb-nuts.... sorry, I meant {party_dict['name']}, choose one of the numbers!\n")
+                print(f"\nNo, numb-nuts... sorry, I mean {party_dict['name']}, please choose one of the numbers!\n")
     else:
-        print(f"\n{heroine.heroine_name}'s turn:")
-        display_inventory(inv)
         print(f"Looks like {heroine.heroine_name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
         next()
         item_choice = 1
 
-    items = acc.get_items()
-    item = items[items['item'] == heroine.inv[int(item_choice) - 1]].iloc[0]
+    item = acc.get_item(inv[int(item_choice) - 1])
     item_attack_type = item['attack_type']
+    is_heal = item_attack_type == 'heal'
 
     if item_attack_type == 'aoe':
         pass # stub for aoe attacks/heals, from mobs and heroines, to be added still
 
     if heroine.hero_class == 'Cleric':
-        mob_choice = get_target_choice(mobs, party_dict['party'])
-    elif item_attack_type == "heal":
-        mob_choice = get_target_choice([], party_dict['party'])
+        mob_choice = get_target_choice(mobs, party_dict['party'], is_heal)
+    elif is_heal:
+        mob_choice = get_target_choice([], party_dict['party'], is_heal)
     else:
         mob_choice = get_target_choice(mobs, [])
     
@@ -333,7 +325,7 @@ def party_wiped_taunt(mob : object, party : list) -> str:
             if do_item_taunt:
                 victim, item_name = random.choice(have_items)
                 victim2 = random.choice([x for x in party if x != victim])
-                item_desc = melee_items[melee_items['item'] == item_name].iloc[0]['item_desc']
+                item_desc = acc.get_item(item_name)['item_desc']
                 template = random.choice([random.choice(acc.item_specific_wipe_taunts())])
                 return template.format(mob=mob.name, victim=victim.heroine_name, item=item_desc, victim2=victim2.heroine_name)
         # emergency backup if noone has an item - can't really see this happening but hey, it's here
@@ -342,7 +334,7 @@ def party_wiped_taunt(mob : object, party : list) -> str:
         template = random.choice(acc.generic_wipe_taunts())
         return template.format(mob=mob.name, victim=victim.heroine_name, victim2=victim2.heroine_name)
     elif len(party) == 1:
-        return f"{mob.name} walks over to {party[0].heroine_name}'s mangled corpse and spits on it.  \"What kind of FUCKING idiot attempts a dungeon encounter solo?!\""
+        return f"\n{mob.name} walks over to {party[0].heroine_name}'s mangled corpse and spits on it.  \"What kind of FUCKING idiot attempts a dungeon encounter solo?!\""
     else:
         return "No party members.  Right...."
     
@@ -402,31 +394,27 @@ def get_mob_turn_outcome(mob : object, target : object, item : dict, party_dict 
                 print(f"{mob.name} attempts to attack {target.heroine_name} with their {item['item_desc']}, but misses widely.")
                 next()
                 return (party_dict, mobs, False)
-            if target_rolls['dodge']:
-                if mob_rolls['expertise']:
-                    target = update_health(target, damage)
-                    print(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
-                    if parry and not target.is_dead:
-                        print(f"But {target.heroine_name} manages to deflect half of the damage!  Way to go!")
-                    if target.is_dead:
-                        print(f"NOOO!  {target.heroine_name} has been slain!  We'll remember you, bud.")
-                        next()
-                        return (party_dict, mobs, mob_rolls['luck'])
-                    check_tough(tough, target)
-                    next()
-                    return (party_dict, mobs, mob_rolls['luck'])
-                else:
-                    print(f"HELL YES!  {target.heroine_name} dodges {mob.name}'s attack like a goddamn ninja!")
-                    next()
-                    return(party_dict, mobs, False)
+            if target_rolls['dodge'] and not mob_rolls['expertise']:
+                print(f"HELL YES!  {target.heroine_name} dodges {mob.name}'s attack like a goddamn ninja!")
+                next()
+                return (party_dict, mobs, False)
             target = update_health(target, damage)
-            print(f"{mob.name} bashes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+            if target_rolls['dodge']: # she tried to dodge, but its expertise beat her
+                print(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
+            else:
+                print(f"{mob.name} bashes {target.heroine_name} with their {item['item_desc']} for {damage} hp.")
             if target.is_dead:
-                print(f"Oh shit.  {target.heroine_name} has been slain.  She'll be back next run, but damn, that one hurt.")
+                print(random.choice([
+                    f"NOOO!  {target.heroine_name} has been slain!  We'll remember you, bud.",
+                    f"Oh shit.  {target.heroine_name} has been slain.  She'll be back next run, but damn, that one hurt.",
+                ]))
                 next()
                 return (party_dict, mobs, mob_rolls['luck'])
             if parry:
-                print(f"But {target.heroine_name} manages to parry half of the damage!  Incredible!")
+                print(random.choice([
+                    f"But {target.heroine_name} manages to deflect half of the damage!  Way to go!",
+                    f"But {target.heroine_name} manages to parry half of the damage!  Incredible!",
+                ]))
             check_tough(tough, target)
             next()
             return (party_dict, mobs, mob_rolls['luck'])

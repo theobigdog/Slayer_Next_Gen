@@ -113,13 +113,12 @@ def load_party(name : str) -> dict:
 def whine() -> str:
     return "..." + random.choice(whines)
 
-def print_player_starting_summary(party : list, items : pd.DataFrame = items):
+def print_player_starting_summary(party : list):
     for dudette in party:
         print(f"{dudette.heroine_name}:  {dudette.hero_class}")
         print('Inventory:  ')
         for inv_item in dudette.inv:
-            item = items[items['item'] == inv_item]['item_desc'].values[0]
-            print(item)
+            print(get_item(inv_item)['item_desc'])
         print(f"Starting Health: {int(round(dudette.starting_health, 0))}")
         print()
     next()
@@ -148,6 +147,9 @@ def check_bad_heroine_name(name : str) -> str:
 
 def get_items() -> pd.DataFrame:
     return items
+
+def get_item(item_name : str) -> pd.Series:
+    return items[items['item'] == item_name].iloc[0]
 
 def get_stats() -> pd.DataFrame:
     return stats
@@ -210,19 +212,19 @@ def initialize_mob(mob: object, mobs: pd.DataFrame):
 
 def generic_wipe_taunts() -> list:
     return [
-        "{mob} casually stands over {victim}'s corpse, mumbling, \"Not today....\"",
-        "{mob} shouts in triumph!",
-        "{mob} starts to shake, then suddenly begins to bellow with terrible, evil laughter.  \"Puny weaklings!\"",
-        "{mob} sits atop {victim}'s head, grinding in, real deep.",
-        "{mob} begins to pick at what remains of {victim}.  \"Well that was easy!\"",
+        "\n{mob} casually stands over {victim}'s corpse, mumbling, \"Not today....\"",
+        "\n{mob} shouts in triumph!",
+        "\n{mob} starts to shake, then suddenly begins to bellow with terrible, evil laughter.  \"Puny weaklings!\"",
+        "\n{mob} sits atop {victim}'s head, grinding in, real deep.",
+        "\n{mob} begins to pick at what remains of {victim}.  \"Well that was easy!\"",
     ]
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\nJesus Christ, what a CUNT!!",
-        "{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\nI hope you come back and teach these bitches a lesson!!",
-        "{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
-        "With her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.\"  Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
+        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\nJesus Christ, what a CUNT!!",
+        "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\nI hope you come back and teach these bitches a lesson!!",
+        "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
+        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.\"  Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
     ]
 
 def get_loot(mob : object, party_dict : dict) -> dict:
