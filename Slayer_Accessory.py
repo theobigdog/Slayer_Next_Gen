@@ -6,6 +6,7 @@ from colorama.winterm import WinTerm
 import pandas as pd
 import joblib as jb
 import sys
+from pathlib import Path
 
 init()
 
@@ -16,10 +17,14 @@ no = ['NO','N']
 
 whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls", "I haven't had a day off since the Third Age, but sure, let's go", "I'm running on four hours of sleep and pure spite, but for YOU? Anything", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
 
-items_df = pd.read_csv('supporting_docs/items.csv')
-hero_stats_df = pd.read_csv('supporting_docs/hero_stats.csv')
-mobs_df = pd.read_csv('supporting_docs/mobs.csv')
-mob_equipment_df = pd.read_csv('supporting_docs/mob_equipment.csv')
+game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where iit's launched from
+docs_dir = game_dir / 'supporting_docs'
+save_dir = game_dir / 'saved_parties'
+
+items_df = pd.read_csv(docs_dir / 'items.csv')
+hero_stats_df = pd.read_csv(docs_dir / 'hero_stats.csv')
+mobs_df = pd.read_csv(docs_dir / 'mobs.csv')
+mob_equipment_df = pd.read_csv(docs_dir / 'mob_equipment.csv')
 
 def dev_mode() -> bool:
     return True
@@ -86,13 +91,14 @@ def print_classes():
 
 def save_party(party : dict):
     name = party['name'].title()
-    jb.dump(party, f"saved_parties/{name}.pkl")
+    save_dir.mkdir(exist_ok=True) # create the folder if it's missing
+    jb.dump(party, save_dir / f"{name}.pkl")
     print(f"Your party has been saved as {name}.")
     print(f"Keep track of this saved name if you want to recover your party: {name}")
     pause()
 
 def load_party(name : str) -> dict:
-    return jb.load(f'saved_parties/{name.title()}.pkl')
+    return jb.load(save_dir / f'{name.title()}.pkl')
 
 def whine() -> str:
     return "..." + random.choice(whines)
