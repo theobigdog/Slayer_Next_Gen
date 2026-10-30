@@ -278,7 +278,7 @@ def party_wiped_taunt(mob : object, party : list) -> str:
                 victim, item_name = random.choice(have_items)
                 victim2 = random.choice([x for x in party if x != victim])
                 item_desc = acc.get_item(item_name)['item_desc']
-                template = random.choice([random.choice(acc.item_specific_wipe_taunts())])
+                template = random.choice(acc.item_specific_wipe_taunts())
                 return template.format(mob=mob.name, victim=victim.name, item=item_desc, victim2=victim2.name)
         # emergency backup if noone has an item - can't really see this happening but hey, it's here
         victim = random.choice(party)
