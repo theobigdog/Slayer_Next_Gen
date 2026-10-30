@@ -1,9 +1,9 @@
-from Slayer_Accessory import pause
+import Slayer_UI as ui
 
-def intro():
-    print("Intro Here for main game")
-    pause()
+async def intro():
+    await ui.say("Intro Here for main game")
+    await ui.pause()
 
-def happy_intro():
-    print("Meet Happy!")
-    pause()
+async def happy_intro():
+    await ui.say("Meet Happy!")
+    await ui.pause()
