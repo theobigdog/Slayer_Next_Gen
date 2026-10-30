@@ -1,23 +1,14 @@
 import random
-from msvcrt import kbhit, getch
-import time
-from colorama import init
-from colorama.winterm import WinTerm
 import pandas as pd
 import joblib as jb
 import sys
 from pathlib import Path
+import Slayer_UI as ui
 
-init()
-
-
-
-yes = ['YES','Y']
-no = ['NO','N']
 
 whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls", "I haven't had a day off since the Third Age, but sure, let's go", "I'm running on four hours of sleep and pure spite, but for YOU? Anything", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
 
-game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where iit's launched from
+game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where it's launched from
 docs_dir = game_dir / 'supporting_docs'
 save_dir = game_dir / 'saved_parties'
 
@@ -32,35 +23,13 @@ def dev_mode() -> bool:
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 
-def yes_no(prompt : str) -> bool:
-    response = input(prompt).strip().upper()
-    while (response not in yes) and (response not in no):
-        response = input("Let's pretend you didn't type that and try again.  Yes or No?:  ").strip().upper()
-    return response in yes
-
-def pause():
-    done = False
-    while not done:
-        if kbhit():
-            key = ord(getch())
-            if key == 13:
-                print()
-                done = True
-        time.sleep(0.02) # a very brief sleep keeps the CPU core from running at 100%, waiting for a response here
-
-def cls():
-    winterm = WinTerm()
-    winterm.erase_screen(mode=2)
-    print()
-    print()
-
-def end(full = False):
-    print()
-    print("The End.")
+async def end(full = False):
+    await ui.say()
+    await ui.say("The End.")
     if full:
         pass # TO Do - full ending
-    print()
-    print()
+    await ui.say()
+    await ui.say()
     sys.exit()
 
 def multi_roll(low_range : int, high_range : int) -> int:
@@ -83,19 +52,19 @@ def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine. 
         'speed_cutoff' : 40,
     }
 
-def print_classes():
-    print('Class Options:')
-    print()
+async def print_classes():
+    await ui.say('Class Options:')
+    await ui.say()
     for hero_class in get_hero_classes():
-        print(hero_class)
+        await ui.say(hero_class)
 
-def save_party(party : dict):
+async def save_party(party : dict):
     name = party['name'].title()
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
     jb.dump(party, save_dir / f"{name}.pkl")
-    print(f"Your party has been saved as {name}.")
-    print(f"Keep track of this saved name if you want to recover your party: {name}")
-    pause()
+    await ui.say(f"Your party has been saved as {name}.")
+    await ui.say(f"Keep track of this saved name if you want to recover your party: {name}")
+    await ui.pause()
 
 def load_party(name : str) -> dict:
     return jb.load(save_dir / f'{name.title()}.pkl')
@@ -103,36 +72,36 @@ def load_party(name : str) -> dict:
 def whine() -> str:
     return "..." + random.choice(whines)
 
-def print_player_starting_summary(party : list):
+async def print_player_starting_summary(party : list):
     for dudette in party:
-        print(f"{dudette.name}:  {dudette.hero_class}")
-        print('Inventory:  ')
+        await ui.say(f"{dudette.name}:  {dudette.hero_class}")
+        await ui.say('Inventory:  ')
         for inv_item in dudette.inv:
-            print(get_item(inv_item)['item_desc'])
-        print(f"Starting Health: {int(round(dudette.starting_health, 0))}")
-        print()
-    pause()
+            await ui.say(get_item(inv_item)['item_desc'])
+        await ui.say(f"Starting Health: {int(round(dudette.starting_health, 0))}")
+        await ui.say()
+    await ui.pause()
 
-def check_bad_name(name : str) -> str:
+async def check_bad_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        print('No.')
-        time.sleep(2)
+        await ui.say('No.')
+        await ui.wait(2)
         if name.upper() in db:
-            name = input(f'No, Bubba!  {whine()}.  Try again!  ').title().strip()
+            name = (await ui.ask_text(f'No, Bubba!  {whine()}.  Try again!  ')).title().strip()
         else:
-            name = input(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  ").title().strip()
+            name = (await ui.ask_text(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  ")).title().strip()
     return name
 
-def check_bad_heroine_name(name : str) -> str:
+async def check_bad_heroine_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        print('Nope.')
-        time.sleep(2)
+        await ui.say('Nope.')
+        await ui.wait(2)
         if name.upper() in db:
-            name = input(f"Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.  ").strip()
+            name = (await ui.ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.  ")).strip()
         else:
-            name = input(f"Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.  ").strip()
+            name = (await ui.ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.  ")).strip()
     return name
 
 def get_items() -> pd.DataFrame:
@@ -188,14 +157,14 @@ def item_specific_wipe_taunts() -> list:
         "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
     ]
 
-def get_loot(mob : object, party_dict : dict) -> dict:
-    print('Add looting process here, per party member, from specific mob loot-tables in the items.csv')
-    pause()
+async def get_loot(mob : object, party_dict : dict) -> dict:
+    await ui.say('Add looting process here, per party member, from specific mob loot-tables in the items.csv')
+    await ui.pause()
     return party_dict
 
-def get_stat_increases(party_dict : dict) -> dict:
-    print('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
-    pause()
+async def get_stat_increases(party_dict : dict) -> dict:
+    await ui.say('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
+    await ui.pause()
     return party_dict
 
 def refresh_party(party_dict : dict, increment : bool) -> dict:
