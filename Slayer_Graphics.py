@@ -89,7 +89,7 @@ def loser_banner():
     cursor.set_cursor_visible(False)
     for _ in range(1,10):
         for version in range(6):
-            acc.wt()
+            acc.cls()
             x = random.randint(1,50)
             y = random.randint(1,20)
             print(Cursor.POS(x,y))
@@ -99,7 +99,7 @@ def loser_banner():
             gap = gap / divisor
         time.sleep(gap)
         gap = gap / divisor
-    acc.wt()
+    acc.cls()
     x = random.randint(1,50)
     y = random.randint(1,20)
     print(Cursor.POS(x,y))

@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_Accessory import wt, next, whine
+from Slayer_Accessory import cls, pause, whine
 import Slayer_Combat as combat
 import Slayer_Heroes as heroes
 import random
@@ -52,7 +52,7 @@ def auto_pick_name() -> str:
 
 def print_current_party(party : list):
     for member in party:
-        print(f"Hero:  {member.heroine_name}, Class:  {member.hero_class}")
+        print(f"Hero:  {member.name}, Class:  {member.hero_class}")
 
 def name_heroine(prompt : str, choose_names : bool) -> str:
     if choose_names:
@@ -61,7 +61,7 @@ def name_heroine(prompt : str, choose_names : bool) -> str:
 
 def create_new_party(name: str) -> list:
     new_party = []
-    wt()
+    cls()
     acc.print_classes()
     print()
     party_count = input("How many party members would you like to include (1 minimum, 8 maximum)?  ")
@@ -81,27 +81,27 @@ def create_new_party(name: str) -> list:
     elif party_count <= 3:
         print(f'{party_count}?!  Ballsy, I like it!')
         time.sleep(2)
-    wt()
+    cls()
     print_recommended_classes(party_count)
     print()
-    choose_composition = acc.yes_no(input("Would you like to choose the composition of your party?  "))
+    choose_composition = acc.yes_no("Would you like to choose the composition of your party?  ")
     if choose_composition:
         print("My recommendations are garbage, so take them with a grain of salt....")
-        next()
+        pause()
     else:
         print("Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear!")
-        next()
+        pause()
     print()
-    choose_names = acc.yes_no(input("Would you like to choose the names of your party members?  "))
+    choose_names = acc.yes_no("Would you like to choose the names of your party members?  ")
     if choose_names:
         print("Probably a wise choice.  I'm shit at naming.")
-        next()
+        pause()
     else:
         print("Oh hell yes, I LOVE naming people.  Prepare to be emotionally attached, and perhaps disgusted a little bit too.")
-        next()
+        pause()
     if choose_composition:
         for _ in range(party_count):
-            wt()
+            cls()
             print_current_party(new_party)
             print()
             acc.print_classes()
@@ -120,20 +120,20 @@ def create_new_party(name: str) -> list:
         members = get_default_classes(party_count)
         print()
         time.sleep(2)
-        wt()
+        cls()
         for selection in members:
             heroine_name = name_heroine(f"Ok, let's have a name for your {selection}:  ", choose_names)
             new_party.append(get_hero(selection, heroine_name))
     return new_party
 
 def welcome_back(saved_party : dict) -> dict:
-    next()
-    wt()
+    pause()
+    cls()
     saved_party = acc.refresh_party(saved_party, True)
     acc.print_player_starting_summary(saved_party['party'])
-    wt()
+    cls()
     combat.display_party_summary(saved_party['party'])
-    next()
+    pause()
     return saved_party
 
 def get_party() -> dict:
@@ -157,11 +157,11 @@ def get_party() -> dict:
             print(f"Let's just make you a fresh party, mkay, {name}?")
             time.sleep(3)
             new_party = create_new_party(name)
-            wt()
+            cls()
             acc.print_player_starting_summary(new_party)
-            wt()
+            cls()
             combat.display_party_summary(new_party)
-            next()
+            pause()
             return {
                 "name" : name,
                 "party" : new_party,

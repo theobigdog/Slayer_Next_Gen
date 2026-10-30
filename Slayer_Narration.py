@@ -1,9 +1,9 @@
-from Slayer_Accessory import next
+from Slayer_Accessory import pause
 
 def intro():
     print("Intro Here for main game")
-    next()
+    pause()
 
 def happy_intro():
     print("Meet Happy!")
-    next()
+    pause()

@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_Accessory import next
+from Slayer_Accessory import pause
 import Slayer_Combat as combat
 import Slayer_Dwarf
 import Slayer_Narration as nar
@@ -38,21 +38,21 @@ def play_game(party_dict: dict) -> dict:
     dev_mode = acc.dev_mode()
     if not dev_mode:
         if party_dict['times_run_dungeon'] == 1:
-            party_dict['narration'] = acc.yes_no(input('Would you like narrative?  '))
+            party_dict['narration'] = acc.yes_no('Would you like narrative?  ')
             if party_dict['narration']:
                 print("Really?  Oh hell yes, I've been practicing my voices.")
             else:
                 print("Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.")
-            next()
+            pause()
             if party_dict['narration']:
                 nar.intro()
                 nar.happy_intro()
         else:
-            first = acc.yes_no(input("I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?  "))
+            first = acc.yes_no("I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?  ")
             if first:
-                _ = acc.yes_no(input("Uh, yes you DO want me to provide narrative, or not?  "))
+                _ = acc.yes_no("Uh, yes you DO want me to provide narrative, or not?  ")
             else:
-                _ = acc.yes_no(input("Oh, so no I assumed wrong you do need narrative again, or did you mean you didn't want repeated narrative?  ")) 
+                _ = acc.yes_no("Oh, so no I assumed wrong you do need narrative again, or did you mean you didn't want repeated narrative?  ")
             time.sleep(0.3)
             print("But wait, bone-head, you're still not clearly answering my question.....")
             time.sleep(0.75)
@@ -61,7 +61,7 @@ def play_game(party_dict: dict) -> dict:
             print('Oh, right.  Sorry.')
             time.sleep(0.2)
 
-            party_dict['narration'] = acc.yes_no(input("Ok, for realsies, would you like narration?  "))
+            party_dict['narration'] = acc.yes_no("Ok, for realsies, would you like narration?  ")
             if party_dict['narration']:
                 print("Shirley you can't be serious....")
                 time.sleep(0.3)
@@ -73,7 +73,7 @@ def play_game(party_dict: dict) -> dict:
                 print('Understood.  Grabbing a roll of duct tape for my own mouth.')
                 time.sleep(0.5)
                 print('Umm....  May I at least have a small breathing hole?  I have a deviated septum and I\'m a mouth-breather....')
-                next()
+                pause()
 
     happy = Slayer_Dwarf.Disgruntled_Dwarf('Happy')
     buddy1, buddy2 = random.sample(happy_buddy_names, 2)
@@ -87,16 +87,16 @@ def play_game(party_dict: dict) -> dict:
             if not attacker.is_dead and alive_mobs(mobs):
                 combat.show_current_status(party_dict['party'], mobs, round_num)
                 time.sleep(0.5)
-                if hasattr(attacker, 'hero_class'): # player's turn with the given heroine
+                if not attacker.is_mob: # player's turn with the given heroine
                     party_dict, mobs, luck_roll = combat.player_turn(attacker, party_dict, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
-                        print(f"{attacker.heroine_name}'s lucky fuckin' day!  She get's a second turn.  Make it count!")
-                        next()
+                        print(f"{attacker.name}'s lucky fuckin' day!  She get's a second turn.  Make it count!")
+                        pause()
                         combat.show_current_status(party_dict['party'], mobs, round_num)
                         party_dict, mobs, _ = combat.player_turn(attacker, party_dict, mobs)
                     for mob in mobs:
                         if not mob.is_dead:
-                            turn_stat = 'enraged_turn' if mob.enraged else 'turn'
+                            turn_stat = 'enraged_turn_chance' if mob.enraged else 'turn_chance'
                             if acc.multi_roll(1,100) <= mob.stats[turn_stat]:
                                 party_dict['wiped'] = check_wiped(party_dict['party'])
                                 combat.show_current_status(party_dict['party'], mobs, round_num)
@@ -108,13 +108,13 @@ def play_game(party_dict: dict) -> dict:
                     party_dict['wiped'] = check_wiped(party_dict['party'])
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party_dict['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
                         print(f"Oh, shit.  {attacker.name} gets a second attack!  Brace yourselves!")
-                        next()
+                        pause()
                         combat.show_current_status(party_dict['party'], mobs, round_num)
                         party_dict, mobs, _ = combat.mob_turn(attacker, party_dict , mobs)
                 party_dict['wiped'] = check_wiped(party_dict['party'])
         if party_dict['wiped'] or not alive_mobs(mobs):
             combat.show_current_status(party_dict['party'], mobs, round_num)
-            next()
+            pause()
     if party_dict['wiped']:
         party_dict = happy.trigger_happy_wipe(party_dict, happy.is_dead)
         party_dict = acc.refresh_party(party_dict, False)
