@@ -3,6 +3,7 @@ import random
 import time
 import cursor
 from colorama import Fore, Back, Style, Cursor
+from colorama.winterm import WinTerm
 
 # Make coloring faster
 
@@ -11,6 +12,11 @@ g = Fore.GREEN + Style.BRIGHT
 r = Fore.RED + Style.BRIGHT
 b_r = Back.RED
 reset = Style.RESET_ALL
+
+def cls(): # this file only draws in the terminal, so it clears the terminal itself
+    WinTerm().erase_screen(mode=2)
+    print()
+    print()
 
 # functions for opening
 
@@ -89,7 +95,7 @@ def loser_banner():
     cursor.set_cursor_visible(False)
     for _ in range(1,10):
         for version in range(6):
-            acc.cls()
+            cls()
             x = random.randint(1,50)
             y = random.randint(1,20)
             print(Cursor.POS(x,y))
@@ -99,7 +105,7 @@ def loser_banner():
             gap = gap / divisor
         time.sleep(gap)
         gap = gap / divisor
-    acc.cls()
+    cls()
     x = random.randint(1,50)
     y = random.randint(1,20)
     print(Cursor.POS(x,y))
