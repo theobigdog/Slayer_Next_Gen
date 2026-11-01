@@ -1,6 +1,6 @@
 import random
 import csv
-import joblib as jb
+import json
 import sys
 from pathlib import Path
 import Slayer_UI as ui
@@ -91,16 +91,38 @@ async def print_classes():
     for hero_class in get_hero_classes():
         await ui.say(hero_class)
 
+def party_to_data(party_dict : dict) -> dict:
+    """The party as plain data (text, numbers, lists, dicts) that JSON can store.
+    Each heroine keeps every attribute she has, so anything added to the heroine
+    classes later (stat increases, loot) gets saved automatically."""
+    data = dict(party_dict)
+    data['party'] = [dict(vars(heroine)) for heroine in party_dict['party']]
+    return data
+
+def party_from_data(data : dict) -> dict:
+    """The reverse of party_to_data: rebuild each heroine as her own class, attributes and all."""
+    import Slayer_Heroes # imported here, because Slayer_Heroes imports this file
+    party_dict = dict(data)
+    party_dict['party'] = []
+    for saved in data['party']:
+        hero_class = getattr(Slayer_Heroes, saved['hero_class'])
+        heroine = hero_class.__new__(hero_class) # an empty heroine: no new stats rolled
+        vars(heroine).update(saved)
+        party_dict['party'].append(heroine)
+    return party_dict
+
 async def save_party(party : dict):
     name = party['name'].title()
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
-    jb.dump(party, save_dir / f"{name}.pkl")
+    with open(save_dir / f"{name}.json", 'w', encoding='utf-8') as f:
+        json.dump(party_to_data(party), f, indent=2)
     await ui.say(f"Your party has been saved as {name}.")
     await ui.say(f"Keep track of this saved name if you want to recover your party: {name}")
     await ui.pause()
 
 def load_party(name : str) -> dict:
-    return jb.load(save_dir / f'{name.title()}.pkl')
+    with open(save_dir / f'{name.title()}.json', encoding='utf-8') as f: # a missing save raises FileNotFoundError, which get_party relies on
+        return party_from_data(json.load(f))
 
 def whine() -> str:
     return "..." + random.choice(whines)
