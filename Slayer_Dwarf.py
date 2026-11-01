@@ -2,14 +2,14 @@ import Slayer_Accessory as acc
 import Slayer_UI as ui
 
 
-mobs_df = acc.get_mobs()
+mobs_table = acc.get_mobs()
 
 class Disgruntled_Dwarf:
 
     def __init__(self, name : str):
         self.name = name
         self.mob_class = 'Disgruntled Dwarf'
-        acc.initialize_mob(self, mobs_df)
+        acc.initialize_mob(self, mobs_table)
         self.is_boss = True
 
     async def enrage(self):
@@ -43,5 +43,5 @@ class Drunk_Dwarf:
     def __init__(self, name : str):
         self.name = name
         self.mob_class = 'Drunk Dwarf'
-        acc.initialize_mob(self, mobs_df)
+        acc.initialize_mob(self, mobs_table)
         self.is_boss = False

@@ -211,9 +211,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
 def party_wiped_taunt(mob : object, party : list) -> str:
     # first make sure at least one heroine exists (may need to adjust to starting count of party, per encounter?) and still has a melee item, if we want to include item-specific taunts
     if len(party) > 1 :
-        items_df = acc.get_items()
-        melee_items = items_df[(items_df['attack_type'] == 'melee') & (~items_df['special'])] # regular melee weapons only, specials left out (same as before the special column)
-        melee_names = set(melee_items['item'])
+        melee_names = {item['item'] for item in acc.get_items() if item['attack_type'] == 'melee' and not item['special']} # regular melee weapons only, specials left out (same as before the special column)
         have_items = [(heroine, item_name) for heroine in party for item_name in heroine.inv if item_name in melee_names]
         # if anyone has a melee weapon, which may need to be refined by hero_class or something to avoid things like Sappers' "Deep Scratch", there is a 50:50 chance of doing item-specific or non-item-specific taunts so that both lists are actually used haha
         if len(have_items) > 0:
@@ -235,8 +233,7 @@ def party_wiped_taunt(mob : object, party : list) -> str:
         return "No party members.  Right...."
 
 def choose_mob_item(inv : list, ai : str, party_dict : dict) -> dict:
-    mob_items = acc.get_mob_equipment()
-    mob_inv = mob_items[(mob_items['item'].isin(inv)) & (mob_items['attack_type'] == 'melee')].to_dict('records') ###### since we haven't worked on aoe or ranged attacks logic, just doing melee for now, this will need to be fixed, especially for when higher ai is factored in
+    mob_inv = [dict(item) for item in acc.get_mob_equipment() if item['item'] in inv and item['attack_type'] == 'melee'] ###### since we haven't worked on aoe or ranged attacks logic, just doing melee for now, this will need to be fixed, especially for when higher ai is factored in
     if ai == 'easy':
         return random.choice(mob_inv)
     return random.choice(mob_inv) # for now it just always returns this, but this will update with other ai mode updates

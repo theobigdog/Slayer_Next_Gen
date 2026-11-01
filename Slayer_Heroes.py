@@ -4,12 +4,12 @@ from ast import literal_eval
 
 stat_dice_cutoffs = acc.get_dice_cutoffs()
 
-items_df = acc.get_items()
-hero_stats_df = acc.get_stats()
+items_table = acc.get_items()
+hero_stats_table = acc.get_stats()
 
-def get_starting_inv(hero_class : str, items_df = items_df) -> list:
+def get_starting_inv(hero_class : str, items_table = items_table) -> list:
     starting_inv = []
-    for _, item in items_df.iterrows():
+    for item in items_table:
         if hero_class in literal_eval(item['classes']) and item['source'] == 'starting':
             starting_inv.append(item['item'])
     return starting_inv
@@ -28,8 +28,8 @@ def stat_value_delta(val, adjuster, lower_limit : float, upper_limit : float, de
             adj = int(round(val + random.triangular(-adjuster, adjuster, 0), decimals))
     return adj
 
-def get_stats(hero_class : str, hero_stats_df = hero_stats_df) -> dict:
-    row = hero_stats_df[hero_stats_df['hero_class'] == hero_class].iloc[0]
+def get_stats(hero_class : str, hero_stats_table = hero_stats_table) -> dict:
+    row = acc.find_row(hero_stats_table, 'hero_class', hero_class)
     adj = 5
     low = 1
     high = 100 # every stat is a % chance

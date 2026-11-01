@@ -1,5 +1,5 @@
 import random
-import pandas as pd
+import csv
 import joblib as jb
 import sys
 from pathlib import Path
@@ -12,10 +12,43 @@ game_dir = Path(__file__).parent # the folder these .py files live in, so the ga
 docs_dir = game_dir / 'supporting_docs'
 save_dir = game_dir / 'saved_parties'
 
-items_df = pd.read_csv(docs_dir / 'items.csv')
-hero_stats_df = pd.read_csv(docs_dir / 'hero_stats.csv')
-mobs_df = pd.read_csv(docs_dir / 'mobs.csv')
-mob_equipment_df = pd.read_csv(docs_dir / 'mob_equipment.csv')
+def read_table(file_name : str) -> list:
+    """Read one CSV from supporting_docs into a list of rows, one dict per row, keyed by the
+    column names. Each column is converted as a whole, the way pandas did it: all whole
+    numbers -> int, any decimals -> float, all TRUE/FALSE -> True/False, anything else stays
+    text. A blank cell becomes None."""
+    with open(docs_dir / file_name, newline='', encoding='utf-8') as f:
+        rows = list(csv.DictReader(f))
+    columns = rows[0].keys() if rows else []
+    for column in columns:
+        filled = [row[column] for row in rows if row[column] != '']
+        if filled and all(value in ('TRUE', 'FALSE') for value in filled):
+            convert = lambda value: value == 'TRUE'
+        elif filled and all(_is_number(value, int) for value in filled):
+            convert = int
+        elif filled and all(_is_number(value, float) for value in filled):
+            convert = float
+        else:
+            convert = str
+        for row in rows:
+            row[column] = None if row[column] == '' else convert(row[column])
+    return rows
+
+def _is_number(value : str, kind) -> bool:
+    try:
+        kind(value)
+        return True
+    except ValueError:
+        return False
+
+def find_row(table : list, column : str, value) -> dict:
+    """The first row whose column holds value (a copy, so changing it can't change the table)."""
+    return dict(next(row for row in table if row[column] == value))
+
+items_table = read_table('items.csv')
+hero_stats_table = read_table('hero_stats.csv')
+mobs_table = read_table('mobs.csv')
+mob_equipment_table = read_table('mob_equipment.csv')
 
 def dev_mode() -> bool:
     return True
@@ -104,32 +137,31 @@ async def check_bad_heroine_name(name : str) -> str:
             name = (await ui.ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.  ")).strip()
     return name
 
-def get_items() -> pd.DataFrame:
-    return items_df
+def get_items() -> list:
+    return items_table
 
-def get_item(item_name : str) -> pd.Series:
-    return items_df[items_df['item'] == item_name].iloc[0]
+def get_item(item_name : str) -> dict:
+    return find_row(items_table, 'item', item_name)
 
-def get_stats() -> pd.DataFrame:
-    return hero_stats_df
+def get_stats() -> list:
+    return hero_stats_table
 
-def get_mobs() -> pd.DataFrame:
-    return mobs_df
+def get_mobs() -> list:
+    return mobs_table
 
-def get_mob_equipment() -> pd.DataFrame:
-    return mob_equipment_df
+def get_mob_equipment() -> list:
+    return mob_equipment_table
 
-def get_mob_stats(mob_class: str, mobs_df: pd.DataFrame) -> dict:
-    row = mobs_df[mobs_df['mob_class'] == mob_class].iloc[0]
-    return row.to_dict() # every column of mobs.csv, keyed by its column name (the enraged_ versions included)
+def get_mob_stats(mob_class: str, mobs_table: list) -> dict:
+    return find_row(mobs_table, 'mob_class', mob_class) # every column of mobs.csv, keyed by its column name (the enraged_ versions included)
 
 def get_mob_inv(mob_class: str) -> list:
-    return list(mob_equipment_df.loc[mob_equipment_df['mob_class'] == mob_class, 'item'])
+    return [row['item'] for row in mob_equipment_table if row['mob_class'] == mob_class]
 
-def initialize_mob(mob: object, mobs_df: pd.DataFrame):
-    row = mobs_df[mobs_df['mob_class'] == mob.mob_class].iloc[0]
+def initialize_mob(mob: object, mobs_table: list):
+    row = find_row(mobs_table, 'mob_class', mob.mob_class)
     mob.attack_style = row['attack_style']
-    mob.stats = get_mob_stats(mob.mob_class, mobs_df)
+    mob.stats = get_mob_stats(mob.mob_class, mobs_table)
     mob.inv = get_mob_inv(mob.mob_class)
     mob.starting_health = mob.stats['starting_hp']
     mob.health = mob.stats['starting_hp']
