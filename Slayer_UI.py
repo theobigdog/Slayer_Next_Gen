@@ -25,7 +25,7 @@ Tags: [red], [magenta], [green], [white], and [/] to go back to normal.
 
 Which screen all of this lands on is picked once, at startup:
     ui.use(ui.TerminalUI())    # the command-prompt game
-    ui.use(WindowUI())         # the Pygame window (coming later)
+    ui.use(WindowUI())         # the Pygame window (Slayer_Window.py, started by main.py)
 """
 import asyncio
 import random
