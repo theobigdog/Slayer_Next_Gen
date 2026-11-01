@@ -82,6 +82,10 @@ async def get_target_choice(mobs : list, party : list, healing : bool = False) -
         ]
     return await ui.choose_target(prompts, living_party, living_mobs, oopses) # lists the targets, keeps asking until the pick is valid
 
+async def get_heal_outcome(healed : object, healing : int) -> object:
+
+    return healed
+
 async def get_heroine_turn_outcome(heroine : object, item : dict,  target : object, party_dict : dict,  mobs : list, heroine_rolls : dict, mob_rolls : dict) -> tuple:
     base_damage = acc.multi_roll(item['damage_low'], item['damage_high'])
     attack_type = item['attack_type']
@@ -89,7 +93,10 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
     is_crit = crit_mult > 1 # will be used for auto commenting later
     damage_w_crit_mult = base_damage * crit_mult
     if target.is_mob:  # aimed at a mob (an attack, or a heal on a mob)
-        if attack_type == 'heal' and heroine.hero_class != 'Cleric':
+        if heroine.hero_class == 'Cleric':
+            # remember to factor in the healing damage, radiative and otherwise, to undead
+            target = await get_heal_outcome(target, damage_w_crit_mult)
+        elif attack_type == 'heal':# and heroine.hero_class != 'Cleric':
             healing = -int(damage_w_crit_mult)
             missing_hp = target.starting_health - target.health
             if healing > missing_hp:
