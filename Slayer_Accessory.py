@@ -1,6 +1,9 @@
 import random
 import csv
 import json
+import zlib
+import base64
+import hmac
 import sys
 from pathlib import Path
 import Slayer_UI as ui
@@ -111,18 +114,45 @@ def party_from_data(data : dict) -> dict:
         party_dict['party'].append(heroine)
     return party_dict
 
+# Saves are scrambled so players can't just open one and read or edit their stats.
+# Not real security (anyone with this code can unscramble a save), but it stops casual
+# peeking, and the seal below catches edits. Changing save_key makes every old save unreadable.
+save_key = b"Happy's toe taps: left, left, right, stomp, wiggle"
+
+class TamperedSave(FileNotFoundError):
+    """A save that's been edited or is broken. It counts as 'no save found' (get_party
+    already handles that), and can be caught on its own later for a 'nice try' line."""
+
+def scramble(text : str) -> str:
+    packed = zlib.compress(text.encode('utf-8'))
+    mixed = bytes(byte ^ save_key[i % len(save_key)] for i, byte in enumerate(packed))
+    seal = hmac.new(save_key, packed, 'sha256').hexdigest()[:16] # changes if a single byte of the save changes
+    return seal + base64.b64encode(mixed).decode('ascii')
+
+def unscramble(blob : str) -> str:
+    try:
+        seal, mixed = blob[:16], base64.b64decode(blob[16:])
+        packed = bytes(byte ^ save_key[i % len(save_key)] for i, byte in enumerate(mixed))
+        if not hmac.compare_digest(seal, hmac.new(save_key, packed, 'sha256').hexdigest()[:16]):
+            raise TamperedSave('save was edited')
+        return zlib.decompress(packed).decode('utf-8')
+    except TamperedSave:
+        raise
+    except Exception as error: # bad base64, bad zlib data, wrong key...
+        raise TamperedSave(f'save is unreadable: {error}')
+
 async def save_party(party : dict):
     name = party['name'].title()
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
-    with open(save_dir / f"{name}.json", 'w', encoding='utf-8') as f:
-        json.dump(party_to_data(party), f, indent=2)
+    with open(save_dir / f"{name}.sav", 'w', encoding='ascii') as f:
+        f.write(scramble(json.dumps(party_to_data(party))))
     await ui.say(f"Your party has been saved as {name}.")
     await ui.say(f"Keep track of this saved name if you want to recover your party: {name}")
     await ui.pause()
 
 def load_party(name : str) -> dict:
-    with open(save_dir / f'{name.title()}.json', encoding='utf-8') as f: # a missing save raises FileNotFoundError, which get_party relies on
-        return party_from_data(json.load(f))
+    with open(save_dir / f'{name.title()}.sav', encoding='ascii') as f: # a missing save raises FileNotFoundError, which get_party relies on
+        return party_from_data(json.loads(unscramble(f.read())))
 
 def whine() -> str:
     return "..." + random.choice(whines)
