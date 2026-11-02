@@ -24,12 +24,12 @@ Tips:
 
 ## Fonts (`assets/fonts/`)
 
-- **New Rocker** (`NewRocker-Regular.ttf`, picked by Ted on Nov 1): names, headings, menus, floating
-  numbers, and the narration. License: SIL Open Font License, `LICENSE-NewRocker-OFL.txt`, from
-  Google Fonts. To put the narration back in plain text, set `FANCY_NARRATION = False` near the top
-  of `Slayer_Window.py`.
-- **DejaVu Sans / Sans Mono**: the small print (HP numbers, hints, box labels) and the ASCII title art.
-  License: `LICENSE-DejaVu.txt`.
+- **New Rocker** (`NewRocker-Regular.ttf`, picked by Ted on Nov 1): names, headings, menus, box labels,
+  HP numbers and floating numbers. License: SIL Open Font License, `LICENSE-NewRocker-OFL.txt`.
+- **Fondamento** (`Fondamento-Regular.ttf`): the narration, readable but still stylized. License: SIL Open
+  Font License, `LICENSE-Fondamento-OFL.txt`. To try another, change `NARRATION_FONT` near the top of
+  `Slayer_Window.py`.
+- **DejaVu Sans / Sans Mono**: the click hints and the ASCII title art. License: `LICENSE-DejaVu.txt`.
 
-Both licenses allow shipping the fonts with the game, as long as the license files stay alongside.
+All three come from Google Fonts / the DejaVu project. Both licenses allow shipping the fonts with the game, as long as the license files stay alongside.
 The window version ships its own fonts because a browser has none of your system fonts.
