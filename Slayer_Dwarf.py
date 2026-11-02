@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import say, pause
+from Slayer_UI import say, pause, clear
 
 
 mobs_table = acc.get_mobs()
@@ -13,7 +13,9 @@ class Disgruntled_Dwarf:
         self.is_boss = True
 
     async def enrage(self):
-        await say(f"\n\n{self.name} gasps loudly.  \"Now that one fucking hurt!!\"")
+        await pause()  # let the hit that did it sink in...
+        await clear()  # ...then the enrage gets the narration box all to itself
+        await say(f"{self.name} gasps loudly.  \"Now that one fucking hurt!!\"")
         await pause()
         await say(f"\n{self.name} suddenly bulges out in all directions.  He becomes a rippling mass of what looks like pure muscle - the veins in his neck and forearms swell to such a size, they look like they might rupture.\n")
         await say("\"Oh lassies,\" he growls, \"you really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")

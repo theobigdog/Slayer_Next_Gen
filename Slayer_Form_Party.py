@@ -88,6 +88,7 @@ async def create_new_party(name: str) -> list:
         await pause()
     else:
         await say("Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear!")
+        await say("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.") # moved up from below, so it answers the class question
         await pause()
     await say()
     choose_names = await yes_no("Would you like to choose the names of your party members?  ")
@@ -114,12 +115,7 @@ async def create_new_party(name: str) -> list:
             heroine_name = await name_heroine(f"\nOk, let's have a name for your {acc.class_label(selection)}:  ", choose_names) # the prompt names the class, so it stays on screen while naming
             new_party.append(get_hero(selection, heroine_name))
     else:
-        await say()
-        await say("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.")
-        await wait(2)
         members = get_default_classes(party_count)
-        await say()
-        await wait(2)
         await clear()
         for selection in members:
             heroine_name = await name_heroine(f"Ok, let's have a name for your {acc.class_label(selection)}:  ", choose_names)

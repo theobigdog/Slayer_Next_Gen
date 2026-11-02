@@ -14,7 +14,7 @@ basic_fire_bolt,Basic Fire Bolt,['Witch'],6,12,range,FALSE,starting
 small_lightning_strike,Small Lightning Strike,['Witch'],6,9,range,FALSE,starting
 fire_rain,Fire Rain,['Witch'],12,30,range,TRUE,starting
 deep_scratch,Deep Scratch,['Sapper'],2,3,melee,FALSE,starting
-big_badda_boom,Big Badda Boom,['Sapper'],50,75,aoe,FALSE,starting
+big_badda_boom,Big Badda Boom,['Sapper'],50,75,aoe,TRUE,starting
 healing_wand,Healing Wand,['Cleric'],-10,-2,heal,FALSE,starting
-deep_meditation,Deep Meditation,['Cleric'],-30,-13,heal,FALSE,starting
+deep_meditation,Deep Meditation,['Cleric'],-30,-13,heal,TRUE,starting
 vomit,Happy's Regurgitation,['Disgruntled Dwarf'],5,20,aoe,FALSE,mob

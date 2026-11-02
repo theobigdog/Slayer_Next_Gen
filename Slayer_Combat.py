@@ -246,7 +246,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
             item_choice = 0
         if inv[item_choice] not in spent:
             break
-        await say(f"Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.")
+        await say(f"\nHer {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.\n")
         if inv_len == 1:
             await pause()
             return (party_dict, mobs, False)

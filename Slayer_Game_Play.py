@@ -90,7 +90,7 @@ async def play_game(party_dict: dict) -> dict:
                 if not attacker.is_mob: # player's turn with the given heroine
                     party_dict, mobs, luck_roll = await combat.player_turn(attacker, party_dict, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
-                        await say(f"{attacker.name}'s lucky fuckin' day!  She get's a second turn.  Make it count!")
+                        await say(f"{attacker.name}'s lucky fuckin' day!  She gets an extra turn.  Make it count!")
                         await pause()
                         await combat.show_current_status(party_dict['party'], mobs, round_num)
                         party_dict, mobs, _ = await combat.player_turn(attacker, party_dict, mobs)
@@ -107,7 +107,7 @@ async def play_game(party_dict: dict) -> dict:
                     party_dict, mobs, luck_roll = await combat.mob_turn(attacker, party_dict, mobs)
                     party_dict['wiped'] = check_wiped(party_dict['party'])
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party_dict['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
-                        await say(f"Oh, shit.  {attacker.name} gets a second attack!  Brace yourselves!")
+                        await say(f"Oh, shit.  {attacker.name} gets an extra attack!  Brace yourselves!")
                         await pause()
                         await combat.show_current_status(party_dict['party'], mobs, round_num)
                         party_dict, mobs, _ = await combat.mob_turn(attacker, party_dict , mobs)

@@ -43,8 +43,10 @@ HP_LOW = (192, 96, 192)    # the terminal's magenta, at 50% and below
 HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
 DAMAGE_RED = (255, 72, 60)
 HEAL_BLUE = (90, 170, 255)
-TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 200, 90), 'white': (255, 255, 255)}
-TAG = re.compile(r'\[(red|magenta|green|white|/)\]')
+TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 200, 90), 'white': (255, 255, 255),
+              'gold': (212, 166, 64)}
+TAG = re.compile(r'\[(red|magenta|green|white|gold|/)\]')
+DIM_OLDER_TEXT = True  # text from before your last click is drawn a little dimmer, so the new part stands out
 
 
 # Fonts: New Rocker for everything that isn't narration (names, headings, menus, boxes, numbers);
@@ -108,7 +110,7 @@ class WindowUI:
         self.fps = headless_fps
         self.fonts = {
             'text': font(NARRATION_SIZE, 'narration'),
-            'menu': font(22, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
+            'menu': font(22, 'fancy'), 'menu_s': font(19, 'fancy'), 'menu_xs': font(16, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
             'box': font(17, 'fancy'), 'hp': font(16, 'fancy'),
             'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
@@ -134,6 +136,12 @@ class WindowUI:
         self.title_draw = None      # the finished title screen, shown until the next clear
         self.sprite_rects = []      # (rect, entity) for every sprite drawn this frame
         self.menu_labels = []
+        self.echo_line = None       # which narration line gets the player's answer written after it
+        self.fresh_from = 0         # first narration line added since the player's last click/answer
+        self.mark_new = False       # the next text added starts a new, separated chunk
+        self.text_version = 0       # bumps whenever the narration changes (for the wrap cache)
+        self.wrap_cache = (None, [])
+        self.num_buffer, self.num_time = '', 0.0  # two-digit menu numbers (10, 11) being typed
         self.error = None
 
     # ---------- the frame loop -------------------------------------------------
@@ -154,6 +162,7 @@ class WindowUI:
                     return
                 self.handle(event)
             self.advance_typewriter(dt)
+            self.commit_number_if_done()
             if task.done() and self.mode != 'end':
                 self.finish(task)
             self.draw()
@@ -210,6 +219,8 @@ class WindowUI:
                 self.typed += event.text
             return
 
+        if kind != 'yes_no' and event.type == pygame.KEYDOWN and self.num_buffer and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            return self.commit_number()
         # menus: choose, choose_target, yes_no
         if clicked:
             for button in self.buttons:
@@ -226,10 +237,32 @@ class WindowUI:
             number = self.number_key(event)
             if number is not None:
                 options = extra['options']
-                if 1 <= number <= len(options):
-                    self.pick(options[number - 1])
-                else:
-                    self.oops(extra)
+                if len(options) < 10:
+                    self.pick_number(number)
+                else:  # 10 or more choices: '1' might be the start of '10' or '11', so wait a moment
+                    self.num_buffer += str(number)
+                    self.num_time = self.now
+                    if int(self.num_buffer) * 10 > len(options):  # no second digit could still make sense
+                        self.commit_number()
+            elif event.key == pygame.K_BACKSPACE:
+                self.num_buffer = ''
+
+    def pick_number(self, number):
+        kind, _, extra = self.waiting
+        options = extra['options']
+        if 1 <= number <= len(options):
+            self.pick(options[number - 1])
+        else:
+            self.oops(extra)
+
+    def commit_number(self):
+        typed, self.num_buffer = self.num_buffer, ''
+        if typed and self.waiting and self.menu_open():
+            self.pick_number(int(typed))
+
+    def commit_number_if_done(self):
+        if self.num_buffer and self.now - self.num_time > 0.8:
+            self.commit_number()
 
     def scroll(self, lines):
         """Mouse wheel: look back at earlier lines (since the last clear). New text snaps back down."""
@@ -248,9 +281,15 @@ class WindowUI:
     def oops(self, extra):
         """A number that isn't on the menu: show the oops line and ask again, like the terminal does."""
         self.add_text(pick_line(extra['oops']))
-        self.add_text(pick_line(extra['prompt']))
+        self.add_prompt(pick_line(extra['prompt']))
 
     def pick(self, value):
+        kind, _, extra = self.waiting
+        if kind in ('choose', 'choose_target'):
+            label = self.menu_labels[extra['options'].index(value)]
+            self.echo(label.replace('  (recharging)', ''))
+        elif kind == 'yes_no':
+            self.echo('Yes' if value else 'No')
         self.buttons, self.targets = [], []
         self.resolve(value)
 
@@ -258,8 +297,16 @@ class WindowUI:
         kind, future, extra = self.waiting
         self.waiting = None
         self.buttons, self.targets = [], []
+        self.num_buffer = ''
+        self.mark_new = True  # whatever gets said next is a new chunk
         if future and not future.done():
             future.set_result(value)
+
+    def echo(self, answer):
+        """Write the player's answer after its question, the way the terminal shows what you typed."""
+        if answer and self.echo_line is not None and self.echo_line < len(self.lines):
+            self.lines[self.echo_line] = self.lines[self.echo_line].rstrip() + f'  [gold]{answer}[/]'
+            self.text_version += 1
 
     async def wait_for(self, kind, extra=None):
         future = asyncio.get_running_loop().create_future()
@@ -271,10 +318,20 @@ class WindowUI:
 
     def add_text(self, text):
         self.scroll_back = 0
+        if self.mark_new:  # the first text after a click or an answer: leave a gap, and it's the new part
+            self.mark_new = False
+            if self.lines and self.lines[-1].strip():
+                self.lines.append('')
+            self.fresh_from = len(self.lines)
         for line in str(text).split('\n'):
             if line.strip() == '' and (not self.lines or self.lines[-1].strip() == ''):
                 continue  # no blank line at the top of the box, and never two in a row
             self.lines.append(line)
+        self.text_version += 1
+
+    def add_prompt(self, text):
+        self.add_text(text)
+        self.echo_line = len(self.lines) - 1
 
     def total_chars(self):
         return sum(len(TAG.sub('', line)) for line in self.lines)
@@ -282,25 +339,31 @@ class WindowUI:
     def typed_out(self):
         return self.revealed >= self.total_chars()
 
+    def wrap_width(self):
+        """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines."""
+        return (780 if self.mode in ('battle', 'party') else 740) - 40
+
     def visual_lines(self):
-        """Every narration line wrapped to the box: [(runs, chars_in_line)]."""
-        width = self.text_box().width - 40
-        out = []
-        for line in self.lines:
-            for runs in wrap_rich(line, self.fonts['text'], width):
-                out.append((runs, sum(len(t) for t, _ in runs)))
-        return out
+        """Every narration line wrapped to the box: [(runs, chars_in_line, line_number)]."""
+        key = (self.text_version, self.wrap_width())
+        if self.wrap_cache[0] != key:
+            out = []
+            for number, line in enumerate(self.lines):
+                for runs in wrap_rich(line, self.fonts['text'], self.wrap_width()):
+                    out.append((runs, sum(len(t) for t, _ in runs), number))
+            self.wrap_cache = (key, out)
+        return self.wrap_cache[1]
 
     def page_capacity(self):
         room = self.text_box().height - 30
-        if self.waiting and self.waiting[0] == 'text':
-            room -= 56  # leave space for the typing field at the bottom of the box
+        if self.waiting and self.waiting[0] in ('text', 'yes_no'):
+            room -= 56  # leave space for the typing field / the Yes and No buttons at the bottom of the box
         return max(1, room // self.line_h)
 
     def lines_started(self, vis=None):
         """How many wrapped lines the typewriter has reached so far."""
         budget, count = self.revealed, 0
-        for _, n in (vis if vis is not None else self.visual_lines()):
+        for _, n, _ in (vis if vis is not None else self.visual_lines()):
             if budget <= 0 and count:
                 break
             budget -= n
@@ -335,15 +398,17 @@ class WindowUI:
     async def clear(self):
         await self.until_typed()
         self.lines, self.revealed, self.scroll_back = [], 0.0, 0
+        self.fresh_from, self.mark_new, self.echo_line = 0, False, None
+        self.text_version += 1
         if self.mode == 'title':
             self.mode = 'text'
 
     async def choose(self, prompt, labels, oops):
-        self.add_text(pick_line(prompt))
+        self.add_prompt(pick_line(prompt))
         return await self.menu('choose', list(range(len(labels))), labels, prompt, oops)
 
     async def choose_target(self, prompt, party, mobs, oops):
-        self.add_text(pick_line(prompt))
+        self.add_prompt(pick_line(prompt))
         labels = [f'{t.name}' for t in party + mobs]
         return await self.menu('choose_target', party + mobs, labels, prompt, oops)
 
@@ -352,18 +417,20 @@ class WindowUI:
         return await self.wait_for(kind, {'options': options, 'prompt': prompt, 'oops': oops})
 
     async def yes_no(self, prompt):
-        self.add_text(prompt)
+        self.add_prompt(prompt)
         self.menu_labels = ['Yes', 'No']
         return await self.wait_for('yes_no', {'options': [True, False]})
 
     async def ask_text(self, prompt):
-        self.add_text(prompt)
+        self.add_prompt(prompt)
         self.typed = ''
         pygame.key.start_text_input()
         try:
-            return await self.wait_for('text')
+            answer = await self.wait_for('text')
         finally:
             pygame.key.stop_text_input()
+        self.echo(answer.strip())
+        return answer
 
     async def show_battle(self, party, mobs, round_num):
         await self.clear()
@@ -395,7 +462,8 @@ class WindowUI:
         return pygame.Rect(812, 60, 408, 600)
 
     def menu_open(self):
-        return bool(self.waiting) and self.waiting[0] in ('choose', 'choose_target', 'yes_no')
+        """A side menu is showing (Yes/No buttons sit inside the text box instead)."""
+        return bool(self.waiting) and self.waiting[0] in ('choose', 'choose_target')
 
     def draw(self):
         self.screen.fill(BG)
@@ -433,16 +501,21 @@ class WindowUI:
         vis = self.visual_lines()
         end = max(0, self.lines_started(vis) - self.scroll_back)
         top = max(0, end - self.page_capacity())
-        budget = self.revealed - sum(n for _, n in vis[:top])
+        if top < end - 1 and vis[top][1] == 0:
+            top += 1  # a page never starts with a blank line
+        budget = self.revealed - sum(n for _, n, _ in vis[:top])
         y = box.y + 16
-        for runs, n in vis[top:end]:
+        for runs, n, number in vis[top:end]:
             if budget <= 0:
                 break
             x = box.x + 20
+            older = DIM_OLDER_TEXT and number < self.fresh_from
             for chunk, color in runs:
                 shown = chunk[:max(0, int(budget))]
                 budget -= len(chunk)
                 if shown:
+                    if older:
+                        color = tuple(int(c * 0.62 + b * 0.38) for c, b in zip(color, BG))
                     surf = self.fonts['text'].render(shown, True, color)
                     self.screen.blit(surf, (x, y))
                     x += surf.get_width()
@@ -454,6 +527,16 @@ class WindowUI:
             pygame.draw.rect(self.screen, GOLD, field, 2, border_radius=6)
             caret = '|' if (pygame.time.get_ticks() // 500) % 2 == 0 else ' '
             self.blit_text(self.typed + caret, (field.x + 10, field.y + 6))
+        elif kind == 'yes_no':
+            self.buttons = []
+            mouse = pygame.mouse.get_pos()
+            for i, (label, value) in enumerate((('Yes  (Y)', True), ('No  (N)', False))):
+                rect = pygame.Rect(box.right - 20 - (2 - i) * 150 + 10, box.bottom - 50, 140, 38)
+                hover = rect.collidepoint(mouse)
+                pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
+                pygame.draw.rect(self.screen, GOLD, rect, 2, border_radius=6)
+                self.blit_text(label, rect.center, 'menu', TEXT, center=True)
+                self.buttons.append(Button(rect, label, value))
         elif kind in ('pause', 'close') and self.typed_out():
             hint = {'pause': 'click or Enter', 'close': 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
@@ -463,26 +546,50 @@ class WindowUI:
         labels = self.menu_labels
         area = self.menu_area()
         self.panel(area, GOLD)
-        title = {'choose': 'Choose', 'choose_target': 'Target', 'yes_no': 'Yes or no?'}[kind]
+        title = {'choose': 'Choose', 'choose_target': 'Target'}[kind]
+        if self.num_buffer:
+            title += f'   {self.num_buffer}_'  # a two-digit number being typed
         self.blit_text(title, (area.x + 16, area.y + 10), 'menu_title', GOLD)
-        row_h = min(34, (area.height - 50) // max(1, len(labels)))
+        columns = 1 if (area.height - 50) // max(1, len(labels)) >= 30 else 2  # a long list (say 11 targets) goes in two columns
+        per_column = -(-len(labels) // columns)
+        row_h = min(34, (area.height - 50) // max(1, per_column))
+        col_w = (area.width - 20 - (columns - 1) * 8) // columns
         self.buttons = []
         mouse = pygame.mouse.get_pos()
         for i, label in enumerate(labels):
-            rect = pygame.Rect(area.x + 10, area.y + 44 + i * row_h, area.width - 20, row_h - 4)
+            col, row = divmod(i, per_column)  # numbers run down the first column, then the second
+            rect = pygame.Rect(area.x + 10 + col * (col_w + 8), area.y + 44 + row * row_h, col_w, row_h - 4)
             hover = rect.collidepoint(mouse)
             pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
-            key = ('Y' if label == 'Yes' else 'N') if kind == 'yes_no' else str(i + 1)
-            text = f'{key}   {label}'
-            fnt = self.fonts['menu']
-            while fnt.size(text)[0] > rect.width - 16 and len(text) > 4:
-                text = text[:-2]
-            self.blit_text(text, (rect.x + 8, rect.centery - fnt.get_height() // 2), 'menu')
+            self.draw_menu_label(rect, str(i + 1), label)
             self.buttons.append(Button(rect, label, extra['options'][i]))
         if kind == 'choose_target':
             self.targets = [(rect, ent) for rect, ent in self.sprite_rects if ent in extra['options']]
             for rect, _ in self.targets:
                 pygame.draw.rect(self.screen, GOLD, rect.inflate(10, 10), 3, border_radius=8)
+
+    def draw_menu_label(self, rect, key, label):
+        """One menu row: its number, then the label in the biggest size that fits. A special weapon
+        that's recharging is red and crossed out, with 'Recharging' after it."""
+        recharging = label.endswith('  (recharging)')
+        base = label.replace('  (recharging)', '')
+        room = rect.width - 16
+        for name in ('menu', 'menu_s', 'menu_xs'):
+            fnt = self.fonts[name]
+            parts = [(f'{key}   ', TEXT, False), (base, (220, 80, 70) if recharging else TEXT, recharging)]
+            if recharging:
+                parts.append(('   Recharging', GOLD, False))
+            if sum(fnt.size(t)[0] for t, _, _ in parts) <= room:
+                break
+        x, y = rect.x + 8, rect.centery - fnt.get_height() // 2
+        for text, color, strike in parts:
+            while fnt.size(text)[0] > rect.right - 8 - x and len(text) > 4:
+                text = text[:-4] + '...'
+            surf = fnt.render(text, True, color)
+            self.screen.blit(surf, (x, y))
+            if strike:
+                pygame.draw.line(self.screen, color, (x, rect.centery + 1), (x + surf.get_width(), rect.centery + 1), 2)
+            x += surf.get_width()
 
     # battle scene
 
