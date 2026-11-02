@@ -188,7 +188,7 @@ class TerminalUI:
     async def show_party(self, party):
         print()
         for heroine in party:
-            print(f"{heroine.name}:  {heroine.hero_class}, {self.health_text(heroine)}")
+            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}")
 
     async def show_battle(self, party, mobs, round_num):
         await self.clear()

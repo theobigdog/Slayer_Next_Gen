@@ -22,7 +22,7 @@ async def print_recommended_classes(num_chars : int):
     await say('\nRecommended Party Composition (based on party-size):')
     await say()
     for _ in range(num_chars):
-        await say(random.choice(acc.get_hero_classes()))
+        await say(acc.class_label(random.choice(acc.get_hero_classes())))
 
 def get_default_classes(party_count : int) -> list:
     default_order =  ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch', 'Battle_Mage']
@@ -50,7 +50,7 @@ def auto_pick_name() -> str:
 
 async def print_current_party(party : list):
     for member in party:
-        await say(f"Hero:  {member.name}, Class:  {member.hero_class}")
+        await say(f"Hero:  {member.name}, Class:  {acc.class_label(member.hero_class)}")
 
 async def name_heroine(prompt : str, choose_names : bool) -> str:
     if choose_names:
@@ -111,7 +111,7 @@ async def create_new_party(name: str) -> list:
                 "\nLet's try that again.  Of the listed Class options, which number would you like to add?  ",
             )
             selection = hero_classes[pick]
-            heroine_name = await name_heroine('\nOk, let\'s have a name for her:  ', choose_names)
+            heroine_name = await name_heroine(f"\nOk, let's have a name for your {acc.class_label(selection)}:  ", choose_names) # the prompt names the class, so it stays on screen while naming
             new_party.append(get_hero(selection, heroine_name))
     else:
         await say()
@@ -122,7 +122,7 @@ async def create_new_party(name: str) -> list:
         await wait(2)
         await clear()
         for selection in members:
-            heroine_name = await name_heroine(f"Ok, let's have a name for your {selection}:  ", choose_names)
+            heroine_name = await name_heroine(f"Ok, let's have a name for your {acc.class_label(selection)}:  ", choose_names)
             new_party.append(get_hero(selection, heroine_name))
     return new_party
 
@@ -130,8 +130,6 @@ async def welcome_back(saved_party : dict) -> dict:
     await pause()
     await clear()
     saved_party = acc.refresh_party(saved_party, True)
-    await acc.print_player_starting_summary(saved_party['party'])
-    await clear()
     await show_party(saved_party['party'])
     await pause()
     return saved_party
@@ -158,8 +156,6 @@ async def get_party() -> dict:
             await wait(3)
             new_party = await create_new_party(name)
             await clear()
-            await acc.print_player_starting_summary(new_party)
-            await clear()
             await show_party(new_party)
             await pause()
             return {
@@ -168,4 +164,5 @@ async def get_party() -> dict:
                 "wiped" : False,
                 "times_run_dungeon" : 1,
                 "narration" : True,
+                "token_used" : False,
             }

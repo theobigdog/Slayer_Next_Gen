@@ -77,6 +77,7 @@ async def play_game(party_dict: dict) -> dict:
     happy = Slayer_Dwarf.Disgruntled_Dwarf('Happy')
     buddy1, buddy2 = random.sample(happy_buddy_names, 2)
     mobs = [happy, Slayer_Dwarf.Drunk_Dwarf(buddy1), Slayer_Dwarf.Drunk_Dwarf(buddy2)]
+    combat.start_battle(party_dict['party']) # special weapons are ready again
 
     round_num = 0
     while not party_dict['wiped'] and alive_mobs(mobs):

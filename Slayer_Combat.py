@@ -2,6 +2,11 @@ import Slayer_Accessory as acc
 from Slayer_UI import say, pause, choose, choose_target, show_battle
 import random
 
+def start_battle(party : list):
+    """Reset what only lasts one battle: each heroine's special weapons are ready again."""
+    for heroine in party:
+        heroine.spent_specials = [] # special weapons she's already used this battle (a list, so saves can store it)
+
 async def show_current_status(party: list, mobs: list, round_num: int):
     await show_battle(party, mobs, round_num) # the round/enemy/party layout lives in Slayer_UI now
 
@@ -131,7 +136,12 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
 
 async def use_hail_mary(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
     """The Token of the Wise Witch, for when things look grim: 30% a fallen heroine comes back
-    at half her max HP, 30% the Token takes the heroine using it instead, 40% it fizzles."""
+    at half her max HP, 30% the Token takes the heroine using it instead, 40% it fizzles.
+    Only one Token can be used per dungeon run, by anyone; they all come back next run."""
+    for member in party_dict['party']: # one Token per dungeon run for the whole party: once it's used, they all go quiet
+        if item['item'] in member.inv:
+            member.inv.remove(item['item'])
+    party_dict['token_used'] = True
     fallen = [x for x in party_dict['party'] if x.is_dead]
     chosen = None
     if len(fallen) == 1:
@@ -220,20 +230,30 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
         await pause()
         return (party_dict, mobs, False)
     await say(f"\n{heroine.name}'s turn:")
-    item_labels = [item_label(item) for item in inv]
-    if inv_len > 1:
-        item_choice = await choose( # lists the items, keeps asking until the pick is valid
-            "Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ",
-            item_labels,
-            f"\nNo, numb-nuts... sorry, I mean {party_dict['name']}, please choose one of the numbers!\n",
-        )
-    else:
-        await say(f'1:  {item_labels[0]}')
-        await say(f"Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
-        await pause()
-        item_choice = 0
+    spent = getattr(heroine, 'spent_specials', [])
+    item_labels = [item_label(item) + ('  (recharging)' if item in spent else '') for item in inv]
+    while True:
+        if inv_len > 1:
+            item_choice = await choose( # lists the items, keeps asking until the pick is valid
+                "Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ",
+                item_labels,
+                f"\nNo, numb-nuts... sorry, I mean {party_dict['name']}, please choose one of the numbers!\n",
+            )
+        else:
+            await say(f'1:  {item_labels[0]}')
+            await say(f"Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
+            await pause()
+            item_choice = 0
+        if inv[item_choice] not in spent:
+            break
+        await say(f"Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.")
+        if inv_len == 1:
+            await pause()
+            return (party_dict, mobs, False)
 
     item = acc.get_item(inv[item_choice])
+    if item['special']:
+        heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss
     item_attack_type = item['attack_type']
     is_heal = item_attack_type == 'heal'
 

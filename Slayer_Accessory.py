@@ -59,6 +59,9 @@ def dev_mode() -> bool:
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 
+def class_label(hero_class : str) -> str:
+    return hero_class.replace('_', ' ') # 'Battle_Mage' is the code's name for her; players see 'Battle Mage'
+
 async def end(full = False):
     await say()
     await say("The End.")
@@ -92,7 +95,7 @@ async def print_classes():
     await say('Class Options:')
     await say()
     for hero_class in get_hero_classes():
-        await say(hero_class)
+        await say(class_label(hero_class))
 
 def party_to_data(party_dict : dict) -> dict:
     """The party as plain data (text, numbers, lists, dicts) that JSON can store.
@@ -159,7 +162,7 @@ def whine() -> str:
 
 async def print_player_starting_summary(party : list):
     for dudette in party:
-        await say(f"{dudette.name}:  {dudette.hero_class}")
+        await say(f"{dudette.name}:  {class_label(dudette.hero_class)}")
         await say('Inventory:  ')
         for inv_item in dudette.inv:
             await say(get_item(inv_item)['item_desc'])
@@ -252,13 +255,22 @@ async def get_stat_increases(party_dict : dict) -> dict:
     return party_dict
 
 def refresh_party(party_dict : dict, increment : bool) -> dict:
-    if increment:
+    if increment: # a brand-new dungeon run
         party_dict['times_run_dungeon'] += 1
+        party_dict['token_used'] = False
+        for heroine in party_dict['party']:
+            restore_starting_items(heroine)
     party_dict['wiped'] = False
     for heroine in party_dict['party']:
         heroine.is_dead = False
         heroine.health = heroine.starting_health
     return party_dict
+
+def restore_starting_items(heroine : object):
+    """Every dungeon run starts with the full starting kit (the Token included); anything else she's carrying stays."""
+    for position, item in enumerate(heroine.starting_inv):
+        if item not in heroine.inv:
+            heroine.inv.insert(min(position, len(heroine.inv)), item)
 
 def wipe_party(party_dict : dict) -> dict:
     party_dict['wiped'] = True
