@@ -65,7 +65,7 @@ class Warrior:
     def __init__ (self, name : str):
         self.name = name
         self.hero_class = 'Warrior'
-        self.attack_style = 'both'
+        self.attack_style = 'melee' # she could wield a bow someday, but she fights up front
         initialize_char(self)
 
 

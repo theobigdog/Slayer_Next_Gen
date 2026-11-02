@@ -173,7 +173,7 @@ async def print_player_starting_summary(party : list):
 async def check_bad_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        await say('No.')
+        await say('[narr]No.[/]')
         await wait(2)
         if name.upper() in db:
             name = (await ask_text(f'No, Bubba!  {whine()}.  Try again!  ')).title().strip()
@@ -184,7 +184,7 @@ async def check_bad_name(name : str) -> str:
 async def check_bad_heroine_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        await say('Nope.')
+        await say('[narr]Nope.[/]')
         await wait(2)
         if name.upper() in db:
             name = (await ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.  ")).strip()
@@ -238,14 +238,31 @@ def generic_wipe_taunts() -> list:
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\nJesus Christ, what a CUNT!!",
-        "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\nI hope you come back and teach these bitches a lesson!!",
-        "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
-        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
+        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\n[narr]Jesus Christ, what a CUNT!![/]",
+        "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\n[narr]I hope you come back and teach these bitches a lesson!![/]",
+        "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\n[narr]Now was that really necessary.  Don't take their shit!![/]",
+        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
     ]
 
 async def get_loot(mob : object, party_dict : dict) -> dict:
-    await say('Add looting process here, per party member, from specific mob loot-tables in the items.csv')
+    """A mob's loot: every row of items.csv whose source is that mob's class (e.g. 'Disgruntled Dwarf').
+    The player picks who carries each piece, from the heroines whose class is in its classes list.
+    A one-of-a-kind piece the party already has isn't handed out again."""
+    from ast import literal_eval
+    from Slayer_UI import choose_target
+    party = party_dict['party']
+    for item in [row for row in items_table if row['source'] == mob.mob_class]:
+        if any(item['item'] in heroine.inv for heroine in party):
+            await say(f"[narr]{mob.name} pats his pockets for another {item['item_desc']}, then remembers you've already got one.[/]")
+            continue
+        able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
+        if not able:
+            continue
+        await say(f"{mob.name} hands over a little something for the road:  {item['item_desc']}.")
+        who = able[0] if len(able) == 1 else await choose_target(
+            f"Who gets to carry {item['item_desc']}?  Pick a number.  ", able, [], "One of THOSE numbers, please:  ")
+        who.inv.append(item['item'])
+        await say(f"[narr]{who.name} is now the proud owner of {item['item_desc']}.  Lucky her.[/]")
     await pause()
     return party_dict
 
@@ -255,14 +272,18 @@ async def get_stat_increases(party_dict : dict) -> dict:
     return party_dict
 
 def refresh_party(party_dict : dict, increment : bool) -> dict:
-    if increment: # a brand-new dungeon run
+    """A fresh start: everyone alive at full health with her full starting kit (the Token and Big Badda Boom
+    included), and a blown-up Sapper back in one piece. A wipe is a full dungeon restart, so it gets this too.
+    increment=True also counts a new dungeon run (loading a saved party). The tavern wipe doesn't bump the
+    counter, since the dungeon proper hasn't started yet."""
+    if increment:
         party_dict['times_run_dungeon'] += 1
-        party_dict['token_used'] = False
-        for heroine in party_dict['party']:
-            restore_starting_items(heroine)
+    party_dict['token_used'] = False
     party_dict['wiped'] = False
     for heroine in party_dict['party']:
+        restore_starting_items(heroine)
         heroine.is_dead = False
+        heroine.blown_up = False
         heroine.health = heroine.starting_health
     return party_dict
 
