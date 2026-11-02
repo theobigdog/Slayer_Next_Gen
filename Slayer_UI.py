@@ -1,26 +1,26 @@
 """Slayer_UI: the one place the game talks to the player.
 
 Game code never calls print(), input(), pause(), cls() or time.sleep() directly.
-It calls these instead, and every one of them is awaited:
+It imports what it needs from here (from Slayer_UI import say, pause, ...) and awaits it:
 
-    await ui.say("Muffy slams Gassy for 8 hp.")       # print a line
-    await ui.wait(0.5)                                 # dramatic pause (was time.sleep)
-    await ui.pause()                                   # wait for Enter / a click
-    await ui.clear()                                   # clear the screen (was cls)
-    index = await ui.choose(prompt, labels, oops)      # pick from a numbered list
-    target = await ui.choose_target(prompt, party, mobs, oops)
-    answer = await ui.yes_no(prompt)                   # True / False
-    text = await ui.ask_text(prompt)                   # free typing (names, numbers)
-    await ui.show_battle(party, mobs, round_num)       # the round status screen
-    await ui.show_party(party)                         # the party lineup
-    await ui.title_screen()                            # the SLAYER opening
-    await ui.loser_banner()                            # the LOSER banner
+    await say("Muffy slams Gassy for 8 hp.")          # print a line
+    await wait(0.5)                                    # dramatic pause (was time.sleep)
+    await pause()                                      # wait for Enter / a click
+    await clear()                                      # clear the screen (was cls)
+    index = await choose(prompt, labels, oops)         # pick from a numbered list
+    target = await choose_target(prompt, party, mobs, oops)
+    answer = await yes_no(prompt)                      # True / False
+    text = await ask_text(prompt)                      # free typing (names, numbers)
+    await show_battle(party, mobs, round_num)          # the round status screen
+    await show_party(party)                            # the party lineup
+    await title_screen()                               # the SLAYER opening
+    await loser_banner()                               # the LOSER banner
 
 say(), choose() and choose_target() take one line or a list of lines for the
 text, prompt and oops; with a list, one line is picked at random each time.
 
 Colors go inside the text as tags, so no colorama codes end up in game code:
-    await ui.say("You're not on [red]The List[/].")
+    await say("You're not on [red]The List[/].")
 Tags: [red], [magenta], [green], [white], and [/] to go back to normal.
 
 Which screen all of this lands on is picked once, at startup:

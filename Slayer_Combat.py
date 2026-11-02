@@ -1,9 +1,9 @@
 import Slayer_Accessory as acc
-import Slayer_UI as ui
+from Slayer_UI import say, pause, choose, choose_target, show_battle
 import random
 
 async def show_current_status(party: list, mobs: list, round_num: int):
-    await ui.show_battle(party, mobs, round_num) # the round/enemy/party layout lives in Slayer_UI now
+    await show_battle(party, mobs, round_num) # the round/enemy/party layout lives in Slayer_UI now
 
 def get_heroine_rolls(heroine: object) -> dict:
     heroine_stats = heroine.stats
@@ -45,9 +45,9 @@ def update_health(to_update : object, delta : int) -> object:
 
 async def check_tough(tough : bool, target : object) -> None:
     if tough and not target.is_mob:
-        await ui.say(f"{target.name}, being the tough muthafucka she is, shrugs off half the damage.  Hell yeah!")
+        await say(f"{target.name}, being the tough muthafucka she is, shrugs off half the damage.  Hell yeah!")
     elif tough and target.is_mob:
-        await ui.say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF of the initial damage inflicted!")
+        await say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF of the initial damage inflicted!")
 
 def item_label(item_name : str) -> str: # one line of the item menu
     data = acc.get_item(item_name)
@@ -80,7 +80,7 @@ async def get_target_choice(mobs : list, party : list, healing : bool = False) -
         oopses = [
             "\nWhoa, no, one of THOSE numbers.  Choose the one belonging to whoever you'd like to fuck up:  ",
         ]
-    return await ui.choose_target(prompts, living_party, living_mobs, oopses) # lists the targets, keeps asking until the pick is valid
+    return await choose_target(prompts, living_party, living_mobs, oopses) # lists the targets, keeps asking until the pick is valid
 
 async def get_heal_outcome(healed : object, healing : int) -> object:
 
@@ -102,13 +102,13 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             if healing > missing_hp:
                 healing = missing_hp
             if target.health == target.starting_health:
-                await ui.say(f"That was weird.  {target.name} is your enemy and is at full health anyway, goof.  Oh well, better luck choosing a target next time?")
-                await ui.pause()
+                await say(f"That was weird.  {target.name} is your enemy and is at full health anyway, goof.  Oh well, better luck choosing a target next time?")
+                await pause()
                 return (party_dict, mobs, False)
             target = update_health(target, -healing)
-            await ui.say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for {healing} hp")
-            await ui.say("I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
-            await ui.pause()
+            await say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for {healing} hp")
+            await say("I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
+            await pause()
             return (party_dict, mobs, False)
         tough = mob_rolls['toughness']
         if tough:
@@ -119,56 +119,56 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         if target.health <= damage:
             damage = target.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
-            await ui.say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  Honestly?  Fair.  That's a lost turn, though.")
-            await ui.pause()
+            await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  Honestly?  Fair.  That's a lost turn, though.")
+            await pause()
             return (party_dict, mobs, False)
         if not heroine_rolls['hit']:
-            await ui.say(f"Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.")
-            await ui.pause()
+            await say(f"Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.")
+            await pause()
             return (party_dict, mobs, False)
         if mob_rolls['dodge'] and not heroine_rolls['expertise']:
-            await ui.say(f"{target.name} slips out of the way like a greased weasel.  {heroine.name}'s attack finds only air.")
-            await ui.pause()
+            await say(f"{target.name} slips out of the way like a greased weasel.  {heroine.name}'s attack finds only air.")
+            await pause()
             return (party_dict, mobs, False)
         target = update_health(target, damage)
         if mob_rolls['dodge']: # it dodged, but her expertise beat it
-            await ui.say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} hp.")
+            await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} hp.")
         else:
-            await ui.say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for {damage} hp.")
+            await say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for {damage} hp.")
         if target.mob_class == 'Disgruntled Dwarf' and target.enraged and target.is_dead:
             party_dict = acc.wipe_party(party_dict)
             return (party_dict, mobs, False)
         if target.mob_class == 'Disgruntled Dwarf' and target.health < 0.5 * target.starting_health and not target.enraged:
             await target.enrage()
-            await ui.pause()
+            await pause()
             return (party_dict, mobs, False)
         if target.is_dead:
-            await ui.say(f"{target.name} has been slain!!  Take THAT motherfucker!!")
-            await ui.pause()
+            await say(f"{target.name} has been slain!!  Take THAT motherfucker!!")
+            await pause()
             return (party_dict, mobs, heroine_rolls['luck'])
         await check_tough(tough, target)
-        await ui.pause()
+        await pause()
         return (party_dict, mobs, heroine_rolls['luck'])
     else:
         if attack_type == 'heal':
             if not heroine_rolls['heal']:
-                await ui.say(f"{heroine.name} tries to heal {'herself' if heroine == target else target.name}, but does a piss-poor job and just ends up wasting her turn.  Doh!")
-                await ui.pause()
+                await say(f"{heroine.name} tries to heal {'herself' if heroine == target else target.name}, but does a piss-poor job and just ends up wasting her turn.  Doh!")
+                await pause()
                 return (party_dict, mobs, False)
             healing = -int(damage_w_crit_mult)
             missing_hp = target.starting_health - target.health
             if healing > missing_hp:
                 healing = missing_hp
             if target.health == target.starting_health:
-                await ui.say(f"That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?")
-                await ui.pause()
+                await say(f"That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?")
+                await pause()
                 return (party_dict, mobs, heroine_rolls['luck'])
             target = update_health(target, -healing)
-            await ui.say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
-            await ui.say("I'm so proud of you!")
-            await ui.pause()
+            await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
+            await say("I'm so proud of you!")
+            await pause()
             return (party_dict, mobs, heroine_rolls['luck'])
-        await ui.pause()
+        await pause()
         return (party_dict, mobs, False)
 
 async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
@@ -177,21 +177,21 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     inv = heroine.inv
     inv_len = len(inv)
     if inv_len < 1:
-        await ui.say(f"{heroine.name} has no inventory, so I guess she's skipping this turn...")
-        await ui.pause()
+        await say(f"{heroine.name} has no inventory, so I guess she's skipping this turn...")
+        await pause()
         return (party_dict, mobs, False)
-    await ui.say(f"\n{heroine.name}'s turn:")
+    await say(f"\n{heroine.name}'s turn:")
     item_labels = [item_label(item) for item in inv]
     if inv_len > 1:
-        item_choice = await ui.choose( # lists the items, keeps asking until the pick is valid
+        item_choice = await choose( # lists the items, keeps asking until the pick is valid
             "Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ",
             item_labels,
             f"\nNo, numb-nuts... sorry, I mean {party_dict['name']}, please choose one of the numbers!\n",
         )
     else:
-        await ui.say(f'1:  {item_labels[0]}')
-        await ui.say(f"Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
-        await ui.pause()
+        await say(f'1:  {item_labels[0]}')
+        await say(f"Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?")
+        await pause()
         item_choice = 0
 
     item = acc.get_item(inv[item_choice])
@@ -245,7 +245,7 @@ def choose_mob_item(inv : list, ai : str, party_dict : dict) -> dict:
         return random.choice(mob_inv)
     return random.choice(mob_inv) # for now it just always returns this, but this will update with other ai mode updates
 
-def choose_target(targets : list, ai : str) -> object:
+def choose_mob_target(targets : list, ai : str) -> object:
     if ai == 'easy':
         return random.choice(targets)
     return random.choice(targets) # for now it just always returns this, but this will update with other ai mode updates
@@ -262,22 +262,22 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             healing = target.starting_health - target.health
         if target.is_mob:
             if not mob_rolls['heal']:
-                await ui.say(f"{mob.name} attempts to heal {target.name if target != mob else 'themself'} with {item['item_desc']}, but fucks up and nothing happens.  Idiot!")
-                await ui.pause()
+                await say(f"{mob.name} attempts to heal {target.name if target != mob else 'themself'} with {item['item_desc']}, but fucks up and nothing happens.  Idiot!")
+                await pause()
                 return (party_dict, mobs, False)
             if mob == target:
                 mob = update_health(mob, -healing)
-                await ui.say(f"Using their {item['item_desc']}, {mob.name} heals for {healing} hp.  Oh dear.")
-                await ui.pause()
+                await say(f"Using their {item['item_desc']}, {mob.name} heals for {healing} hp.  Oh dear.")
+                await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
             else:
                 target = update_health(target, -healing)
-                await ui.say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  Ugh, teamwork.  Gross.")
-                await ui.pause()
+                await say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  Ugh, teamwork.  Gross.")
+                await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
         else:
-            await ui.say('Need logic for mobs healing party members, in case we decide to do this.  I say no luck roll for it, though.')
-            await ui.pause()
+            await say('Need logic for mobs healing party members, in case we decide to do this.  I say no luck roll for it, though.')
+            await pause()
             return (party_dict, mobs, False) # add logic for mob healing party members
     else:
         if not target.is_mob:
@@ -291,47 +291,47 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             if target.health <= damage:
                 damage = target.health
             if not mob_rolls['hit']:
-                await ui.say(f"{mob.name} attempts to attack {target.name} with their {item['item_desc']}, but misses widely.")
-                await ui.pause()
+                await say(f"{mob.name} attempts to attack {target.name} with their {item['item_desc']}, but misses widely.")
+                await pause()
                 return (party_dict, mobs, False)
             if target_rolls['dodge'] and not mob_rolls['expertise']:
-                await ui.say(f"HELL YES!  {target.name} dodges {mob.name}'s attack like a goddamn ninja!")
-                await ui.pause()
+                await say(f"HELL YES!  {target.name} dodges {mob.name}'s attack like a goddamn ninja!")
+                await pause()
                 return (party_dict, mobs, False)
             target = update_health(target, damage)
             if target_rolls['dodge']: # she tried to dodge, but its expertise beat her
-                await ui.say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for {damage} hp.")
+                await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for {damage} hp.")
             else:
-                await ui.say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for {damage} hp.")
+                await say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for {damage} hp.")
             if target.is_dead:
-                await ui.say([
+                await say([
                     f"NOOO!  {target.name} has been slain!  We'll remember you, bud.",
                     f"Oh shit.  {target.name} has been slain.  She'll be back next run, but damn, that one hurt.",
                 ])
-                await ui.pause()
+                await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
             if parry:
-                await ui.say([
+                await say([
                     f"But {target.name} manages to deflect half of the damage!  Way to go!",
                     f"But {target.name} manages to parry half of the damage!  Incredible!",
                 ])
             await check_tough(tough, target)
-            await ui.pause()
+            await pause()
             return (party_dict, mobs, mob_rolls['luck'])
         else:
-            await ui.say('Filler for mobs attacking each other, if I decide to have a berserker spell or perhaps a witch can cast confusion or something that makes mobs attack each other, or just randomly in general (party or other mobs can be attacked?).  Might be fun.')
-            await ui.pause()
+            await say('Filler for mobs attacking each other, if I decide to have a berserker spell or perhaps a witch can cast confusion or something that makes mobs attack each other, or just randomly in general (party or other mobs can be attacked?).  Might be fun.')
+            await pause()
             return (party_dict, mobs, mob_rolls['luck'])
 
 async def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
     if mob.is_dead:
         return (party_dict, mobs, False)
     if party_dict['wiped']:
-        await ui.say(party_wiped_taunt(mob, party_dict['party']))
-        await ui.pause()
+        await say(party_wiped_taunt(mob, party_dict['party']))
+        await pause()
         return (party_dict, mobs, False)
 
-    await ui.say(f"\n\n{mob.name}'s turn:\n")
+    await say(f"\n\n{mob.name}'s turn:\n")
     inv = mob.inv
 
     ai = mob.starting_ai
@@ -342,13 +342,13 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
     if item['damage_high'] < 0:
         living_mobs = [x for x in mobs if not x.is_dead]
         if len(living_mobs) > 0:
-            target = choose_target(living_mobs, ai)
+            target = choose_mob_target(living_mobs, ai)
             mob_rolls = get_mob_rolls(mob)
             return await get_mob_turn_outcome(mob, target, item, party_dict, mobs, mob_rolls, {})
     else:
         living_heroines = [x for x in party_dict['party'] if not x.is_dead]
         if len(living_heroines) > 0:
-            target = choose_target(living_heroines, ai)
+            target = choose_mob_target(living_heroines, ai)
             mob_rolls = get_mob_rolls(mob)
             target_rolls = get_heroine_rolls(target)
             return await get_mob_turn_outcome(mob, target, item, party_dict, mobs, mob_rolls, target_rolls)
