@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import say, pause, choose, choose_target, yes_no, show_battle
+from Slayer_UI import say, pause, choose, choose_target, yes_no, show_battle, effect
 import random
 
 # Area attacks (attack_type aoe) hit every mob. Most can be dodged and toughness halves them, like any
@@ -76,7 +76,7 @@ async def check_tough(tough : bool, target : object) -> None:
     if tough and not target.is_mob:
         await say(f"{target.name}, being the tough muthafucka she is, shrugs off half the damage.  [narr]Hell yeah![/]")
     elif tough and target.is_mob:
-        await say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF of the initial damage inflicted!")
+        await say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF the damage!")
 
 async def check_last_cleric(fallen : list, party : list):
     """If the party just lost its last Cleric (and anyone's still standing), the narrator panics."""
@@ -105,15 +105,15 @@ async def get_target_choice(mobs : list, party : list, healing : bool = False) -
         return living_targets[0]
     if healing:
         prompts = [
-            "Pick the number for whoever needs a little TLC.  ",
-            "Who gets the healing love this time?  Pick a number.  ",
+            "Choose whoever needs a little TLC.  ",
+            "Who gets the healing love this time?  ",
         ]
         oopses = [
             "\nNo, no, one of THOSE numbers.  Somebody's bleeding over here, hurry up:  "
         ]
     else:
         prompts = [
-            "Pick the number for your target.  Make 'em regret it.  ",
+            "Choose your target.  [narr]Make 'em regret it.[/]  ",
         ]
         oopses = [
             "\nWhoa, no, one of THOSE numbers.  Choose the one belonging to whoever you'd like to fuck up:  ",
@@ -221,7 +221,7 @@ async def use_hail_mary(heroine : object, item : dict, party_dict : dict, mobs :
         chosen = fallen[0]
     elif fallen:
         chosen = await choose_target(
-            f"\nThe Token hums in {heroine.name}'s hand.  Pick the number for the fallen heroine you're gambling on.  ",
+            f"\nThe Token hums in {heroine.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
             fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     blown_up = any(getattr(x, 'blown_up', False) for x in party_dict['party'])
     await token_roll(heroine, item, chosen, party_dict, blown_up)
@@ -241,9 +241,9 @@ async def token_between_battles(party_dict : dict) -> dict:
     if not await yes_no(f"{names} {'is' if len(fallen) == 1 else 'are'} still down.  Gamble the Token of the Wise Witch on bringing someone back?  "):
         return party_dict
     user = holders[0] if len(holders) == 1 else await choose_target(
-        "\nWho's holding the Token for this one?  Pick a number.  ", holders, [], "\nOne of THOSE numbers, please:  ")
+        "\nWho's holding the Token for this one?  ", holders, [], "\nOne of THOSE numbers, please:  ")
     chosen = fallen[0] if len(fallen) == 1 else await choose_target(
-        f"\nThe Token hums in {user.name}'s hand.  Pick the number for the fallen heroine you're gambling on.  ",
+        f"\nThe Token hums in {user.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
         fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     item = acc.get_item('token_of_the_wise_witch')
     spend_token(item, party_dict)
@@ -260,6 +260,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         heroine.inv.remove(item['item']) # back in her kit next dungeon run
     if rules['blows_up_user']:
         await say(f"{heroine.name} lights the fuse on her {item['item_desc']}, grins, and does NOT run.  [narr]Oh no.  Oh no no no.[/]")
+        await effect('boom') # the keg flashes across the screen
         await say("[red]BIG.  BADDA.  BOOOOOOM!!![/]" if heroine_rolls['crit_mult'] > 1 else "[red]BIG.  BADDA.  BOOM!!![/]")
     else:
         await say(f"{heroine.name} unleashes her {item['item_desc']} on every enemy in sight!")
@@ -291,7 +292,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         update_health(member, damage)
         if member.is_dead:
             fallen.append(member)
-            await say(f"  {member.name} catches {damage} hp of it and goes down!")
+            await say(f"  {member.name} catches {damage} hp of it.  [red]slain[/]")
         else:
             await say(f"  {member.name} catches {damage} hp of it.")
     if rules['blows_up_user']:
@@ -378,7 +379,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     while True:
         if inv_len > 1:
             item_choice = await choose( # lists the items, keeps asking until the pick is valid
-                "Pick the number for whatever item you feel like using.  Choose wisely.  Or don't, chaos is fun too...  ",
+                "Choose your item.  Choose wisely.  [narr]Or don't, chaos is fun too...[/]  ",
                 item_labels,
                 f"\nNo, numb-nuts... sorry, I mean {party_dict['name']}, please choose one of the numbers!\n",
             )
@@ -519,7 +520,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
         update_health(heroine, damage)
         if heroine.is_dead:
             fallen.append(heroine)
-            await say(f"  {heroine.name} takes {damage} hp and goes down!")
+            await say(f"  {heroine.name} takes {damage} hp.  [red]slain[/]")
         else:
             await say(f"  {heroine.name} takes {damage} hp{'  (tough: half)' if rolls['toughness'] else ''}.")
     await check_last_cleric(fallen, party)
@@ -600,7 +601,8 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             await pause()
             return (party_dict, mobs, mob_rolls['luck'])
 
-async def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
+async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = False) -> tuple:
+    """extra=True for a bonus attack: the line announcing it already said whose it is, so no "'s turn:" header."""
     if mob.is_dead:
         return (party_dict, mobs, False)
     if party_dict['wiped']:
@@ -608,7 +610,8 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
         await pause()
         return (party_dict, mobs, False)
 
-    await say(f"\n\n{mob.name}'s turn:\n")
+    if not extra:
+        await say(f"\n\n{mob.name}'s turn:\n")
     inv = mob.inv
 
     ai = mob.starting_ai

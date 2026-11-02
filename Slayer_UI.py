@@ -15,6 +15,7 @@ It imports what it needs from here (from Slayer_UI import say, pause, ...) and a
     await show_party(party)                            # the party lineup
     await title_screen()                               # the SLAYER opening
     await loser_banner()                               # the LOSER banner
+    await effect('boom')                               # a quick flash: 'boom' = the Big Badda Boom keg
 
 say(), choose() and choose_target() take one line or a list of lines for the
 text, prompt and oops; with a list, one line is picked at random each time.
@@ -83,6 +84,10 @@ async def title_screen():
 
 async def loser_banner():
     await _backend.loser_banner()
+
+async def effect(name: str):
+    """A short visual effect, e.g. 'boom' (the keg before a Big Badda Boom)."""
+    await _backend.effect(name)
 
 
 def _or_default(oops):
@@ -217,3 +222,10 @@ class TerminalUI:
     async def loser_banner(self):
         import Slayer_Graphics
         Slayer_Graphics.loser_banner()
+
+    async def effect(self, name):
+        if name == 'boom':  # a little ASCII keg with its fuse lit
+            print(self.paint('[red]          *  ~~~\\[/]'))
+            for row in ('       .---------.', '      (  [red]T N T[/]  )', '      |`---------\'|', '      |  [red]T N T[/]  |', '       `---------\''):
+                print(self.paint(row))
+            await asyncio.sleep(0.8)

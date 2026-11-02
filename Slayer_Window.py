@@ -111,7 +111,7 @@ class WindowUI:
         self.fonts = {
             'text': font(NARRATION_SIZE, 'narration'),
             'menu': font(22, 'fancy'), 'menu_s': font(19, 'fancy'), 'menu_xs': font(16, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
-            'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'),
+            'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'), 'keg': font(96, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
             'box': font(17, 'fancy'), 'hp': font(16, 'fancy'),
             'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
@@ -134,6 +134,7 @@ class WindowUI:
         self.targets = []           # (rect, entity) for clickable sprites during choose_target
         self.sprite_cache = {}
         self.overlay = None         # title / loser animation frame (a function that draws it)
+        self.effect_overlay = None  # a quick effect drawn on top of everything (the Big Badda Boom keg)
         self.title_draw = None      # the finished title screen, shown until the next clear
         self.sprite_rects = []      # (rect, entity) for every sprite drawn this frame
         self.menu_labels = []
@@ -448,6 +449,12 @@ class WindowUI:
         await LoserAnimation(self).play()
         self.mode = 'text'
 
+    async def effect(self, name):
+        if name == 'boom':
+            await self.until_typed()      # let 'lights the fuse...' finish first
+            await asyncio.sleep(0.3)
+            await KegFlash(self).play()
+
     # ---------- drawing --------------------------------------------------------
 
     line_h = 28  # pixels per narration line
@@ -485,6 +492,8 @@ class WindowUI:
         if self.menu_open():
             self.draw_menu()
         self.draw_floaters()
+        if self.effect_overlay:
+            self.effect_overlay()
 
     def panel(self, rect, edge=PANEL_EDGE):
         pygame.draw.rect(self.screen, PANEL, rect, border_radius=10)
@@ -597,7 +606,7 @@ class WindowUI:
     def draw_battle(self):
         self.blit_text(f'Round {self.round_num}', (24, 16), 'round', GOLD)
         self.sprite_rects = []
-        self.draw_party_row(self.party, top=64)
+        self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.draw_mobs()
         self.motion.draw_effects()
         self.motion.draw_particles()
@@ -789,7 +798,7 @@ class WindowUI:
     def draw_party_lineup(self):
         self.sprite_rects = []
         self.blit_text('Your party', (24, 16), 'round', GOLD)
-        self.draw_party_row(self.party, top=64)
+        self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.motion.draw_effects()
         self.motion.draw_particles()
 
@@ -1186,3 +1195,105 @@ class LoserAnimation(AsciiArt):
         state['colors'] = gr.letter_colors_loser[6]
         await asyncio.sleep(0.75)
         window.overlay = None
+
+
+class KegFlash:
+    """Right before a Big Badda Boom: the whole screen goes dark, a keg of explosives slides in, its fuse
+    burns down, and everything goes white. About a second and a half. (Ted could swap in his own keg art
+    later; for now it's drawn with shapes.)"""
+
+    length = 1.6
+
+    def __init__(self, window):
+        self.window = window
+        self.start = window.now
+        self.sparks = []  # [x, y, vx, vy, age, life]
+
+    async def play(self):
+        self.start = self.window.now
+        self.window.effect_overlay = self.draw
+        while self.window.now - self.start < self.length:
+            await asyncio.sleep(0)
+        self.window.effect_overlay = None
+
+    def draw(self):
+        w = self.window
+        screen = w.screen
+        p = min(1.0, (w.now - self.start) / self.length)
+        blast = 0.78  # when the fuse reaches the keg
+        veil = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        veil.fill((8, 4, 2, int(215 * min(1.0, p / 0.12))))
+        screen.blit(veil, (0, 0))
+        if p < blast:
+            slide = smooth(min(1.0, p / 0.18))
+            scale = 1 + 0.14 * smooth(min(1.0, p / blast))
+            shake = max(0.0, (p - 0.45) / (blast - 0.45)) * 9
+            cx = -220 + (SCREEN_W // 2 + 220) * slide + random.uniform(-shake, shake)
+            cy = SCREEN_H // 2 + 75 + random.uniform(-shake, shake)
+            top = self.draw_keg(screen, cx, cy, 320 * scale, 400 * scale)
+            burned = max(0.0, min(1.0, (p - 0.12) / (blast - 0.12)))
+            self.draw_fuse(screen, cx, top, scale, burned)
+        else:
+            q = (p - blast) / (1 - blast)  # 0..1 through the blast
+            ring = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            radius = int(60 + 900 * q)
+            pygame.draw.circle(ring, (255, 170, 40, int(230 * (1 - q))), (SCREEN_W // 2, SCREEN_H // 2), radius, max(4, int(70 * (1 - q))))
+            screen.blit(ring, (0, 0))
+            flash = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            flash.fill((255, 250, 235, int(255 * (1 - q) ** 1.5)))
+            screen.blit(flash, (0, 0))
+        self.draw_sparks(screen)
+
+    def draw_keg(self, screen, cx, cy, kw, kh):
+        """A wooden keg with iron hoops and a TNT plaque. Returns the y of its lid."""
+        top, steps = cy - kh / 2, 24
+        half = lambda t: kw / 2 * (0.80 + 0.20 * math.sin(math.pi * t))  # bulges in the middle
+        left = [(cx - half(i / steps), top + kh * i / steps) for i in range(steps + 1)]
+        right = [(cx + half(i / steps), top + kh * i / steps) for i in range(steps + 1)]
+        body = left + right[::-1]
+        pygame.draw.polygon(screen, (126, 76, 38), body)
+        for k in (-0.6, -0.2, 0.2, 0.6):  # stave lines, following the bulge
+            pygame.draw.lines(screen, (92, 54, 26), False, [(cx + k * half(i / steps), top + kh * i / steps) for i in range(steps + 1)], 3)
+        for t in (0.1, 0.36, 0.64, 0.9):  # iron hoops
+            y = top + kh * t
+            pygame.draw.line(screen, (64, 64, 72), (cx - half(t) - 2, y), (cx + half(t) + 2, y), max(6, int(kh * 0.035)))
+            pygame.draw.line(screen, (120, 120, 130), (cx - half(t), y - 3), (cx + half(t), y - 3), 2)
+        pygame.draw.polygon(screen, (60, 34, 16), body, 4)
+        lid = pygame.Rect(0, 0, half(0) * 2, kh * 0.09)
+        lid.center = (cx, top)
+        pygame.draw.ellipse(screen, (150, 96, 52), lid)
+        pygame.draw.ellipse(screen, (60, 34, 16), lid, 3)
+        plaque = pygame.Rect(0, 0, kw * 0.62, kh * 0.24)
+        plaque.center = (cx, cy + kh * 0.01)
+        pygame.draw.rect(screen, (236, 224, 192), plaque, border_radius=8)
+        pygame.draw.rect(screen, (150, 30, 24), plaque, 4, border_radius=8)
+        label = self.window.fonts['keg'].render('TNT', True, (190, 28, 22))
+        screen.blit(label, label.get_rect(center=plaque.center))
+        return top
+
+    def draw_fuse(self, screen, cx, top, scale, burned):
+        """The fuse curls up from the lid; it burns from its tip down toward the keg."""
+        points = [(cx + 260 * scale, top - 140 * scale), (cx + 190 * scale, top - 20 * scale),
+                  (cx + 30 * scale, top - 100 * scale), (cx, top - 4)]
+        left = [bezier(points, burned + (1 - burned) * i / 30) for i in range(31)]
+        if len(left) > 1:
+            pygame.draw.lines(screen, (50, 38, 26), False, left, 7)
+            pygame.draw.lines(screen, (110, 90, 60), False, left, 2)
+        spark = bezier(points, burned)
+        glow = 14 + 6 * math.sin(self.window.now * 40)
+        pygame.draw.circle(screen, (255, 150, 30), [round(v) for v in spark], round(glow))
+        pygame.draw.circle(screen, (255, 245, 180), [round(v) for v in spark], round(glow * 0.5))
+        for _ in range(3):
+            self.sparks.append([spark[0], spark[1], random.uniform(-220, 220), random.uniform(-260, 60), 0.0, random.uniform(0.25, 0.5)])
+
+    def draw_sparks(self, screen):
+        dt = self.window.dt
+        alive = []
+        for s in self.sparks:
+            s[0] += s[2] * dt; s[1] += s[3] * dt; s[3] += 500 * dt; s[4] += dt
+            if s[4] < s[5]:
+                alive.append(s)
+                fade = 1 - s[4] / s[5]
+                pygame.draw.circle(screen, (255, int(160 + 90 * fade), 60), (round(s[0]), round(s[1])), max(1, round(3 * fade)))
+        self.sparks = alive
+

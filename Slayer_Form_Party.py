@@ -12,14 +12,14 @@ auto_name_choices = {
 
 async def get_name() -> str:
     await say("[narr]Greetings![/]")
-    name = (await ask_text(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ')).title()
+    name = (await ask_text(f'[narr]What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:[/]  ')).title()
     name = await acc.check_bad_name(name)
     await say()
     await say("[narr]Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.[/]")
     return name
 
 async def print_recommended_classes(num_chars : int):
-    await say('\nRecommended Party Composition (based on party-size):')
+    await say('\n[narr]Recommended Party Composition (based on party-size):[/]')
     await say()
     for _ in range(num_chars):
         await say(acc.class_label(random.choice(acc.get_hero_classes())))
@@ -62,7 +62,7 @@ async def create_new_party(name: str) -> list:
     await clear()
     await acc.print_classes()
     await say()
-    party_count = await ask_text("How many party members would you like to include (1 minimum, 8 maximum)?  ")
+    party_count = await ask_text("[narr]How many party members would you like to include (1 minimum, 8 maximum)?[/]  ")
     value_ok = False
     while not value_ok:
         try:
@@ -70,9 +70,9 @@ async def create_new_party(name: str) -> list:
             if party_count >= 1 and party_count <= 8:
                 value_ok = True
             else:
-                party_count = await ask_text("I don't think that's a proper integer.  Try again (1 - 8):  ")
+                party_count = await ask_text("[narr]I don't think that's a proper integer.  Try again (1 - 8):[/]  ")
         except ValueError:
-            party_count = await ask_text("I don't think that's a proper integer.  Try again (1 - 8):  ")
+            party_count = await ask_text("[narr]I don't think that's a proper integer.  Try again (1 - 8):[/]  ")
     if party_count == 1:
         await say("[narr]One?  One.  You chose One.  One....  Ok, One it is....[/]")
         await wait(2)
@@ -82,16 +82,16 @@ async def create_new_party(name: str) -> list:
     await clear()
     await print_recommended_classes(party_count)
     await say()
-    choose_composition = await yes_no("Would you like to choose the composition of your party?  ")
+    choose_composition = await yes_no("[narr]Would you like to choose the composition of your party?[/]  ")
     if choose_composition:
-        await say("[narr]My recommendations are garbage, so take them with a grain of salt....[/]")
+        await say("[narr]Please consider my recommendations as garbage, so take them with a grain of salt....[/]")
         await pause()
     else:
         await say("[narr]Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear![/]")
         await say("[narr]Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.[/]") # moved up from below, so it answers the class question
         await pause()
     await say()
-    choose_names = await yes_no("Would you like to choose the names of your party members?  ")
+    choose_names = await yes_no("[narr]Would you like to choose the names of your party members?[/]  ")
     if choose_names:
         await say("[narr]Probably a wise choice.  I'm shit at naming.[/]")
         await pause()
@@ -125,7 +125,7 @@ async def create_new_party(name: str) -> list:
 async def welcome_back(saved_party : dict) -> dict:
     await pause()
     await clear()
-    saved_party = acc.refresh_party(saved_party, True)
+    saved_party = await acc.start_new_run(saved_party)
     await show_party(saved_party['party'])
     await pause()
     return saved_party
@@ -139,7 +139,7 @@ async def get_party() -> dict:
     except FileNotFoundError:
         await say('[narr]Hmmmm.....[/]')
         await wait(1)
-        name = (await ask_text("I don't recognize you, and I don't think you're on [red]The List[/].\nWhat was that name again?  ")).title()
+        name = (await ask_text("[narr]I don't recognize you, and I don't think you're on [/][red]The List[/][narr].[/]\n[narr]What was that name again?[/]  ")).title()
         name = await acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)
