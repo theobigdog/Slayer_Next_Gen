@@ -1,5 +1,5 @@
 item,item_desc,classes,damage_low,damage_high,attack_type,special,source
-token_of_the_wise_witch,Token of the Wise Witch,"['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']",0,1,other,FALSE,starting
+token_of_the_wise_witch,Token of the Wise Witch,"['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']",0,0,hail_mary,FALSE,starting
 plain_bandage,Plain Bandage,"['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']",-5,-1,heal,FALSE,starting
 bastard_sword,Bastard Sword,['Warrior'],4,9,melee,FALSE,starting
 battle_axe,Battle-Axe,['Warrior'],2,12,melee,FALSE,starting

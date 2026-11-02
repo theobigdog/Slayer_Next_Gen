@@ -22,6 +22,13 @@ class Disgruntled_Dwarf:
         self.starting_health = self.stats['enraged_hp']
         self.health = self.stats['enraged_hp']
 
+    async def healed_by(self, heroine : object):
+        """Happy has opinions about being healed by the people trying to kill him."""
+        await say(f"{self.name} holds up his hand a moment to quiet the group.  Oddly, it works.")
+        await say(f"\"Dear lass,\" he hoarsely whispers and smirks at {heroine.name}, \"Whose side are you on anyway?\"")
+        await say("I wonder the same thing!!")
+        await pause()
+
     async def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool) -> dict:
         if happy_killed:
             await say('Add Immortal Happy -> wipes the party anyway narration')

@@ -54,6 +54,8 @@ def item_label(item_name : str) -> str: # one line of the item menu
     desc = data['item_desc']
     low = data['damage_low']
     high = data['damage_high']
+    if data['attack_type'] == 'hail_mary':
+        return f'{desc} (hail mary)'
     if low >= 0:
         return f'{desc} ({low} - {high} damage)'
     else:
@@ -82,9 +84,78 @@ async def get_target_choice(mobs : list, party : list, healing : bool = False) -
         ]
     return await choose_target(prompts, living_party, living_mobs, oopses) # lists the targets, keeps asking until the pick is valid
 
-async def get_heal_outcome(healed : object, healing : int) -> object:
+async def get_heal_outcome(heroine : object, item : dict, target : object, party_dict : dict, mobs : list, heroine_rolls : dict, heal_w_crit_mult : float) -> tuple:
+    """Every heal, whoever it's aimed at. The amount uses the healer's own class crit
+    multiplier (no flat doubling) and never goes past the target's max HP."""
+    healing = -int(heal_w_crit_mult) # heal items have negative damage numbers, so flip the sign
+    missing_hp = target.starting_health - target.health
+    if healing > missing_hp:
+        healing = missing_hp
 
-    return healed
+    if target.is_mob:
+        # Later: undead go here (the Cleric's heals hurt them; anyone else's heal is a lost turn).
+        if target.health == target.starting_health:
+            await say(f"That was weird.  {target.name} is your enemy and is at full health anyway, goof.  Oh well, better luck choosing a target next time?")
+            await pause()
+            return (party_dict, mobs, False)
+        target = update_health(target, -healing) # a heal on a mob never fails: picking the target was the mistake
+        if heroine.hero_class == 'Cleric': # she's a professional, she should know better
+            await say([
+                f"{heroine.name} successfully heals {target.name} for {healing} hp.  What in the flying-fuck were you thinking?  Are you trying to give me gas?",
+                f"{heroine.name} swells with pride as she successfully heals {target.name} for {healing} hp.  Pride eh?  Well.... Good Job??",
+                f"{target.name} grins wickedly at {heroine.name} as their wounds begin to bind.  \"Thank you!\" {target.name} screams in your face, spraying you with spittle.  Did you expect that to go a different way or something?",
+                f"{heroine.name} lays her holy hands on {target.name} for {healing} hp.  Somewhere up there, a god just facepalmed so hard it echoed.",
+                f"Ah yes, the classic \"heal the guy who's trying to murder us\" strategy.  {heroine.name} patches up {target.name} for {healing} hp.  Bold.  Stupid, but bold.",
+            ])
+        else:
+            await say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for {healing} hp")
+            await say("I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
+        await pause()
+        if hasattr(target, 'healed_by'): # some mobs have something to say about it (Happy does)
+            await target.healed_by(heroine)
+        return (party_dict, mobs, False) # healing a mob never earns the luck roll
+
+    if not heroine_rolls['heal']:
+        await say(f"{heroine.name} tries to heal {'herself' if heroine == target else target.name}, but does a piss-poor job and just ends up wasting her turn.  Doh!")
+        await pause()
+        return (party_dict, mobs, False)
+    if target.health == target.starting_health:
+        await say(f"That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?")
+        await pause()
+        return (party_dict, mobs, heroine_rolls['luck'])
+    target = update_health(target, -healing)
+    await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
+    await say("I'm so proud of you!")
+    await pause()
+    return (party_dict, mobs, heroine_rolls['luck'])
+
+async def use_hail_mary(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
+    """The Token of the Wise Witch, for when things look grim: 30% a fallen heroine comes back
+    at half her max HP, 30% the Token takes the heroine using it instead, 40% it fizzles."""
+    fallen = [x for x in party_dict['party'] if x.is_dead]
+    chosen = None
+    if len(fallen) == 1:
+        chosen = fallen[0]
+    elif fallen:
+        chosen = await choose_target(
+            f"\nThe Token hums in {heroine.name}'s hand.  Pick the number for the fallen heroine you're gambling on.  ",
+            fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
+    roll = acc.multi_roll(1, 100)
+    if roll <= 30:
+        if chosen:
+            chosen.is_dead = False
+            chosen.health = max(1, round(chosen.starting_health * 0.5))
+            await say(f"{heroine.name} raises the {item['item_desc']} and mutters something she definitely made up on the spot.  It WORKS.  {chosen.name} gasps back to life with {chosen.health} hp.  Holy shit!")
+        else:
+            await say(f"The {item['item_desc']} glows a lovely, life-giving green...  and finds nobody dead to bring back.  It sulks.  Wasted turn, but hey, everybody's alive.")
+    elif roll <= 60:
+        heroine.health = 0
+        heroine.is_dead = True
+        await say(f"The {item['item_desc']} flares a sickly purple.  Turns out the Wise Witch wanted payment, and {heroine.name} just covered it.  With her life.  Oof.")
+    else:
+        await say(f"{heroine.name} shakes the {item['item_desc']} like a broken snow globe.  It fizzles.  Pfft.  Nothing happens.")
+    await pause()
+    return (party_dict, mobs, False)
 
 async def get_heroine_turn_outcome(heroine : object, item : dict,  target : object, party_dict : dict,  mobs : list, heroine_rolls : dict, mob_rolls : dict) -> tuple:
     base_damage = acc.multi_roll(item['damage_low'], item['damage_high'])
@@ -92,24 +163,9 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
     crit_mult = heroine_rolls['crit_mult']
     is_crit = crit_mult > 1 # will be used for auto commenting later
     damage_w_crit_mult = base_damage * crit_mult
-    if target.is_mob:  # aimed at a mob (an attack, or a heal on a mob)
-        if heroine.hero_class == 'Cleric':
-            # remember to factor in the healing damage, radiative and otherwise, to undead
-            target = await get_heal_outcome(target, damage_w_crit_mult)
-        elif attack_type == 'heal':# and heroine.hero_class != 'Cleric':
-            healing = -int(damage_w_crit_mult)
-            missing_hp = target.starting_health - target.health
-            if healing > missing_hp:
-                healing = missing_hp
-            if target.health == target.starting_health:
-                await say(f"That was weird.  {target.name} is your enemy and is at full health anyway, goof.  Oh well, better luck choosing a target next time?")
-                await pause()
-                return (party_dict, mobs, False)
-            target = update_health(target, -healing)
-            await say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for {healing} hp")
-            await say("I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?")
-            await pause()
-            return (party_dict, mobs, False)
+    if attack_type == 'heal': # every heal, on a heroine or a mob, has its own function
+        return await get_heal_outcome(heroine, item, target, party_dict, mobs, heroine_rolls, damage_w_crit_mult)
+    if target.is_mob:  # an attack on a mob
         tough = mob_rolls['toughness']
         if tough:
             damage = damage_w_crit_mult / 2
@@ -149,25 +205,8 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         await check_tough(tough, target)
         await pause()
         return (party_dict, mobs, heroine_rolls['luck'])
-    else:
-        if attack_type == 'heal':
-            if not heroine_rolls['heal']:
-                await say(f"{heroine.name} tries to heal {'herself' if heroine == target else target.name}, but does a piss-poor job and just ends up wasting her turn.  Doh!")
-                await pause()
-                return (party_dict, mobs, False)
-            healing = -int(damage_w_crit_mult)
-            missing_hp = target.starting_health - target.health
-            if healing > missing_hp:
-                healing = missing_hp
-            if target.health == target.starting_health:
-                await say(f"That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?")
-                await pause()
-                return (party_dict, mobs, heroine_rolls['luck'])
-            target = update_health(target, -healing)
-            await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
-            await say("I'm so proud of you!")
-            await pause()
-            return (party_dict, mobs, heroine_rolls['luck'])
+    else: # can't happen today (only heals can target the party), but never a silent turn
+        await say(f"{heroine.name} waves her {item['item_desc']} at {target.name}.  Nothing happens.  Weird flex.")
         await pause()
         return (party_dict, mobs, False)
 
@@ -200,11 +239,11 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
 
     if item_attack_type == 'aoe':
         pass # stub for aoe attacks/heals, from mobs and heroines, to be added still
+    if item_attack_type == 'hail_mary':
+        return await use_hail_mary(heroine, item, party_dict, mobs)
 
-    if heroine.hero_class == 'Cleric':
-        target = await get_target_choice(mobs, party_dict['party'], is_heal)
-    elif is_heal:
-        target = await get_target_choice([], party_dict['party'], is_heal)
+    if is_heal:
+        target = await get_target_choice(mobs, party_dict['party'], True) # anyone can heal anyone, a mob too if they insist
     else:
         target = await get_target_choice(mobs, [])
 
