@@ -13,6 +13,7 @@ Art: drop PNGs into assets/sprites/ (see assets/README.md) and they replace the
 placeholder boxes automatically.
 """
 import asyncio
+import math
 import random
 import re
 import sys
@@ -40,6 +41,8 @@ ENRAGED_BOX = (160, 24, 24)
 HP_GOOD = (80, 176, 80)
 HP_LOW = (192, 96, 192)    # the terminal's magenta, at 50% and below
 HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
+DAMAGE_RED = (255, 72, 60)
+HEAL_BLUE = (90, 170, 255)
 TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 200, 90), 'white': (255, 255, 255)}
 TAG = re.compile(r'\[(red|magenta|green|white|/)\]')
 
@@ -89,7 +92,7 @@ class Button:
 class WindowUI:
     """Plays Slayer in a 1280x720 Pygame window (scaled to fit whatever window it's in)."""
 
-    chars_per_second = 90  # typewriter speed for the narration
+    chars_per_second = 260  # typewriter speed for the narration (big chunks go faster, see advance_typewriter)
 
     def __init__(self, headless_fps: int = 60):
         pygame.init()
@@ -100,15 +103,21 @@ class WindowUI:
         self.fps = headless_fps
         self.fonts = {
             'text': font(21), 'menu': font(19), 'name': font(17, 'bold'), 'name_small': font(14, 'bold'), 'small': font(14),
-            'round': font(26, 'bold'), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
+            'round': font(26, 'bold'), 'title': font(13, 'mono'), 'big': font(30, 'bold'), 'float': font(30, 'bold'),
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
-        self.page_start = 0         # first visual line of the current page in the narration box
         self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
         self.waiting = None         # (kind, future, extra) while the game waits on the player
+        self.waiting_since = 0.0    # when the current wait began (a double-click can't skip the next line)
+        self.now = pygame.time.get_ticks() / 1000
+        self.dt = 0.0
+        self.health_seen = {}       # id(entity) -> (entity, hp, max hp) last frame, for the floating numbers
+        self.floaters = []          # floating damage/heal numbers on screen
+        self.motion = Motion(self)  # the little idle animations
+        self.placeholders = {}
         self.buttons = []
         self.typed = ''             # ask_text's input so far
         self.targets = []           # (rect, entity) for clickable sprites during choose_target
@@ -125,7 +134,11 @@ class WindowUI:
         """Run the game coroutine alongside the frame loop until the window closes."""
         task = asyncio.ensure_future(self.guarded(game))
         while True:
-            dt = self.clock.tick(self.fps) / 1000 if (self.fps and not IN_BROWSER) else 1 / 60
+            if self.fps and not IN_BROWSER:
+                self.clock.tick(self.fps)
+            now = pygame.time.get_ticks() / 1000
+            dt, self.now = min(0.1, now - self.now), now
+            self.dt = dt
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     task.cancel()
@@ -161,7 +174,7 @@ class WindowUI:
     # ---------- input ----------------------------------------------------------
 
     def handle(self, event):
-        if event.type == pygame.MOUSEWHEEL and self.typed_out():
+        if event.type == pygame.MOUSEWHEEL:
             self.scroll(event.y * -3)
             return
         if not self.waiting:
@@ -170,23 +183,13 @@ class WindowUI:
         clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
         enter = event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
 
-        if kind in ('pause', 'more', 'close'):
-            if clicked or enter:
-                if not self.typed_out():
-                    self.revealed = self.page_end_chars()  # first click finishes the typing
-                elif kind == 'more':
-                    vis = self.visual_lines()
-                    self.page_start = max(self.page_start + 1, min(self.page_turn_line, len(vis) - self.page_capacity()))
-                    self.waiting = extra
-                elif kind == 'close':
+        if kind in ('pause', 'close'):
+            if (clicked or enter) and self.now - self.waiting_since > 0.15:
+                self.revealed = self.total_chars()  # one click finishes any typing AND moves on
+                if kind == 'close':
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
                 else:
                     self.resolve(None)
-            return
-
-        if not self.typed_out():  # menus wait until the prompt has been typed out
-            if clicked or enter:
-                self.revealed = self.page_end_chars()
             return
 
         if kind == 'text':
@@ -222,7 +225,8 @@ class WindowUI:
 
     def scroll(self, lines):
         """Mouse wheel: look back at earlier lines (since the last clear). New text snaps back down."""
-        self.scroll_back = max(0, min(self.page_start, self.scroll_back - lines))
+        most = max(0, self.lines_started() - self.page_capacity())
+        self.scroll_back = max(0, min(most, self.scroll_back - lines))
 
     def number_key(self, event):
         if pygame.K_1 <= event.key <= pygame.K_9:
@@ -252,6 +256,7 @@ class WindowUI:
     async def wait_for(self, kind, extra=None):
         future = asyncio.get_running_loop().create_future()
         self.waiting = (kind, future, extra)
+        self.waiting_since = self.now
         return await future
 
     # ---------- narration text -------------------------------------------------
@@ -267,7 +272,7 @@ class WindowUI:
         return sum(len(TAG.sub('', line)) for line in self.lines)
 
     def typed_out(self):
-        return self.revealed >= self.page_end_chars()
+        return self.revealed >= self.total_chars()
 
     def visual_lines(self):
         """Every narration line wrapped to the box: [(runs, chars_in_line)]."""
@@ -284,25 +289,25 @@ class WindowUI:
             room -= 56  # leave space for the typing field at the bottom of the box
         return max(1, room // self.line_h)
 
-    def page_end_chars(self):
-        """Characters up to the end of what fits on the current page."""
-        vis = self.visual_lines()
-        end = min(len(vis), self.page_start + self.page_capacity())
-        return sum(n for _, n in vis[:end])
+    def lines_started(self, vis=None):
+        """How many wrapped lines the typewriter has reached so far."""
+        budget, count = self.revealed, 0
+        for _, n in (vis if vis is not None else self.visual_lines()):
+            if budget <= 0 and count:
+                break
+            budget -= n
+            count += 1
+        return count
 
     def advance_typewriter(self, dt):
-        if self.waiting and self.waiting[0] == 'more':
-            return
-        self.revealed = min(self.revealed + self.chars_per_second * dt, self.page_end_chars())
-        vis = self.visual_lines()
-        page_end = self.page_start + self.page_capacity()
-        if self.revealed >= self.page_end_chars() and page_end < len(vis):
-            # the box is full and there's more to say: stop and wait for a click
-            self.page_turn_line = page_end
-            self.waiting = ('more', None, self.waiting)
+        total = self.total_chars()
+        backlog = total - self.revealed
+        if backlog > 0:
+            speed = max(self.chars_per_second, backlog * 6)  # a big chunk of text finishes in a fraction of a second
+            self.revealed = min(total, self.revealed + speed * dt)
 
     async def until_typed(self):
-        while not self.typed_out() or (self.waiting and self.waiting[0] == 'more'):
+        while not self.typed_out():
             await asyncio.sleep(0)
 
     # ---------- the Slayer_UI calls --------------------------------------------
@@ -315,12 +320,11 @@ class WindowUI:
         await asyncio.sleep(seconds)
 
     async def pause(self):
-        await self.until_typed()
-        await self.wait_for('pause')
+        await self.wait_for('pause')  # a click while the text is still typing finishes it and moves on
 
     async def clear(self):
         await self.until_typed()
-        self.lines, self.revealed, self.page_start, self.scroll_back = [], 0.0, 0, 0
+        self.lines, self.revealed, self.scroll_back = [], 0.0, 0
         if self.mode == 'title':
             self.mode = 'text'
 
@@ -399,8 +403,9 @@ class WindowUI:
         elif self.mode == 'party':
             self.draw_party_lineup()
         self.draw_text_box()
-        if self.menu_open() and self.typed_out():
+        if self.menu_open():
             self.draw_menu()
+        self.draw_floaters()
 
     def panel(self, rect, edge=PANEL_EDGE):
         pygame.draw.rect(self.screen, PANEL, rect, border_radius=10)
@@ -416,10 +421,11 @@ class WindowUI:
         box = self.text_box()
         self.panel(box)
         vis = self.visual_lines()
-        top = self.page_start - self.scroll_back
+        end = max(0, self.lines_started(vis) - self.scroll_back)
+        top = max(0, end - self.page_capacity())
         budget = self.revealed - sum(n for _, n in vis[:top])
         y = box.y + 16
-        for runs, n in vis[top:top + self.page_capacity()]:
+        for runs, n in vis[top:end]:
             if budget <= 0:
                 break
             x = box.x + 20
@@ -432,14 +438,14 @@ class WindowUI:
                     x += surf.get_width()
             y += self.line_h
         kind = self.waiting[0] if self.waiting else None
-        if kind == 'text' and self.typed_out():
+        if kind == 'text':
             field = pygame.Rect(box.x + 20, box.bottom - 52, box.width - 40, 38)
             pygame.draw.rect(self.screen, BG, field, border_radius=6)
             pygame.draw.rect(self.screen, GOLD, field, 2, border_radius=6)
             caret = '|' if (pygame.time.get_ticks() // 500) % 2 == 0 else ' '
             self.blit_text(self.typed + caret, (field.x + 10, field.y + 6))
-        elif kind in ('pause', 'more', 'close') and self.typed_out():
-            hint = {'pause': 'click or Enter', 'more': 'more', 'close': 'click to close'}[kind]
+        elif kind in ('pause', 'close') and self.typed_out():
+            hint = {'pause': 'click or Enter', 'close': 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
 
     def draw_menu(self):
@@ -475,6 +481,7 @@ class WindowUI:
         self.sprite_rects = []
         self.draw_party_row(self.party, top=64)
         self.draw_mobs()
+        self.motion.draw_particles()
 
     def draw_party_row(self, party, top):
         slot_w, sprite = 150, 104
@@ -510,26 +517,81 @@ class WindowUI:
             x += w + gap
 
     def draw_sprite(self, entity, rect, label, box_color):
-        image = self.sprite_for(entity, rect.size)
         dead = entity.is_dead
-        if image:
-            if dead:
-                image = image.copy()
-                image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
-            self.screen.blit(image, image.get_rect(midbottom=rect.midbottom))
-        else:
-            color = tuple(c // 3 for c in box_color) if dead else box_color
-            pygame.draw.rect(self.screen, color, rect, border_radius=8)
-            for i, part in enumerate(label.replace('_', ' ').split(' (')):
-                part = part if i == 0 else '(' + part
-                self.blit_text(part, (rect.centerx, rect.centery - 8 + i * 18), 'small', DIM if dead else TEXT, center=True)
+        image = self.sprite_for(entity, rect.size)
+        if image is None:
+            share = max(0.0, min(1.0, entity.health / entity.starting_health))
+            image = self.placeholder(rect.size, label, box_color, dead, share)
+        elif dead:
+            image = image.copy()
+            image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        kind = class_key(entity)
+        pose = Pose() if dead else self.motion.pose(entity, kind, rect)
+        if pose.sx != 1 or pose.sy != 1:
+            image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
+        if pose.angle:
+            image = pygame.transform.rotate(image, pose.angle)
+        self.screen.blit(image, image.get_rect(midbottom=(rect.centerx + pose.dx, rect.bottom + pose.dy)))
         if dead:
             self.blit_text('dead', (rect.centerx, rect.y + 14), 'name', HP_CRIT, center=True)
+        else:
+            self.motion.effects(entity, kind, rect)
+        self.track_health(entity, rect)
+
+    def placeholder(self, size, label, color, dead, share=1.0):
+        """The stand-in box until there's art: an outline filled from the bottom up to the HP left
+        (half health = half full), with the class written on it."""
+        percent = round(share * 100)
+        key = (size, label, color, dead, percent)
+        if key not in self.placeholders:
+            box = pygame.Surface(size, pygame.SRCALPHA)
+            edge = tuple(c // 3 for c in color) if dead else color
+            pygame.draw.rect(box, (*edge, 70), box.get_rect(), border_radius=8)  # the empty part, faint
+            fill_h = round(size[1] * percent / 100)
+            if fill_h > 0:
+                fill = pygame.Surface(size, pygame.SRCALPHA)
+                pygame.draw.rect(fill, edge, fill.get_rect(), border_radius=8)
+                box.blit(fill, (0, size[1] - fill_h), pygame.Rect(0, size[1] - fill_h, size[0], fill_h))
+            pygame.draw.rect(box, edge, box.get_rect(), 2, border_radius=8)
+            for i, part in enumerate(label.replace('_', ' ').split(' (')):
+                part = part if i == 0 else '(' + part
+                text = self.fonts['small'].render(part, True, DIM if dead else TEXT)
+                box.blit(text, text.get_rect(center=(size[0] // 2, size[1] // 2 - 8 + i * 18)))
+            self.placeholders[key] = box
+        return self.placeholders[key]
+
+    # floating numbers: the window notices HP changes by itself, so the game code needs nothing new
+
+    def track_health(self, entity, rect):
+        hp, top = int(round(entity.health)), entity.starting_health
+        seen = self.health_seen.get(id(entity))
+        if seen and seen[0] is entity and seen[2] == top and seen[1] != hp: # a new max HP (Happy's enrage) isn't a heal
+            delta = hp - seen[1]
+            stacked = sum(1 for f in self.floaters if f['entity'] is entity)
+            self.floaters.append({'entity': entity, 'text': f'{delta:+d}', 'color': HEAL_BLUE if delta > 0 else DAMAGE_RED,
+                                  'x': rect.centerx, 'y': rect.y + 10 - stacked * 28, 'born': self.now})
+        self.health_seen[id(entity)] = (entity, hp, top)
+
+    def draw_floaters(self):
+        life = 1.4
+        self.floaters = [f for f in self.floaters if self.now - f['born'] < life]
+        for f in self.floaters:
+            age = self.now - f['born']
+            rise = 50 * (1 - (1 - age / life) ** 2)  # fast at first, then easing off
+            alpha = 255 if age < life / 2 else int(255 * (1 - (age - life / 2) / (life / 2)))
+            fnt = self.fonts['float']
+            text = fnt.render(f['text'], True, f['color'])
+            edge = fnt.render(f['text'], True, (0, 0, 0))
+            surf = pygame.Surface((text.get_width() + 4, text.get_height() + 4), pygame.SRCALPHA)
+            for ox, oy in ((0, 2), (4, 2), (2, 0), (2, 4)):
+                surf.blit(edge, (ox, oy))
+            surf.blit(text, (2, 2))
+            surf.set_alpha(alpha)
+            self.screen.blit(surf, surf.get_rect(center=(f['x'], f['y'] - rise)))
 
     def sprite_for(self, entity, size):
         """assets/sprites/<class>_<pose>.png, e.g. warrior_idle.png, disgruntled_dwarf_enraged.png."""
-        kind = getattr(entity, 'hero_class', None) or entity.mob_class
-        slug = kind.lower().replace(' ', '_')
+        slug = class_key(entity)
         pose = 'enraged' if getattr(entity, 'enraged', False) else 'idle'
         key = (slug, pose, size)
         if key not in self.sprite_cache:
@@ -582,10 +644,126 @@ class WindowUI:
         self.sprite_rects = []
         self.blit_text('Your party', (24, 16), 'round', GOLD)
         self.draw_party_row(self.party, top=64)
+        self.motion.draw_particles()
+
+
+def class_key(entity) -> str:
+    """'Battle_Mage' -> 'battle_mage', 'Disgruntled Dwarf' -> 'disgruntled_dwarf'."""
+    return (getattr(entity, 'hero_class', None) or entity.mob_class).lower().replace(' ', '_')
 
 
 def pick_line(lines):
     return lines if isinstance(lines, str) else random.choice(lines)
+
+
+# ---------- little idle animations -------------------------------------------------
+
+class Pose:
+    """How to draw a sprite this frame: nudged by dx/dy, tilted by angle, squashed by sx/sy."""
+    def __init__(self, dx=0.0, dy=0.0, angle=0.0, sx=1.0, sy=1.0):
+        self.dx, self.dy, self.angle, self.sx, self.sy = dx, dy, angle, sx, sy
+
+
+class Motion:
+    """Per-class idle animations. They move whatever gets drawn (the boxes now, real art later),
+    plus a few effects drawn on top: arrows, a halo, sparkles, a fuse, steam."""
+
+    def __init__(self, window):
+        self.window = window
+        self.particles = []  # [x, y, vx, vy, age, life, size, grow, color]
+        self.next_play = {}  # (id(entity), effect) -> when that effect next starts
+
+    def phase(self, entity):
+        return (id(entity) % 997) / 997 * 6.283  # so two of the same class don't move in lockstep
+
+    def playing(self, entity, effect, every, length):
+        """For an effect that plays now and then: its progress 0..1 while playing, else None."""
+        now, key = self.window.now, (id(entity), effect)
+        start = self.next_play.setdefault(key, now + random.uniform(0.3, every))
+        if now < start:
+            return None
+        progress = (now - start) / length
+        if progress >= 1:
+            self.next_play[key] = now + random.uniform(every * 0.6, every * 1.4)
+            return None
+        return progress
+
+    def pose(self, entity, kind, rect):
+        t = self.window.now + self.phase(entity)
+        if kind == 'shifter':     # never quite holds its shape
+            squash = 0.05 * math.sin(t * 2.6)
+            return Pose(5 * math.sin(t * 1.3) + 2 * math.sin(t * 3.7), 2 * math.sin(t * 2.1), 0, 1 + squash, 1 - squash)
+        if kind == 'battle_mage': # Flying Fist of Judah: a jab now and then
+            jab = self.playing(entity, 'jab', 4.0, 0.3)
+            return Pose(16 * math.sin(math.pi * jab) if jab is not None else 0, 1.5 * math.sin(t * 1.8))
+        if kind == 'warrior':     # slow, heavy breathing
+            return Pose(sy=1 + 0.018 * math.sin(t * 1.9))
+        if kind in ('witch', 'cleric'):
+            return Pose(dy=-3 - 3 * math.sin(t * 1.5))  # floats a little
+        if kind == 'drunk_dwarf': # sways
+            return Pose(3 * math.sin(t * 0.8), 0, 5 * math.sin(t * 1.1))
+        if kind == 'disgruntled_dwarf':
+            if entity.enraged:    # shaking with rage
+                return Pose(random.uniform(-2.5, 2.5), random.uniform(-1.5, 1.5))
+            return Pose(dy=2 * math.sin(t * 1.4))
+        return Pose(dy=1.5 * math.sin(t * 1.6))  # hunter, sapper, anything new
+
+    def effects(self, entity, kind, rect):
+        screen, now, dt = self.window.screen, self.window.now, self.window.dt
+        if kind == 'hunter':      # an arrow zips through now and then
+            shot = self.playing(entity, 'arrow', 4.5, 0.4)
+            if shot is not None:
+                x = rect.x - 60 + (rect.width + 120) * shot
+                y = rect.y + rect.height * 0.4
+                pygame.draw.line(screen, (190, 160, 110), (x - 34, y), (x, y), 3)
+                pygame.draw.polygon(screen, (220, 220, 220), [(x + 10, y), (x, y - 5), (x, y + 5)])
+                for k in (0, 5):
+                    pygame.draw.line(screen, (200, 60, 60), (x - 34 + k, y), (x - 40 + k, y - 6), 2)
+                    pygame.draw.line(screen, (200, 60, 60), (x - 34 + k, y), (x - 40 + k, y + 6), 2)
+        elif kind == 'warrior':   # a glint off the sword
+            glint = self.playing(entity, 'glint', 5.0, 0.5)
+            if glint is not None:
+                size = 9 * math.sin(math.pi * glint)
+                cx, cy = rect.right - 16, rect.y + 16
+                pygame.draw.line(screen, (255, 255, 230), (cx - size, cy), (cx + size, cy), 2)
+                pygame.draw.line(screen, (255, 255, 230), (cx, cy - size), (cx, cy + size), 2)
+        elif kind == 'cleric':    # a soft halo
+            glow = 150 + 80 * math.sin(now * 2.2 + self.phase(entity))
+            halo = pygame.Surface((rect.width, 24), pygame.SRCALPHA)
+            pygame.draw.ellipse(halo, (255, 220, 120, int(glow)), halo.get_rect().inflate(-rect.width * 0.35, -6), 3)
+            screen.blit(halo, (rect.x, rect.y - 22))
+        elif kind == 'witch':     # sparkles drifting up
+            if random.random() < dt * 5:
+                x = rect.x + random.uniform(0.15, 0.85) * rect.width
+                self.particles.append([x, rect.y + 10, random.uniform(-8, 8), random.uniform(-40, -20), 0, 1.0, 3, 0,
+                                       random.choice([(200, 120, 255), (255, 170, 60)])])
+        elif kind == 'sapper':    # a lit fuse
+            fx, fy = rect.right - 12, rect.y + 8
+            flicker = random.randint(3, 6)
+            pygame.draw.circle(screen, random.choice([(255, 200, 60), (255, 120, 30)]), (fx, fy), flicker)
+            if random.random() < dt * 12:
+                self.particles.append([fx, fy, random.uniform(-40, 40), random.uniform(-60, -10), 0, 0.35, 2, 0, (255, 220, 120)])
+        elif kind == 'disgruntled_dwarf' and entity.enraged:  # steam venting off the top
+            for side in (-1, 1):
+                if random.random() < dt * 3:
+                    x = rect.centerx + side * rect.width * 0.38
+                    self.particles.append([x, rect.y + 30, side * random.uniform(15, 40), random.uniform(-50, -30), 0, 1.4, 7, 14, (210, 210, 210)])
+
+    def draw_particles(self):
+        dt, screen = self.window.dt, self.window.screen
+        alive = []
+        for p in self.particles:
+            p[0] += p[2] * dt
+            p[1] += p[3] * dt
+            p[4] += dt
+            if p[4] < p[5]:
+                alive.append(p)
+                size = int(p[6] + p[7] * p[4])
+                fade = int(200 * (1 - p[4] / p[5]))
+                dot = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
+                pygame.draw.circle(dot, (*p[8], fade), (size + 1, size + 1), size)
+                screen.blit(dot, (p[0] - size, p[1] - size))
+        self.particles = alive[-300:]
 
 
 # ---------- the chunky ASCII openings, drawn in the window ----------------------

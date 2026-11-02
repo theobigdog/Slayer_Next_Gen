@@ -102,13 +102,15 @@ async def create_new_party(name: str) -> list:
             await ui.clear()
             await print_current_party(new_party)
             await ui.say()
-            await acc.print_classes()
-            await ui.say()
             await print_recommended_classes(party_count)
             await ui.say()
-            selection = (await ui.ask_text("\nWhich Class would you like to add?  ")).strip().title().replace(' ', '_')
-            while selection not in acc.get_hero_classes():
-                selection = (await ui.ask_text("\nLet's try that again.  Of the listed Class options, which would you like to add?  ")).strip().title().replace(' ', '_')
+            hero_classes = acc.get_hero_classes()
+            pick = await ui.choose( # a numbered list in the terminal, buttons in the window
+                "\nWhich Class would you like to add?  ",
+                [hero_class.replace('_', ' ') for hero_class in hero_classes],
+                "\nLet's try that again.  Of the listed Class options, which number would you like to add?  ",
+            )
+            selection = hero_classes[pick]
             heroine_name = await name_heroine('\nOk, let\'s have a name for her:  ', choose_names)
             new_party.append(get_hero(selection, heroine_name))
     else:
