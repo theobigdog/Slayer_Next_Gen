@@ -44,8 +44,8 @@ HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
 DAMAGE_RED = (255, 72, 60)
 HEAL_BLUE = (90, 170, 255)
 TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 200, 90), 'white': (255, 255, 255),
-              'gold': (212, 166, 64)}
-TAG = re.compile(r'\[(red|magenta|green|white|gold|/)\]')
+              'gold': (212, 166, 64), 'narr': (122, 200, 222)}  # narr: the narrator talking to you, in its own color
+TAG = re.compile(r'\[(red|magenta|green|white|gold|narr|/)\]')
 DIM_OLDER_TEXT = True  # text from before your last click is drawn a little dimmer, so the new part stands out
 
 
@@ -111,6 +111,7 @@ class WindowUI:
         self.fonts = {
             'text': font(NARRATION_SIZE, 'narration'),
             'menu': font(22, 'fancy'), 'menu_s': font(19, 'fancy'), 'menu_xs': font(16, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
+            'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
             'box': font(17, 'fancy'), 'hp': font(16, 'fancy'),
             'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
@@ -609,7 +610,7 @@ class WindowUI:
             y = top + row * 190
             rect = pygame.Rect(x + (slot_w - sprite) // 2 - 6, y, sprite, sprite)
             self.draw_sprite(heroine, rect, heroine.hero_class, HERO_BOX)
-            self.draw_nameplate(heroine, rect, slot_w - 12)
+            self.draw_health_bar(heroine, rect, slot_w - 12)
             self.sprite_rects.append((rect, heroine))
 
     def draw_mobs(self):
@@ -630,40 +631,44 @@ class WindowUI:
             rect = pygame.Rect(x, floor - h, w, h)
             label = mob.mob_class + (' (enraged)' if mob.enraged else '')
             self.draw_sprite(mob, rect, label, ENRAGED_BOX if mob.enraged else MOB_BOX)
-            self.draw_nameplate(mob, rect, max(w, 130))
+            self.draw_health_bar(mob, rect, max(w, 130))
             self.sprite_rects.append((rect, mob))
             x += w + gap
 
     def draw_sprite(self, entity, rect, label, box_color):
         dead = entity.is_dead
         image = self.sprite_for(entity, rect.size)
+        art = image is not None
         kind = class_key(entity)
         if image is None:
             share = max(0.0, min(1.0, entity.health / entity.starting_health))
             if kind == 'shifter' and not dead:
-                image = self.motion.shifter_box(rect.size, label, box_color, dead, share)
+                image = self.motion.shifter_box(rect.size, box_color, share)
             else:
-                image = self.placeholder(rect.size, label, box_color, dead, share)
-        elif dead:
+                image = self.placeholder(rect.size, box_color, dead, share)
+        else:
             image = image.copy()
-            image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            if dead:
+                image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        image = image.copy()
+        status = ('in pieces' if getattr(entity, 'blown_up', False) else 'dead') if dead else None
+        labels = self.box_labels(rect.size, entity.name, label, status, art)
+        image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))  # her name inside the box, her class under it
         pose = Pose() if dead else self.motion.pose(entity, kind, rect)
         if pose.sx != 1 or pose.sy != 1:
             image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
         if pose.angle:
             image = pygame.transform.rotate(image, pose.angle)
         self.screen.blit(image, image.get_rect(midbottom=(rect.centerx + pose.dx, rect.bottom + pose.dy)))
-        if dead:
-            self.blit_text('dead', (rect.centerx, rect.y + 14), 'name', HP_CRIT, center=True)
-        else:
+        if not dead:
             self.motion.effects(entity, kind, rect)
         self.track_health(entity, rect)
 
-    def placeholder(self, size, label, color, dead, share=1.0):
+    def placeholder(self, size, color, dead, share=1.0):
         """The stand-in box until there's art: an outline filled from the bottom up to the HP left
-        (half health = half full), with the class written on it."""
+        (half health = half full). The name and class go on top of it (box_labels)."""
         percent = round(share * 100)
-        key = (size, label, color, dead, percent)
+        key = (size, color, dead, percent)
         if key not in self.placeholders:
             box = pygame.Surface(size, pygame.SRCALPHA)
             edge = tuple(c // 3 for c in color) if dead else color
@@ -674,11 +679,35 @@ class WindowUI:
                 pygame.draw.rect(fill, edge, fill.get_rect(), border_radius=8)
                 box.blit(fill, (0, size[1] - fill_h), pygame.Rect(0, size[1] - fill_h, size[0], fill_h))
             pygame.draw.rect(box, edge, box.get_rect(), 2, border_radius=8)
-            for i, part in enumerate(label.replace('_', ' ').split(' (')):
-                part = part if i == 0 else '(' + part
-                text = self.fonts['box'].render(part, True, DIM if dead else TEXT)
-                box.blit(text, text.get_rect(center=(size[0] // 2, size[1] // 2 - 8 + i * 18)))
             self.placeholders[key] = box
+        return self.placeholders[key]
+
+    def box_labels(self, size, name, label, status, art=False):
+        """What's written inside a combatant's box: her name (two smaller lines if it's long), her class
+        on the line under it, and 'dead' under that once she's down. Drawn over art too, once there is some."""
+        key = ('labels', size, name, label, status, art)
+        dead = status is not None
+        if key not in self.placeholders:
+            surf = pygame.Surface(size, pygame.SRCALPHA)
+            rows = []  # (text, font, color)
+            big = size[0] >= 180  # Happy's box gets bigger lettering
+            names, name_font = self.name_lines(name, size[0] - 10, 3, 'name_big' if big else 'name', 'name' if big else 'name_small')
+            rows += [(line, name_font, DIM if dead else TEXT) for line in names]
+            for i, part in enumerate(label.replace('_', ' ').split(' (')):
+                rows.append((part if i == 0 else '(' + part, 'box_big' if big else 'box', DIM if dead else (205, 220, 214)))
+            if dead:
+                rows.append((status, 'name', HP_CRIT))  # 'dead', or 'in pieces' for a Sapper after her Big Badda Boom
+            heights = [self.fonts[f].get_linesize() - 2 for _, f, _ in rows]
+            y = size[1] - sum(heights) - 6 if art else size[1] * 0.42 - sum(heights) / 2  # over art: along the bottom, off her face
+            for (text, fnt, color), h in zip(rows, heights):
+                rendered = self.fonts[fnt].render(text, True, color)
+                shadow = self.fonts[fnt].render(text, True, (0, 0, 0))
+                shadow.set_alpha(150)
+                spot = rendered.get_rect(midtop=(size[0] // 2, round(y)))
+                surf.blit(shadow, spot.move(1, 1))  # a soft shadow keeps it readable on any fill (or art)
+                surf.blit(rendered, spot)
+                y += h
+            self.placeholders[key] = surf
         return self.placeholders[key]
 
     # floating numbers: the window notices HP changes by itself, so the game code needs nothing new
@@ -690,7 +719,7 @@ class WindowUI:
             delta = hp - seen[1]
             stacked = sum(1 for f in self.floaters if f['entity'] is entity)
             self.floaters.append({'entity': entity, 'text': f'{delta:+d}', 'color': HEAL_BLUE if delta > 0 else DAMAGE_RED,
-                                  'x': rect.centerx, 'y': rect.y + 10 - stacked * 28, 'born': self.now})
+                                  'x': rect.centerx, 'y': rect.y + rect.height * 0.62 - stacked * 28, 'born': self.now})  # rises up through the box, clear of the Round heading
         self.health_seen[id(entity)] = (entity, hp, top)
 
     def draw_floaters(self):
@@ -727,11 +756,11 @@ class WindowUI:
             self.sprite_cache[key] = image
         return self.sprite_cache[key]
 
-    def name_lines(self, name, width):
-        """A name that fits its slot: one line if it can, else two smaller lines, trimmed with ... if needed."""
-        if self.fonts['name'].size(name)[0] <= width:
-            return [name], 'name'
-        fnt, lines, line = self.fonts['name_small'], [], ''
+    def name_lines(self, name, width, max_lines=2, big='name', small='name_small'):
+        """A name that fits its slot: one line if it can, else up to max_lines smaller lines, trimmed with ... if needed."""
+        if self.fonts[big].size(name)[0] <= width:
+            return [name], big
+        fnt, lines, line = self.fonts[small], [], ''
         for word in name.split():
             trial = (line + ' ' + word).strip()
             if fnt.size(trial)[0] <= width or not line:
@@ -740,21 +769,16 @@ class WindowUI:
                 lines.append(line)
                 line = word
         lines.append(line)
-        if len(lines) > 2:
-            lines = [lines[0], ' '.join(lines[1:])]
+        if len(lines) > max_lines:
+            lines = lines[:max_lines - 1] + [' '.join(lines[max_lines - 1:])]
         while fnt.size(lines[-1])[0] > width and len(lines[-1]) > 3:
             lines[-1] = lines[-1][:-4].rstrip() + '...'
-        return lines, 'name_small'
+        return lines, small
 
-    def draw_nameplate(self, entity, rect, width):
-        lines, fnt = self.name_lines(entity.name, width)
-        jx, jy = self.motion.name_offset(entity)
-        y = rect.bottom + 14
-        for line in lines:
-            self.blit_text(line, (rect.centerx + jx, y + jy), fnt, TEXT, center=True)
-            y += self.fonts[fnt].get_linesize()
+    def draw_health_bar(self, entity, rect, width):
+        """The HP bar and numbers under a combatant's box (her name is inside the box now)."""
         bar = pygame.Rect(0, 0, width - 20, 9)
-        bar.midtop = (rect.centerx, y - 4)
+        bar.midtop = (rect.centerx, rect.bottom + 12)
         pygame.draw.rect(self.screen, (55, 50, 45), bar, border_radius=4)
         share = max(0.0, entity.health / entity.starting_health)
         color = HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
@@ -876,17 +900,16 @@ class Motion:
             if entity.enraged:    # shaking with rage
                 return Pose(random.uniform(-2.5, 2.5), random.uniform(-1.5, 1.5))
             return Pose(dy=2 * math.sin(t * 1.4))
+        if kind == 'battle_mage' and self.smacked(entity):  # her staff just smacked her name: the box jolts
+            return Pose(random.uniform(-3, 3), 3)
         return Pose(dy=1.5 * math.sin(t * 1.6))  # battle mage, hunter, sapper, anything new
 
-    def name_offset(self, entity):
-        """The Battle Mage's nameplate jolts when her staff smacks it."""
-        if class_key(entity) == 'battle_mage' and not entity.is_dead:
-            smack = self.next_play.get((id(entity), 'staff'))
-            if smack is not None and 0.22 <= (self.window.now - smack) / 1.1 < 0.32:
-                return (random.uniform(-3, 3), 3)
-        return (0, 0)
+    def smacked(self, entity):
+        """True for the moment the Battle Mage's staff lands on her own name."""
+        smack = self.next_play.get((id(entity), 'staff'))
+        return smack is not None and 0.22 <= (self.window.now - smack) / 1.1 < 0.32
 
-    def shifter_box(self, size, label, color, dead, share):
+    def shifter_box(self, size, color, share):
         """The Shifter's placeholder: triangle -> square -> trapezoid -> circle -> diamond -> star -> hexagon,
         holding each shape a moment, then melting into the next. Filled up to her HP like the other boxes."""
         w, h = size
@@ -911,8 +934,6 @@ class Motion:
             pygame.draw.polygon(fill, color, points)
             box.blit(fill, (0, h - fill_h), pygame.Rect(0, h - fill_h, w, fill_h))
         pygame.draw.polygon(box, color, points, 2)
-        text = self.window.fonts['box'].render(label.replace('_', ' '), True, TEXT)
-        box.blit(text, text.get_rect(center=(w // 2, h // 2 + 6)))
         return box
 
     def effects(self, entity, kind, rect):
@@ -921,7 +942,7 @@ class Motion:
             stab = self.playing(entity, 'stab', 5.0, 1.8)
             if stab is not None:
                 self.later.append(lambda r=rect.copy(), p=stab: self.draw_dagger(r, p))
-        elif kind == 'battle_mage':  # her battle staff smacks her own nameplate
+        elif kind == 'battle_mage':  # her battle staff smacks her own name
             smack = self.playing(entity, 'staff', 4.5, 1.1)
             if smack is not None:
                 self.later.append(lambda r=rect.copy(), p=smack: self.draw_staff(r, p))
@@ -982,7 +1003,7 @@ class Motion:
 
     def draw_staff(self, rect, p):
         pivot = (rect.right + 26, rect.y - 6)       # where the Battle Mage would be holding it
-        target = (rect.centerx, rect.bottom + 18)   # her nameplate
+        target = (rect.centerx + 14, rect.y + rect.height * 0.32)   # her name, inside her box
         hit = math.atan2(target[1] - pivot[1], target[0] - pivot[0])
         raised = hit - math.radians(150)
         length = math.dist(pivot, target) + 4
@@ -1011,7 +1032,7 @@ class Motion:
 
     def draw_stuck_arrow(self, rect, p):
         fly = 0.12
-        bull = (rect.x + rect.width * 0.58, rect.y + rect.height * 0.74)  # below the class label
+        bull = (rect.x + rect.width * 0.62, rect.y + rect.height * 0.84)  # low in the box, under her name and class
         surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         for radius, color in ((15, (240, 235, 225)), (11, (200, 50, 50)), (7, (240, 235, 225)), (3, (200, 50, 50))):
             pygame.draw.circle(surf, color, [round(v) for v in bull], radius)

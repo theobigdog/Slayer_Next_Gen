@@ -21,6 +21,8 @@ Tips:
 - Sprites stand on the bottom edge of their slot, so leave the feet at the bottom of the image.
 - Pixel art: draw it small (say 48 x 48) and tell Claude, so it gets scaled up with sharp pixels instead of smoothed.
 - Dead combatants are drawn darkened automatically; no separate art needed.
+- The name and class are written over the bottom of the sprite (with a soft shadow), so keep the
+  important bits (faces!) out of the bottom third or so.
 
 ## Fonts (`assets/fonts/`)
 
