@@ -11,11 +11,11 @@ auto_name_choices = {
 }
 
 async def get_name() -> str:
-    await say("Greetings!")
+    await say("[narr]Greetings![/]")
     name = (await ask_text(f'What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:  ')).title()
     name = await acc.check_bad_name(name)
     await say()
-    await say("Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.")
+    await say("[narr]Ooh, solid name.  I've been hosting this game for... some time... and that one's going in my top ten.  Maybe top twelve.[/]")
     return name
 
 async def print_recommended_classes(num_chars : int):
@@ -74,29 +74,29 @@ async def create_new_party(name: str) -> list:
         except ValueError:
             party_count = await ask_text("I don't think that's a proper integer.  Try again (1 - 8):  ")
     if party_count == 1:
-        await say("One?  One.  You chose One.  One....  Ok, One it is....")
+        await say("[narr]One?  One.  You chose One.  One....  Ok, One it is....[/]")
         await wait(2)
     elif party_count <= 3:
-        await say(f'{party_count}?!  Ballsy, I like it!')
+        await say(f'[narr]{party_count}?!  Ballsy, I like it![/]')
         await wait(2)
     await clear()
     await print_recommended_classes(party_count)
     await say()
     choose_composition = await yes_no("Would you like to choose the composition of your party?  ")
     if choose_composition:
-        await say("My recommendations are garbage, so take them with a grain of salt....")
+        await say("[narr]My recommendations are garbage, so take them with a grain of salt....[/]")
         await pause()
     else:
-        await say("Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear!")
-        await say("Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.") # moved up from below, so it answers the class question
+        await say("[narr]Wait... You want ME to choose for you?  Why, I'm so fucking excited, I think I need new underwear![/]")
+        await say("[narr]Fair enough.  Leave it to fate.  Fate's a drunk, but she's got good instincts.  Sometimes.[/]") # moved up from below, so it answers the class question
         await pause()
     await say()
     choose_names = await yes_no("Would you like to choose the names of your party members?  ")
     if choose_names:
-        await say("Probably a wise choice.  I'm shit at naming.")
+        await say("[narr]Probably a wise choice.  I'm shit at naming.[/]")
         await pause()
     else:
-        await say("Oh hell yes, I LOVE naming people.  Prepare to be emotionally attached, and perhaps disgusted a little bit too.")
+        await say("[narr]Oh hell yes, I LOVE naming people.  Prepare to be emotionally attached, and perhaps disgusted a little bit too.[/]")
         await pause()
     if choose_composition:
         for _ in range(party_count):
@@ -134,21 +134,21 @@ async def get_party() -> dict:
     name = await get_name()
     try:
         saved_party = acc.load_party(name)
-        await say(f"Ah yes, here you are: {name}!  The legend returns!  \nOk, are you ready to rock and ro......{whine()}\nSorry.  I'm thrilled.  Genuinely.  This is my thrilled face.")
+        await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Ok, are you ready to rock and ro......{whine()}[/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")
         return await welcome_back(saved_party)
     except FileNotFoundError:
-        await say('Hmmmm.....')
+        await say('[narr]Hmmmm.....[/]')
         await wait(1)
         name = (await ask_text("I don't recognize you, and I don't think you're on [red]The List[/].\nWhat was that name again?  ")).title()
         name = await acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)
-            await say(f"Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.")
+            await say(f"[narr]Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.[/]")
             return await welcome_back(saved_party)
         except FileNotFoundError:
-            await say("No, I've never seen you.")
+            await say("[narr]No, I've never seen you.[/]")
             await wait(2)
-            await say(f"Let's just make you a fresh party, mkay, {name}?")
+            await say(f"[narr]Let's just make you a fresh party, mkay, {name}?[/]")
             await wait(3)
             new_party = await create_new_party(name)
             await clear()

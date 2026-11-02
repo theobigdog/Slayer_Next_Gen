@@ -22,6 +22,10 @@ text, prompt and oops; with a list, one line is picked at random each time.
 Colors go inside the text as tags, so no colorama codes end up in game code:
     await say("You're not on [red]The List[/].")
 Tags: [red], [magenta], [green], [white], and [/] to go back to normal.
+[narr]...[/] is the narrator's own voice: his jokes and comments aimed at YOU, as opposed to
+what's happening in the fight. It gets its own color (cyan in the terminal, teal in the window):
+    await say(f"{heroine.name} heals {mob.name} for 6 hp.  [narr]What were you thinking?[/]")
+Don't put another tag inside a [narr] part: [/] always goes back to normal text.
 
 Which screen all of this lands on is picked once, at startup:
     ui.use(ui.TerminalUI())    # the command-prompt game
@@ -112,12 +116,13 @@ class TerminalUI:
             'magenta': Fore.MAGENTA,
             'green': Fore.GREEN + Style.BRIGHT,
             'white': Fore.WHITE + Style.BRIGHT,
+            'narr': Fore.CYAN + Style.BRIGHT,
             '/': Style.RESET_ALL,
         }
 
     def paint(self, text: str) -> str:
         """Turn [red]...[/] tags into terminal color codes."""
-        return re.sub(r'\[(red|magenta|green|white|/)\]', lambda m: self.colors[m.group(1)], text)
+        return re.sub(r'\[(red|magenta|green|white|narr|/)\]', lambda m: self.colors[m.group(1)], text)
 
     async def say(self, text=''):
         print(self.paint(text))
