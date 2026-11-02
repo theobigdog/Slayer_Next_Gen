@@ -47,8 +47,11 @@ TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 20
 TAG = re.compile(r'\[(red|magenta|green|white|/)\]')
 
 
+FANCY_NARRATION = True  # False: the narration box goes back to plain DejaVu Sans (New Rocker stays on names, headings and menus)
+
 def font(size: int, kind: str = 'regular') -> pygame.font.Font:
-    files = {'regular': 'DejaVuSans.ttf', 'bold': 'DejaVuSans-Bold.ttf', 'mono': 'DejaVuSansMono-Bold.ttf'}
+    files = {'regular': 'DejaVuSans.ttf', 'bold': 'DejaVuSans-Bold.ttf', 'mono': 'DejaVuSansMono-Bold.ttf',
+             'fancy': 'NewRocker-Regular.ttf'}
     return pygame.font.Font(ASSETS / 'fonts' / files[kind], size)
 
 
@@ -102,8 +105,10 @@ class WindowUI:
         self.clock = pygame.time.Clock()
         self.fps = headless_fps
         self.fonts = {
-            'text': font(21), 'menu': font(19), 'name': font(17, 'bold'), 'name_small': font(14, 'bold'), 'small': font(14),
-            'round': font(26, 'bold'), 'title': font(13, 'mono'), 'big': font(30, 'bold'), 'float': font(30, 'bold'),
+            'text': font(24, 'fancy') if FANCY_NARRATION else font(21),
+            'menu': font(22, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
+            'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
+            'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
@@ -454,7 +459,7 @@ class WindowUI:
         area = self.menu_area()
         self.panel(area, GOLD)
         title = {'choose': 'Choose', 'choose_target': 'Target', 'yes_no': 'Yes or no?'}[kind]
-        self.blit_text(title, (area.x + 16, area.y + 12), 'name', GOLD)
+        self.blit_text(title, (area.x + 16, area.y + 10), 'menu_title', GOLD)
         row_h = min(34, (area.height - 50) // max(1, len(labels)))
         self.buttons = []
         mouse = pygame.mouse.get_pos()
