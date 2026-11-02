@@ -172,16 +172,33 @@ def spend_token(item : dict, party_dict : dict):
             member.inv.remove(item['item'])
     party_dict['token_used'] = True
 
+MAGIC_CHANCE = 0.25 # how often a normal Token revive gets the Your Highness line (a revived Sapper always does)
+
+async def magic_motherfucker(revived : object, party : list):
+    """Ted's Easter egg: somebody can't believe it, somebody else explains."""
+    others = [x for x in party if not x.is_dead and x is not revived]
+    if not others:
+        return
+    if len(others) >= 2:
+        asker, answerer = random.sample(others, 2)
+    else:
+        asker, answerer = others[0], revived # only one other heroine up: the revived one answers herself
+    await say(f"{asker.name} stares at {revived.name} in total disbelief.  \"But... how?\"")
+    await say(f"{answerer.name} just shrugs.  \"Magic.... MotherFucker!!\"")
+
 async def token_roll(heroine : object, item : dict, chosen : object, party_dict : dict, blown_up_waiting : bool = False):
     """The gamble itself: 30% the chosen heroine comes back at half her max HP, 30% the Token takes
     the heroine using it instead, 40% it fizzles."""
     roll = acc.multi_roll(1, 100)
     if roll <= 30:
         if chosen:
+            was_in_pieces = getattr(chosen, 'blown_up', False)
             chosen.is_dead = False
             chosen.blown_up = False # even a Sapper in a billion pieces.  Because magic.
             chosen.health = max(1, round(chosen.starting_health * 0.5))
             await say(f"{heroine.name} raises the {item['item_desc']} and mutters something she definitely made up on the spot.  It WORKS.  {chosen.name} gasps back to life with {chosen.health} hp.  [narr]Holy shit![/]")
+            if was_in_pieces or random.random() < MAGIC_CHANCE:
+                await magic_motherfucker(chosen, party_dict['party'])
         elif blown_up_waiting:
             await say(f"The {item['item_desc']} glows a lovely, life-giving green...  and finds nothing in one piece to bring back.  [narr]A Sapper in a billion bits is a between-battles job, sweetie.[/]")
         else:
