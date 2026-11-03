@@ -10,8 +10,9 @@ auto_name_choices = {
     'last' : ["Wet-Nurse","Sensation","Meal-Worm","Armpit","Butthead","Doofus","Dork","Lamp","Smegma","Jerk","Monkey","Walrus","Doormat"]
 }
 
-async def get_name() -> str:
-    await say("[narr]Greetings![/]")
+async def get_name(greet : bool = True) -> str:
+    if greet:
+        await say("[narr]Greetings![/]")
     name = (await ask_text(f'[narr]What\'s your name, hero?  Assuming they gave you one.  {whine()}.  Your name, please:[/]  ')).title()
     name = await acc.check_bad_name(name)
     await say()
@@ -130,8 +131,29 @@ async def welcome_back(saved_party : dict) -> dict:
     await pause()
     return saved_party
 
+async def pick_saved_party():
+    """If there are saved parties, let the player pick one (or start someone new). None = someone new."""
+    saves = acc.saved_party_names()
+    if not saves:
+        return None
+    await say("[narr]Greetings!  Familiar faces, or fresh meat?[/]")
+    pick = await choose("[narr]Who's playing?[/]  ", saves + ['Someone new'], "[narr]One of THOSE numbers, please.[/]  ")
+    if pick == len(saves):
+        return 'new'
+    name = saves[pick]
+    try:
+        saved_party = acc.load_party(name)
+    except FileNotFoundError: # an unreadable or edited save
+        await say(f"[narr]Hmm.  {name}'s page in my book is smudged beyond reading.  We'll have to start you fresh.[/]")
+        return 'new'
+    await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")
+    return await welcome_back(saved_party)
+
 async def get_party() -> dict:
-    name = await get_name()
+    picked = await pick_saved_party()
+    if isinstance(picked, dict):
+        return picked
+    name = await get_name(greet=picked is None)
     try:
         saved_party = acc.load_party(name)
         await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Ok, are you ready to rock and ro......{whine()}[/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")

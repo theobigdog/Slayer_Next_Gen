@@ -99,7 +99,8 @@ class Button:
 class WindowUI:
     """Plays Slayer in a 1280x720 Pygame window (scaled to fit whatever window it's in)."""
 
-    chars_per_second = 260  # typewriter speed for the narration (big chunks go faster, see advance_typewriter)
+    chars_per_second = 140  # typewriter speed for the narration (a long page speeds up a little, see advance_typewriter)
+    catch_up = 2.5          # how much a long page speeds the typewriter up (it types backlog * catch_up chars a second)
 
     def __init__(self, headless_fps: int = 60):
         pygame.init()
@@ -121,6 +122,8 @@ class WindowUI:
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
         self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
+        self.read_vis = 0           # wrapped lines before this one have been seen; text never scrolls past it unread
+        self.more = False           # the box is full of unread text: 'more' until a click shows the next page
         self.waiting = None         # (kind, future, extra) while the game waits on the player
         self.waiting_since = 0.0    # when the current wait began (a double-click can't skip the next line)
         self.now = pygame.time.get_ticks() / 1000
@@ -196,14 +199,22 @@ class WindowUI:
         if event.type == pygame.MOUSEWHEEL:
             self.scroll(event.y * -3)
             return
+        clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+        enter = event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
+        if self.more and (enter or (clicked and not self.on_control(event.pos))):
+            return self.next_page()  # the box is full: a click, tap or Enter shows the next page
         if not self.waiting:
             return
         kind, future, extra = self.waiting
-        clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-        enter = event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
+        if self.more and kind in ('choose', 'choose_target', 'yes_no'):
+            return  # the question is still on the next page: read it first
 
         if kind in ('pause', 'close'):
             if (clicked or enter) and self.now - self.waiting_since > 0.15:
+                if self.total_chars() > self.page_limit():  # more than this box can hold: finish the page first
+                    self.revealed = max(self.revealed, self.page_limit())
+                    self.more = True
+                    return
                 self.revealed = self.total_chars()  # one click finishes any typing AND moves on
                 if kind == 'close':
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
@@ -249,6 +260,16 @@ class WindowUI:
             elif event.key == pygame.K_BACKSPACE:
                 self.num_buffer = ''
 
+    def on_control(self, pos):
+        return any(b.rect.collidepoint(pos) for b in self.buttons) or any(r.collidepoint(pos) for r, _ in self.targets)
+
+    def next_page(self):
+        """Show the next page of narration, keeping the last line of this one at the top for context."""
+        shown = min(self.lines_started(), self.page_end())
+        self.read_vis = max(self.read_vis + 1, shown - 1)
+        self.more = False
+        self.scroll_back = 0
+
     def pick_number(self, number):
         kind, _, extra = self.waiting
         options = extra['options']
@@ -268,7 +289,7 @@ class WindowUI:
 
     def scroll(self, lines):
         """Mouse wheel: look back at earlier lines (since the last clear). New text snaps back down."""
-        most = max(0, self.lines_started() - self.page_capacity())
+        most = max(0, min(self.lines_started(), self.page_end()) - self.page_capacity())
         self.scroll_back = max(0, min(most, self.scroll_back - lines))
 
     def number_key(self, event):
@@ -301,6 +322,7 @@ class WindowUI:
         self.buttons, self.targets = [], []
         self.num_buffer = ''
         self.mark_new = True  # whatever gets said next is a new chunk
+        self.read_vis = max(self.read_vis, min(self.lines_started(), self.page_end()))  # everything on screen has been seen
         if future and not future.done():
             future.set_result(value)
 
@@ -341,6 +363,14 @@ class WindowUI:
     def typed_out(self):
         return self.revealed >= self.total_chars()
 
+    def page_end(self):
+        """The wrapped line the box can show up to without pushing unread text off the top."""
+        return self.read_vis + self.page_capacity()
+
+    def page_limit(self):
+        """How many characters the typewriter may show before the player has to click for the next page."""
+        return sum(n for _, n, _ in self.visual_lines()[:self.page_end()])
+
     def wrap_width(self):
         """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines."""
         return (780 if self.mode in ('battle', 'party') else 740) - 40
@@ -374,10 +404,12 @@ class WindowUI:
 
     def advance_typewriter(self, dt):
         total = self.total_chars()
-        backlog = total - self.revealed
+        limit = min(total, self.page_limit())  # never past a full box of unread text
+        backlog = limit - self.revealed
         if backlog > 0:
-            speed = max(self.chars_per_second, backlog * 6)  # a big chunk of text finishes in a fraction of a second
-            self.revealed = min(total, self.revealed + speed * dt)
+            speed = max(self.chars_per_second, backlog * self.catch_up)
+            self.revealed = min(limit, self.revealed + speed * dt)
+        self.more = self.revealed >= limit and total > limit
 
     async def until_typed(self):
         while not self.typed_out():
@@ -401,6 +433,7 @@ class WindowUI:
         await self.until_typed()
         self.lines, self.revealed, self.scroll_back = [], 0.0, 0
         self.fresh_from, self.mark_new, self.echo_line = 0, False, None
+        self.read_vis, self.more = 0, False
         self.text_version += 1
         if self.mode == 'title':
             self.mode = 'text'
@@ -489,8 +522,10 @@ class WindowUI:
         elif self.mode == 'party':
             self.draw_party_lineup()
         self.draw_text_box()
-        if self.menu_open():
+        if self.menu_open() and not self.more:  # the menu shows once its question is on screen
             self.draw_menu()
+        elif self.more:
+            self.buttons, self.targets = [], []
         self.draw_floaters()
         if self.effect_overlay:
             self.effect_overlay()
@@ -509,7 +544,7 @@ class WindowUI:
         box = self.text_box()
         self.panel(box)
         vis = self.visual_lines()
-        end = max(0, self.lines_started(vis) - self.scroll_back)
+        end = max(0, min(self.lines_started(vis), self.page_end()) - self.scroll_back)
         top = max(0, end - self.page_capacity())
         if top < end - 1 and vis[top][1] == 0:
             top += 1  # a page never starts with a blank line
@@ -537,7 +572,7 @@ class WindowUI:
             pygame.draw.rect(self.screen, GOLD, field, 2, border_radius=6)
             caret = '|' if (pygame.time.get_ticks() // 500) % 2 == 0 else ' '
             self.blit_text(self.typed + caret, (field.x + 10, field.y + 6))
-        elif kind == 'yes_no':
+        elif kind == 'yes_no' and not self.more:  # the buttons show once the question is on screen
             self.buttons = []
             mouse = pygame.mouse.get_pos()
             for i, (label, value) in enumerate((('Yes  (Y)', True), ('No  (N)', False))):
@@ -547,6 +582,10 @@ class WindowUI:
                 pygame.draw.rect(self.screen, GOLD, rect, 2, border_radius=6)
                 self.blit_text(label, rect.center, 'menu', TEXT, center=True)
                 self.buttons.append(Button(rect, label, value))
+        if self.more:
+            hint = 'more  (click or Enter)'
+            lift = 56 if kind in ('text', 'yes_no') else 0  # above the typing field / Yes and No buttons
+            self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26 - lift), 'small', GOLD)
         elif kind in ('pause', 'close') and self.typed_out():
             hint = {'pause': 'click or Enter', 'close': 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
