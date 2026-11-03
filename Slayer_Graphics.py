@@ -1,9 +1,16 @@
 import Slayer_Accessory as acc
 import random
 import time
-import cursor
-from colorama import Fore, Back, Style, Cursor
-from colorama.winterm import WinTerm
+try:  # the terminal version's helpers; the browser has none of these, and only needs the letter art below
+    import cursor
+    from colorama import Fore, Back, Style, Cursor
+    from colorama.winterm import WinTerm
+except ImportError:
+    class _Codes:  # stand-ins: each color is just a unique label, which is all the window version uses them for
+        def __getattr__(self, name):
+            return f'<{name}>'
+    Fore = Back = Style = _Codes()
+    cursor = Cursor = WinTerm = None
 
 # Make coloring faster
 

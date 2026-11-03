@@ -153,6 +153,12 @@ class WindowUI:
         self.wrap_cache = (None, [])
         self.num_buffer, self.num_time = '', 0.0  # two-digit menu numbers (10, 11) being typed
         self.error = None
+        self.restart = False        # in the browser, 'The End' offers a new game instead of closing the window
+        self.touch_seen = False     # a finger touched the screen: show the on-screen keyboard for typing
+        self.kb_choice = None       # the Keyboard button's choice: None = automatic (on after a touch)
+        self.caps = True            # the on-screen keyboard's next letter is a capital
+        self.key_rects = []         # (rect, key) for the on-screen keyboard
+        self.kb_button = None       # the Keyboard button in the typing field
 
     # ---------- the frame loop -------------------------------------------------
 
@@ -171,6 +177,9 @@ class WindowUI:
                     pygame.quit()
                     return
                 self.handle(event)
+            if self.restart:
+                task.cancel()
+                return 'restart'  # main.py starts a fresh game (the browser has no window to close)
             self.advance_typewriter(dt)
             self.commit_number_if_done()
             if task.done() and self.mode != 'end':
@@ -204,6 +213,9 @@ class WindowUI:
         if event.type == pygame.MOUSEWHEEL:
             self.scroll(event.y * -3)
             return
+        if event.type == pygame.FINGERDOWN:
+            self.touch_seen = True  # a phone or tablet: typing gets the on-screen keyboard (the tap itself arrives as a click)
+            return
         clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
         enter = event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
         if self.more and (enter or (clicked and not self.on_control(event.pos))):
@@ -222,12 +234,22 @@ class WindowUI:
                     return
                 self.revealed = self.total_chars()  # one click finishes any typing AND moves on
                 if kind == 'close':
-                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+                    if IN_BROWSER:
+                        self.restart = True
+                    else:
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
                 else:
                     self.resolve(None)
             return
 
         if kind == 'text':
+            if clicked and self.kb_button and self.kb_button.collidepoint(event.pos):
+                self.kb_choice = not self.keyboard_on()  # the Keyboard button shows or hides it
+                return
+            if clicked and self.keyboard_on():
+                for rect, key in self.key_rects:
+                    if rect.collidepoint(event.pos):
+                        return self.press_key(key)
             if clicked:
                 for rect, name in (self.list_rects if self.list_open else []):
                     if rect.collidepoint(event.pos):
@@ -273,6 +295,23 @@ class WindowUI:
                         self.commit_number()
             elif event.key == pygame.K_BACKSPACE:
                 self.num_buffer = ''
+
+    def keyboard_on(self):
+        """The on-screen keyboard shows while typing, after a touch (or when the Keyboard button says so)."""
+        wanted = self.kb_choice if self.kb_choice is not None else self.touch_seen
+        return bool(wanted) and bool(self.waiting) and self.waiting[0] == 'text'
+
+    def press_key(self, key):
+        if key == 'ENTER':
+            return self.resolve(self.typed)
+        if key == 'BACK':
+            self.typed = self.typed[:-1]
+        elif key == 'SHIFT':
+            self.caps = not self.caps
+        elif len(self.typed) < 40:
+            char = ' ' if key == 'SPACE' else (key.upper() if self.caps else key.lower())
+            self.typed += char
+            self.caps = char == ' '  # capital after a space, like a phone does for names
 
     def on_control(self, pos):
         return any(b.rect.collidepoint(pos) for b in self.buttons) or any(r.collidepoint(pos) for r, _ in self.targets)
@@ -405,7 +444,40 @@ class WindowUI:
         room = self.text_box().height - 30
         if self.waiting and self.waiting[0] in ('text', 'yes_no'):
             room -= 56  # leave space for the typing field / the Yes and No buttons at the bottom of the box
+        if self.keyboard_on():
+            room -= self.keyboard_rect().height + 8
         return max(1, room // self.line_h)
+
+    KB_ROWS = ['1234567890', 'QWERTYUIOP', "ASDFGHJKL'", 'ZXCVBNM-.!']
+    KB_KEY_H, KB_GAP = 50, 6
+
+    def keyboard_rect(self):
+        box = self.text_box()
+        height = 5 * self.KB_KEY_H + 4 * self.KB_GAP
+        return pygame.Rect(box.x + 20, box.bottom - 14 - height, box.width - 40, height)
+
+    def draw_keyboard(self):
+        kb = self.keyboard_rect()
+        gap, key_h = self.KB_GAP, self.KB_KEY_H
+        key_w = (kb.width - 9 * gap) / 10
+        self.key_rects = []
+        rows = [[(ch, 1) for ch in row] for row in self.KB_ROWS]
+        rows.append([('SHIFT', 1.5), ('SPACE', 5), ('BACK', 1.5), ('ENTER', 2)])
+        labels = {'SHIFT': 'Shift', 'SPACE': 'Space', 'BACK': 'Back', 'ENTER': 'Enter'}
+        mouse = pygame.mouse.get_pos()
+        for r, row in enumerate(rows):
+            total = sum(w * key_w + (w - 1) * gap for _, w in row) + (len(row) - 1) * gap
+            x = kb.x + (kb.width - total) / 2
+            y = kb.y + r * (key_h + gap)
+            for key, w in row:
+                rect = pygame.Rect(round(x), y, round(w * key_w + (w - 1) * gap), key_h)
+                lit = rect.collidepoint(mouse) or (key == 'SHIFT' and self.caps)
+                pygame.draw.rect(self.screen, (66, 56, 46) if lit else (40, 35, 30), rect, border_radius=6)
+                pygame.draw.rect(self.screen, PANEL_EDGE, rect, 1, border_radius=6)
+                text = labels.get(key) or (key if self.caps or not key.isalpha() else key.lower())
+                self.blit_text(text, rect.center, 'menu', TEXT, center=True)
+                self.key_rects.append((rect, key))
+                x += w * key_w + w * gap
 
     def lines_started(self, vis=None):
         """How many wrapped lines the typewriter has reached so far."""
@@ -475,6 +547,7 @@ class WindowUI:
     async def ask_text(self, prompt):
         self.add_prompt(prompt)
         self.typed = ''
+        self.caps = True
         pygame.key.start_text_input()
         try:
             answer = await self.wait_for('text')
@@ -593,9 +666,19 @@ class WindowUI:
             y += self.line_h
         kind = self.waiting[0] if self.waiting else None
         if kind == 'text':
-            field = pygame.Rect(box.x + 20, box.bottom - 52, box.width - 40, 38)
+            keyboard = self.keyboard_on()
+            bottom = self.keyboard_rect().top - 8 if keyboard else box.bottom - 14
+            field = pygame.Rect(box.x + 20, bottom - 38, box.width - 40, 38)
             pygame.draw.rect(self.screen, BG, field, border_radius=6)
             pygame.draw.rect(self.screen, GOLD, field, 2, border_radius=6)
+            label = 'Hide keyboard' if keyboard else 'Keyboard'  # for tablets (and remote desktop): tap to type with the screen
+            width = self.fonts['small'].size(label)[0] + 20
+            self.kb_button = pygame.Rect(field.right - width - 6, field.y + 6, width, field.height - 12)
+            pygame.draw.rect(self.screen, (40, 35, 30), self.kb_button, border_radius=5)
+            pygame.draw.rect(self.screen, PANEL_EDGE, self.kb_button, 1, border_radius=5)
+            self.blit_text(label, self.kb_button.center, 'small', GOLD, center=True)
+            if keyboard:
+                self.draw_keyboard()
             caret = '|' if (pygame.time.get_ticks() // 500) % 2 == 0 else ' '
             self.blit_text(self.typed + caret, (field.x + 10, field.y + 6))
         elif kind == 'yes_no' and not self.more:  # the buttons show once the question is on screen
@@ -613,13 +696,15 @@ class WindowUI:
             lift = 56 if kind in ('text', 'yes_no') else 0  # above the typing field / Yes and No buttons
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26 - lift), 'small', GOLD)
         elif kind in ('pause', 'close') and self.typed_out():
-            hint = {'pause': 'click or Enter', 'close': 'click to close'}[kind]
+            hint = {'pause': 'click or Enter', 'close': 'click to play again' if IN_BROWSER else 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
 
     def draw_the_list(self):
         """The List: every saved party, newest first. Clicking a name types it in."""
         area = self.menu_area()
         area.height -= 66  # stops above the typing field
+        if self.keyboard_on():
+            area.height = self.keyboard_rect().top - 60 - area.y  # and above the on-screen keyboard
         self.panel(area, LIST_RED)
         self.blit_text('The List', (area.x + 16, area.y + 10), 'menu_title', LIST_RED)
         self.list_rects = []
