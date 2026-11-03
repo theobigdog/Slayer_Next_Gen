@@ -44,8 +44,10 @@ HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
 DAMAGE_RED = (255, 72, 60)
 HEAL_BLUE = (90, 170, 255)
 TAG_COLORS = {'red': (240, 70, 70), 'magenta': (200, 110, 200), 'green': (90, 200, 90), 'white': (255, 255, 255),
-              'gold': (212, 166, 64), 'narr': (122, 200, 222)}  # narr: the narrator talking to you, in its own color
-TAG = re.compile(r'\[(red|magenta|green|white|gold|narr|/)\]')
+              'gold': (212, 166, 64), 'narr': (122, 200, 222),  # narr: the narrator talking to you, in its own color
+              'thelist': (240, 70, 71)}  # The List: looks red, and clicking it shows every saved party
+LIST_RED = TAG_COLORS['thelist']
+TAG = re.compile(r'\[(red|magenta|green|white|gold|narr|thelist|/)\]')
 DIM_OLDER_TEXT = True  # text from before your last click is drawn a little dimmer, so the new part stands out
 
 
@@ -124,6 +126,9 @@ class WindowUI:
         self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
         self.read_vis = 0           # wrapped lines before this one have been seen; text never scrolls past it unread
         self.more = False           # the box is full of unread text: 'more' until a click shows the next page
+        self.links = []             # (rect, what) for clickable words in the narration (The List)
+        self.list_open = False      # The List's panel of saved parties is showing
+        self.list_rects = []        # (rect, name) rows in that panel
         self.waiting = None         # (kind, future, extra) while the game waits on the player
         self.waiting_since = 0.0    # when the current wait began (a double-click can't skip the next line)
         self.now = pygame.time.get_ticks() / 1000
@@ -223,6 +228,15 @@ class WindowUI:
             return
 
         if kind == 'text':
+            if clicked:
+                for rect, name in (self.list_rects if self.list_open else []):
+                    if rect.collidepoint(event.pos):
+                        self.typed, self.list_open = name, False  # a saved name, typed in for you
+                        return
+                if any(rect.collidepoint(event.pos) for rect, _ in self.links):
+                    self.list_open = not self.list_open
+                    return
+                self.list_open = False
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                     self.resolve(self.typed)
@@ -310,7 +324,7 @@ class WindowUI:
         kind, _, extra = self.waiting
         if kind in ('choose', 'choose_target'):
             label = self.menu_labels[extra['options'].index(value)]
-            self.echo(label.replace('  (recharging)', ''))
+            self.echo(label.replace('  (recharging)', '').partition('\t')[0])
         elif kind == 'yes_no':
             self.echo('Yes' if value else 'No')
         self.buttons, self.targets = [], []
@@ -322,6 +336,7 @@ class WindowUI:
         self.buttons, self.targets = [], []
         self.num_buffer = ''
         self.mark_new = True  # whatever gets said next is a new chunk
+        self.list_open = False
         self.read_vis = max(self.read_vis, min(self.lines_started(), self.page_end()))  # everything on screen has been seen
         if future and not future.done():
             future.set_result(value)
@@ -434,6 +449,7 @@ class WindowUI:
         self.lines, self.revealed, self.scroll_back = [], 0.0, 0
         self.fresh_from, self.mark_new, self.echo_line = 0, False, None
         self.read_vis, self.more = 0, False
+        self.list_open, self.links = False, []
         self.text_version += 1
         if self.mode == 'title':
             self.mode = 'text'
@@ -522,6 +538,8 @@ class WindowUI:
         elif self.mode == 'party':
             self.draw_party_lineup()
         self.draw_text_box()
+        if self.list_open and self.waiting and self.waiting[0] == 'text':
+            self.draw_the_list()
         if self.menu_open() and not self.more:  # the menu shows once its question is on screen
             self.draw_menu()
         elif self.more:
@@ -550,6 +568,8 @@ class WindowUI:
             top += 1  # a page never starts with a blank line
         budget = self.revealed - sum(n for _, n, _ in vis[:top])
         y = box.y + 16
+        self.links = []
+        mouse = pygame.mouse.get_pos()
         for runs, n, number in vis[top:end]:
             if budget <= 0:
                 break
@@ -559,10 +579,16 @@ class WindowUI:
                 shown = chunk[:max(0, int(budget))]
                 budget -= len(chunk)
                 if shown:
+                    link = color == LIST_RED
                     if older:
                         color = tuple(int(c * 0.62 + b * 0.38) for c, b in zip(color, BG))
                     surf = self.fonts['text'].render(shown, True, color)
                     self.screen.blit(surf, (x, y))
+                    if link:
+                        rect = surf.get_rect(topleft=(x, y))
+                        self.links.append((rect, 'the list'))
+                        if rect.collidepoint(mouse):  # a hint that it's clickable, only while hovering
+                            pygame.draw.line(self.screen, color, (rect.x, rect.bottom - 3), (rect.right, rect.bottom - 3), 1)
                     x += surf.get_width()
             y += self.line_h
         kind = self.waiting[0] if self.waiting else None
@@ -589,6 +615,23 @@ class WindowUI:
         elif kind in ('pause', 'close') and self.typed_out():
             hint = {'pause': 'click or Enter', 'close': 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
+
+    def draw_the_list(self):
+        """The List: every saved party, newest first. Clicking a name types it in."""
+        area = self.menu_area()
+        area.height -= 66  # stops above the typing field
+        self.panel(area, LIST_RED)
+        self.blit_text('The List', (area.x + 16, area.y + 10), 'menu_title', LIST_RED)
+        self.list_rects = []
+        names = acc.saved_party_names()
+        if not names:
+            self.blit_text('Nobody yet.', (area.x + 16, area.y + 50), 'menu', DIM)
+        mouse = pygame.mouse.get_pos()
+        for i, name in enumerate(names[:(area.height - 50) // 34]):
+            rect = pygame.Rect(area.x + 10, area.y + 44 + i * 34, area.width - 20, 30)
+            pygame.draw.rect(self.screen, (58, 50, 42) if rect.collidepoint(mouse) else (40, 35, 30), rect, border_radius=6)
+            self.blit_text(name, (rect.x + 10, rect.y + 3), 'menu', TEXT)
+            self.list_rects.append((rect, name))
 
     def draw_menu(self):
         kind, _, extra = self.waiting
@@ -619,26 +662,41 @@ class WindowUI:
 
     def draw_menu_label(self, rect, key, label):
         """One menu row: its number, then the label in the biggest size that fits. A special weapon
-        that's recharging is red and crossed out, with 'Recharging' after it."""
+        that's recharging is red and crossed out, with 'Recharging' after it. A label with a tab in it
+        ('Xena  (Warrior)\tbag 4/6') keeps the part after the tab on the right edge, always whole:
+        a long name gets trimmed instead."""
         recharging = label.endswith('  (recharging)')
         base = label.replace('  (recharging)', '')
+        base, _, side = base.partition('\t')
         room = rect.width - 16
         for name in ('menu', 'menu_s', 'menu_xs'):
             fnt = self.fonts[name]
-            parts = [(f'{key}   ', TEXT, False), (base, (220, 80, 70) if recharging else TEXT, recharging)]
-            if recharging:
-                parts.append(('   Recharging', GOLD, False))
-            if sum(fnt.size(t)[0] for t, _, _ in parts) <= room:
+            tail = [('   Recharging', GOLD)] if recharging else []
+            if side:
+                tail.append(('   ' + side, (200, 186, 150)))
+            needed = fnt.size(f'{key}   ' + base)[0] + sum(fnt.size(t)[0] for t, _ in tail)
+            if needed <= room:
                 break
         x, y = rect.x + 8, rect.centery - fnt.get_height() // 2
-        for text, color, strike in parts:
-            while fnt.size(text)[0] > rect.right - 8 - x and len(text) > 4:
-                text = text[:-4] + '...'
-            surf = fnt.render(text, True, color)
+        tail_w = sum(fnt.size(t)[0] for t, _ in tail)
+        number = fnt.render(f'{key}   ', True, TEXT)
+        self.screen.blit(number, (x, y))
+        x += number.get_width()
+        text = base
+        while fnt.size(text)[0] > rect.right - 8 - tail_w - x and len(text) > 4:
+            text = text[:-4].rstrip() + '...'  # trim the name, never the tail
+        color = (220, 80, 70) if recharging else TEXT
+        surf = fnt.render(text, True, color)
+        self.screen.blit(surf, (x, y))
+        if recharging:
+            pygame.draw.line(self.screen, color, (x, rect.centery + 1), (x + surf.get_width(), rect.centery + 1), 2)
+        x += surf.get_width()
+        if recharging:
+            surf = fnt.render(tail[0][0], True, tail[0][1])
             self.screen.blit(surf, (x, y))
-            if strike:
-                pygame.draw.line(self.screen, color, (x, rect.centery + 1), (x + surf.get_width(), rect.centery + 1), 2)
-            x += surf.get_width()
+        if side:
+            surf = fnt.render(tail[-1][0], True, tail[-1][1])
+            self.screen.blit(surf, (rect.right - 8 - surf.get_width(), y))  # right edge
 
     # battle scene
 

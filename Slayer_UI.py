@@ -122,12 +122,13 @@ class TerminalUI:
             'green': Fore.GREEN + Style.BRIGHT,
             'white': Fore.WHITE + Style.BRIGHT,
             'narr': Fore.CYAN + Style.BRIGHT,
+            'thelist': Fore.RED + Style.BRIGHT,  # The List: red, and clickable in the window
             '/': Style.RESET_ALL,
         }
 
     def paint(self, text: str) -> str:
         """Turn [red]...[/] tags into terminal color codes."""
-        return re.sub(r'\[(red|magenta|green|white|narr|/)\]', lambda m: self.colors[m.group(1)], text)
+        return re.sub(r'\[(red|magenta|green|white|narr|thelist|/)\]', lambda m: self.colors[m.group(1)], text)
 
     async def say(self, text=''):
         print(self.paint(text))
@@ -151,7 +152,7 @@ class TerminalUI:
 
     async def choose(self, prompt, labels, oops):
         for number, label in enumerate(labels, start=1):
-            print(self.paint(f'{number}:  {label}'))
+            print(self.paint(f'{number}:  {label}'.replace('\t', '  ')))  # the window puts the part after a tab on the right edge
         return await self._read_number(prompt, len(labels), oops) - 1
 
     async def choose_target(self, prompt, party, mobs, oops):

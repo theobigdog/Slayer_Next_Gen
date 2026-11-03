@@ -304,13 +304,14 @@ def slot_label(heroine : object, kind : str) -> str:
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
 def describe_item(item : dict, left : int = None) -> str:
-    """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (+5 luck)', 'Fire Bomb (15 - 25 damage, 2 uses)'."""
+    """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket)', 'Fire Bomb (15 - 25 damage, 2 uses)'.
+    Stat bonuses (+5 luck, -5 dodge) stay behind the scenes, like the stats themselves; dev mode shows them."""
     desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
-    bonus = ', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus']))
+    bonus = ', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus'])) if dev_mode() else ''
     if item['attack_type'] == 'hail_mary':
         return f'{desc} (hail mary)'
     if item['attack_type'] == 'trinket':
-        return f'{desc} ({bonus})'
+        return f"{desc} ({bonus or 'trinket'})"
     what = f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing'
     if item['uses']:
         what += f", {item['uses']} uses" if left is None else f", {left} left"
@@ -360,9 +361,23 @@ def remove_item(heroine : object, item_name : str):
 def drop_item(heroine : object, item_name : str):
     remove_item(heroine, item_name)
 
+STASH_SIZES = {1: 10, 2: 18, 3: 24, 4: 28, 5: 34, 6: 38, 7: 44, 8: 50} # Ted's table: stash capacity by party size
+
+def stash_capacity(party_dict : dict) -> int:
+    return STASH_SIZES.get(len(party_dict['party']), max(STASH_SIZES.values()))
+
+def stash_has_room(party_dict : dict) -> bool:
+    return len(party_dict.setdefault('stash', [])) < stash_capacity(party_dict)
+
+def stash_label(party_dict : dict) -> str:
+    return f"{len(party_dict.setdefault('stash', []))}/{stash_capacity(party_dict)}"
+
 def stash_item(party_dict : dict, heroine : object, item_name : str):
     uses = remove_item(heroine, item_name)
     party_dict.setdefault('stash', []).append({'item': item_name, 'uses': uses})
+
+def stash_new(party_dict : dict, item : dict):
+    party_dict.setdefault('stash', []).append({'item': item['item'], 'uses': item['uses']})
 
 def use_up(heroine : object, item_name : str):
     """She just used a consumable: one less use, and it's gone at zero."""
@@ -384,21 +399,24 @@ def has_room(heroine : object, item : dict) -> bool:
         return True # tops up what she has
     return kind == 'none' or len(carried(heroine, kind)) < slots(heroine, kind)
 
-async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern : bool):
-    """Her slot for this item is full: swap something out. Returns 'done', 'stashed' (the new item went to
-    the stash instead) or 'back' (pick someone else)."""
+async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern : bool, new_can_stash : bool = True):
+    """Her slot for this item is full: swap something out. At the tavern her old one goes to the stash (if it
+    has room); otherwise it's dropped for good. Returns 'done', 'stashed' (the new item went to the stash
+    instead) or 'back' (pick someone else)."""
     from Slayer_UI import choose
     kind = slot_kind(item)
     hers = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
-    verb = 'Stash' if at_tavern else 'Drop'
+    to_stash = at_tavern and stash_has_room(party_dict)
+    verb = 'Stash' if to_stash else 'Drop'
     labels = [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers]
-    extra = [f"Put {item['item_desc']} in the stash instead"] if at_tavern else []
-    prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?  " if kind != 'potion'
-              else f"{heroine.name} already has a potion.  Swap it for {item['item_desc']}?  ")
+    extra = [f"Put {item['item_desc']} in the stash instead"] if to_stash and new_can_stash else []
+    full = '' if to_stash or not at_tavern else f"  (The stash is full too: {stash_label(party_dict)}.)"
+    prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?{full}  " if kind != 'potion'
+              else f"{heroine.name} already has a potion.  Swap it for {item['item_desc']}?{full}  ")
     out = await choose(prompt, labels + extra + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
     if out < len(hers):
         old = get_item(hers[out])
-        if at_tavern:
+        if to_stash:
             stash_item(party_dict, heroine, hers[out])
             await say(f"[narr]Into the stash: {old['item_desc']}.[/]")
         else:
@@ -417,20 +435,20 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
     kind = slot_kind(item)
     label = describe_item(item)
     if not able:
-        if at_tavern:
-            party_dict.setdefault('stash', []).append({'item': item['item'], 'uses': item['uses']})
+        if at_tavern and stash_has_room(party_dict):
+            stash_new(party_dict, item)
             await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it goes in the stash for later.[/]")
         else:
             await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it stays on the floor.[/]")
         return
     await say(f"From {source}: {label}.")
     while True:
-        names = [f"{x.name}  ({class_label(x.hero_class)}, {slot_label(x, kind)})" for x in able]
-        extra = ['Put it in the stash'] if at_tavern else []
+        names = [f"{x.name}  ({class_label(x.hero_class)})\t{slot_label(x, kind)}" for x in able]
+        extra = [f"Put it in the stash\tstash {stash_label(party_dict)}"] if at_tavern and stash_has_room(party_dict) else []
         pick = await choose(f"Who gets {item['item_desc']}?  ", names + extra + ['Leave it behind'], "One of THOSE numbers, please:  ")
         if pick >= len(able):
             if extra and pick == len(able):
-                party_dict.setdefault('stash', []).append({'item': item['item'], 'uses': item['uses']})
+                stash_new(party_dict, item)
                 await say(f"[narr]{item['item_desc']} goes in the stash.[/]")
             else:
                 await say(f"[narr]Fine.  {item['item_desc']} stays on the floor.  Somebody's gonna trip on that.[/]")
@@ -441,7 +459,7 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
             if result == 'back':
                 continue
             if result == 'stashed':
-                party_dict.setdefault('stash', []).append({'item': item['item'], 'uses': item['uses']})
+                stash_new(party_dict, item)
                 await say(f"[narr]{item['item_desc']} goes in the stash.[/]")
                 return
         await say(add_item(who, item))
@@ -473,54 +491,59 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
     await pause()
     return party_dict
 
+def who_can_use(item : dict) -> str:
+    from ast import literal_eval
+    classes = literal_eval(item['classes'])
+    return 'anyone' if all(c in classes for c in get_hero_classes()) else ', '.join(class_label(c) for c in classes)
+
 async def visit_stash(party_dict : dict) -> dict:
-    """Happy's back room, before the dungeon: move gear between the heroines and the party's stash."""
+    """Happy's back room, before the dungeon: gear up a heroine from the stash (only what she can use is
+    shown), put things in, or look through the whole thing."""
     from Slayer_UI import choose
     party = party_dict['party']
     party_dict.setdefault('stash', [])
     await say("\n[narr]Happy unlocks his back room, where your stash lives.  Last chance to swap gear before heading down.[/]")
     while True:
         stash = party_dict['stash']
-        what = await choose(f"The stash has {len(stash)} thing{'s' if len(stash) != 1 else ''} in it.  What'll it be?  ",
-                            ['Take something out of the stash', 'Put something in the stash', "Done, let's go"], "One of THOSE numbers, please:  ")
-        if what == 2:
+        what = await choose(f"The stash: {stash_label(party_dict)}.  What'll it be?  ",
+                            ['Gear up a heroine', 'Put something in the stash', 'Look through the whole stash', "Done, let's go"],
+                            "One of THOSE numbers, please:  ")
+        if what == 3:
             return party_dict
-        if what == 0:
+        if what == 2:
             if not stash:
                 await say("[narr]It's empty.  Just dust and a sad sock.[/]")
+            for entry in stash:
+                item = get_item(entry['item'])
+                await say(f"  {describe_item(item, entry['uses'])}:  {who_can_use(item)}")
+            continue
+        names = [f"{x.name}  ({class_label(x.hero_class)})" for x in party]
+        who_pick = await choose("Gear up who?  " if what == 0 else "Whose gear goes in?  ", names + ['Never mind'], "One of THOSE numbers, please:  ")
+        if who_pick == len(party):
+            continue
+        who = party[who_pick]
+        if what == 0:
+            hers = [entry for entry in stash if can_use(who, get_item(entry['item']))]
+            if not hers:
+                await say(f"[narr]Nothing in there {who.name} can use.[/]")
                 continue
-            labels = [describe_item(get_item(entry['item']), entry['uses']) for entry in stash]
-            pick = await choose("Take out which one?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
-            if pick == len(stash):
+            labels = [f"{describe_item(get_item(e['item']), e['uses'])}\t{slot_label(who, slot_kind(get_item(e['item'])))}" for e in hers]
+            pick = await choose(f"What does {who.name} take?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
+            if pick == len(hers):
                 continue
-            entry = stash[pick]
+            entry = hers[pick]
             item = get_item(entry['item'])
-            able = [heroine for heroine in party if can_use(heroine, item)]
-            if not able:
-                await say(f"[narr]Nobody in this party can use {item['item_desc']}.  It stays put.[/]")
-                continue
-            kind = slot_kind(item)
-            names = [f"{x.name}  ({class_label(x.hero_class)}, {slot_label(x, kind)})" for x in able]
-            who_pick = await choose(f"Who gets {item['item_desc']}?  ", names + ['Never mind'], "One of THOSE numbers, please:  ")
-            if who_pick == len(able):
-                continue
-            who = able[who_pick]
+            stash.remove(entry) # out of the stash first, so a swap can put her old one in its place
             if not has_room(who, item):
-                stash.remove(entry) # out of the stash first, so a swap can put her old one in its place
-                result = await make_room(who, item, party_dict, True)
+                result = await make_room(who, item, party_dict, True, new_can_stash=False)
                 if result != 'done':
                     stash.append(entry) # changed her mind: it goes back
                     continue
-                await say(add_item(who, item, entry['uses']))
-                continue
-            stash.remove(entry)
             await say(add_item(who, item, entry['uses']))
         else:
-            names = [f"{x.name}  ({class_label(x.hero_class)})" for x in party]
-            who_pick = await choose("Whose gear goes in?  ", names + ['Never mind'], "One of THOSE numbers, please:  ")
-            if who_pick == len(party):
+            if not stash_has_room(party_dict):
+                await say(f"[narr]The stash is stuffed ({stash_label(party_dict)}).  Take something out first.[/]")
                 continue
-            who = party[who_pick]
             hers = [x for x in who.inv if slot_kind(get_item(x)) != 'none']
             if not hers:
                 await say(f"[narr]{who.name} has nothing to put in.[/]")
@@ -533,7 +556,8 @@ async def visit_stash(party_dict : dict) -> dict:
             await say(f"[narr]Into the stash: {get_item(hers[pick])['item_desc']}.[/]")
 
 # ---------- stat bonuses after a fight ------------------------------------------
-# Every heroine (dead, alive or blown to bits) improves 1-4 stats by 1-3 points each, plus 1-3 max HP.
+# Every heroine (dead, alive or blown to bits) improves 1-4 stats by 1-3 points each, plus some max HP
+# (hp_low to hp_high in stat_growth.csv: Warrior 2-4 ... Witch and Sapper 1-2).
 # Which stats: every stat has a base chance, times her class leaning (stat_growth.csv: 1 = normal,
 # 2-3 = leans that way, 0.5 = rarely), times a bonus for what she did this fight (her tally).
 # Gains shrink as a stat gets high, and nothing goes past 95% (fear goes DOWN, to no lower than 5).
@@ -602,7 +626,8 @@ def improve_heroine(heroine : object) -> dict:
         stat = random.choices(list(weights), list(weights.values()))[0]
         del weights[stat] # four different stats at most
         changes[stat] = grow_stat(heroine, stat)
-    hp = random.randint(1, 3)
+    growth = find_row(stat_growth_table, 'hero_class', heroine.hero_class)
+    hp = random.randint(int(growth['hp_low']), int(growth['hp_high'])) # by class: Warriors beef up faster than Witches
     heroine.starting_health += hp
     heroine.health = min(heroine.starting_health, heroine.health + hp)
     changes['max_hp'] = hp

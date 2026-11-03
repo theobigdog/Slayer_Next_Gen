@@ -131,29 +131,16 @@ async def welcome_back(saved_party : dict) -> dict:
     await pause()
     return saved_party
 
-async def pick_saved_party():
-    """If there are saved parties, let the player pick one (or start someone new). None = someone new."""
-    saves = acc.saved_party_names()
-    if not saves:
-        return None
-    await say("[narr]Greetings!  Familiar faces, or fresh meat?[/]")
-    pick = await choose("[narr]Who's playing?[/]  ", saves + ['Someone new'], "[narr]One of THOSE numbers, please.[/]  ")
-    if pick == len(saves):
-        return 'new'
-    name = saves[pick]
-    try:
-        saved_party = acc.load_party(name)
-    except FileNotFoundError: # an unreadable or edited save
-        await say(f"[narr]Hmm.  {name}'s page in my book is smudged beyond reading.  We'll have to start you fresh.[/]")
-        return 'new'
-    await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")
-    return await welcome_back(saved_party)
+async def show_the_list():
+    """The List: every saved party's name (typing "the list" at the prompt, or clicking it in the window)."""
+    names = acc.saved_party_names()
+    if names:
+        await say(f"[narr]Fiiine.  Here's The List:[/]  {',  '.join(names)}")
+    else:
+        await say("[narr]The List is empty.  Nobody's on it.  Not even you.  Especially not you.[/]")
 
 async def get_party() -> dict:
-    picked = await pick_saved_party()
-    if isinstance(picked, dict):
-        return picked
-    name = await get_name(greet=picked is None)
+    name = await get_name()
     try:
         saved_party = acc.load_party(name)
         await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Ok, are you ready to rock and ro......{whine()}[/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")
@@ -161,7 +148,10 @@ async def get_party() -> dict:
     except FileNotFoundError:
         await say('[narr]Hmmmm.....[/]')
         await wait(1)
-        name = (await ask_text("[narr]I don't recognize you, and I don't think you're on [/][red]The List[/][narr].[/]\n[narr]What was that name again?[/]  ")).title()
+        name = (await ask_text("[narr]I don't recognize you, and I don't think you're on [/][thelist]The List[/][narr].[/]\n[narr]What was that name again?[/]  ")).title()
+        while name.strip().lower() in ('the list', 'list'): # the secret way to see every saved party (in the window, click The List)
+            await show_the_list()
+            name = (await ask_text("[narr]So.  Which one are you?[/]  ")).title()
         name = await acc.check_bad_name(name)
         try:
             saved_party = acc.load_party(name)

@@ -255,7 +255,8 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     """An area attack from a heroine: it hits every mob still standing (see AOE_RULES for Big Badda Boom's extras)."""
     rules = {**DEFAULT_AOE, **AOE_RULES.get(item['item'], {})}
     party = party_dict['party']
-    power = acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult']
+    crit = heroine_rolls['crit_mult'] # one crit for the whole blast; the damage itself is rolled for each target
+    roll = lambda: acc.multi_roll(item['damage_low'], item['damage_high']) * crit
     tally(heroine, 'attacks')
     if heroine_rolls['crit_mult'] > 1:
         tally(heroine, 'crits')
@@ -276,6 +277,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         if not rules['unavoidable'] and mob_rolls['dodge'] and not heroine_rolls['expertise']:
             await say(f"  {mob.name} dives out of the way!")
             continue
+        power = roll()
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
         damage = int(min(damage, mob.health))
         update_health(mob, damage)
@@ -288,7 +290,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         share = rules['party_share'].get(position(member), 0)
         if not share:
             continue
-        damage = power * share
+        damage = roll() * share
         if get_heroine_rolls(member)['toughness']:
             damage *= 1 - rules['tough_cut']
         damage = int(min(damage, member.health))
@@ -508,7 +510,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     """A mob's area attack (Happy's Regurgitation): it hits every heroine still standing. Each one can
     dodge it (if her dodge beats its expertise), and toughness halves it, like any attack. No parrying vomit."""
     party = party_dict['party']
-    power = acc.multi_roll(item['damage_low'], item['damage_high']) * mob_rolls['crit_mult']
+    crit = mob_rolls['crit_mult'] # one crit for the whole spray; the damage itself is rolled for each heroine
     if item['item'] == 'vomit':
         await say(f"{mob.name} doubles over, gurgles, and sprays {item['item_desc']} across the whole party!  [narr]Oh god.  The SMELL.[/]")
     else:
@@ -527,6 +529,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
         tally(heroine, 'hits_taken')
         if rolls['toughness']:
             tally(heroine, 'toughs')
+        power = acc.multi_roll(item['damage_low'], item['damage_high']) * crit
         damage = int(power / 2) if rolls['toughness'] else int(power)
         damage = min(damage, heroine.health)
         update_health(heroine, damage)
