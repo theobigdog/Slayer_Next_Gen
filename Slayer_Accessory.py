@@ -244,28 +244,36 @@ def item_specific_wipe_taunts() -> list:
         "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
     ]
 
-# Loot that only one heroine can carry at a time, and that jumps to a random heroine every dungeon run.
-ROAMING_LOOT = {'happys_norovirus_regurgitation'} # only one of them has norovirus at any time
+# Afflictions: "loot" that isn't a prize. A mob gives it to one random heroine, she's stuck with it for the
+# rest of that dungeon run (and can use it as an attack), and it clears up when the next run starts.
+AFFLICTIONS = {
+    'happys_norovirus_regurgitation': {
+        'caught': "{mob} leans in close and coughs right in {who}'s face.  [narr]Aaaand {who} has caught Happy's norovirus.  She's stuck with it for the rest of this run, but hey, now she can puke on people too.[/]",
+        'cured': "[narr]Good news: {who}'s norovirus finally cleared up.[/]",
+    },
+}
 
 async def get_loot(mob : object, party_dict : dict) -> dict:
     """A mob's loot: every row of items.csv whose source is that mob's class (e.g. 'Disgruntled Dwarf').
     The player picks who carries each piece, from the heroines whose class is in its classes list.
-    Roaming loot (the norovirus) goes to a random heroine instead. A piece the party already has isn't handed out again."""
+    An affliction (the norovirus) goes to one random heroine instead, for the rest of the run."""
     from ast import literal_eval
     from Slayer_UI import choose_target
     party = party_dict['party']
     for item in [row for row in items_table if row['source'] == mob.mob_class]:
-        carrier = next((heroine for heroine in party if item['item'] in heroine.inv), None)
-        if carrier:
-            await say(f"[narr]{mob.name} pats his pockets for another {item['item_desc']}, then remembers {carrier.name} already has one.[/]")
-            continue
         able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
         if not able:
             continue
-        if item['item'] in ROAMING_LOOT:
+        if item['item'] in AFFLICTIONS:
+            for heroine in party: # only ever one of them has it
+                if item['item'] in heroine.inv:
+                    heroine.inv.remove(item['item'])
             who = random.choice(able)
             who.inv.append(item['item'])
-            await say(f"{mob.name} leans in close and coughs right in {who.name}'s face.  [narr]Congratulations!  {who.name} has norovirus, and {item['item_desc']} is hers to share.[/]")
+            await say(AFFLICTIONS[item['item']]['caught'].format(mob=mob.name, who=who.name))
+            continue
+        carrier = next((heroine for heroine in party if item['item'] in heroine.inv), None)
+        if carrier: # a one-of-a-kind piece the party already has
             continue
         await say(f"{mob.name} hands over a little something for the road:  {item['item_desc']}.")
         who = able[0] if len(able) == 1 else await choose_target(
@@ -297,24 +305,14 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
     return party_dict
 
 async def start_new_run(party_dict : dict) -> dict:
-    """The start of a new dungeon run: refresh_party, then the norovirus (and any other roaming loot)
-    jumps to a random heroine."""
-    from ast import literal_eval
+    """The start of a new dungeon run: refresh_party, and any affliction from last run (the norovirus)
+    clears up. Happy hands out a fresh one after the tavern fight."""
     party_dict = refresh_party(party_dict, True)
-    party = party_dict['party']
-    for item_name in ROAMING_LOOT:
-        carriers = [heroine for heroine in party if item_name in heroine.inv]
-        if not carriers:
-            continue
-        item = get_item(item_name)
-        for heroine in carriers:
-            heroine.inv.remove(item_name)
-        who = random.choice([heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])])
-        who.inv.append(item_name)
-        if who in carriers:
-            await say(f"[narr]{who.name} STILL has norovirus.  Gross.  {item['item_desc']} stays with her this run.[/]")
-        else:
-            await say(f"[narr]Fun fact: {who.name} woke up this run with a raging case of norovirus.  {item['item_desc']} is hers now.[/]")
+    for heroine in party_dict['party']:
+        for item_name, lines in AFFLICTIONS.items():
+            if item_name in heroine.inv:
+                heroine.inv.remove(item_name)
+                await say(lines['cured'].format(who=heroine.name))
     return party_dict
 
 def restore_starting_items(heroine : object):
