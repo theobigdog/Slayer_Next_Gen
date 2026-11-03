@@ -31,13 +31,13 @@ class Disgruntled_Dwarf:
         await say("[narr]I wonder the same thing!![/]")
         await pause()
 
-    async def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool) -> dict:
+    async def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool, mobs : list = ()) -> dict:
         if happy_killed:
             await say('Add Immortal Happy -> wipes the party anyway narration')
         else:
             await say('Add wipe narration here')
         await say('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
-        party_dict = await acc.get_loot(self, party_dict)
+        party_dict = await acc.get_loot(self, party_dict, mobs) # Happy's loot, plus whatever his dead buddies dropped
         await say('Add specific Happy narration here for get stat increases, to explain how it works even, maybe?  Actual stats will never be shown, just set and updated in the background, so nothing should actually print from this function when finished.')
         await say('1 idea:  "Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!')
         await say('Don\'t ask me who improved in what, or by how much.')

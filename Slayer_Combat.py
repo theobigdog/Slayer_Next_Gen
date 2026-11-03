@@ -50,9 +50,9 @@ def get_heroine_rolls(heroine: object) -> dict:
     else:
         roll_results['crit_mult'] = 1 # if not a crit, multiplier is 1
     for stat in ['hit', 'luck', 'expertise', 'toughness', 'dodge', 'parry', 'fear']:
-        roll_results[stat] = acc.roll_percent(heroine_stats[stat])
-    roll_results['heal'] = acc.roll_percent(heroine_stats['heal_chance'])
-    roll_results['aoe_heal'] = acc.roll_percent(heroine_stats['aoe_heal_chance'])
+        roll_results[stat] = acc.roll_percent(heroine_stats[stat] + acc.stat_bonus(heroine, stat)) # trinkets add their bonus
+    roll_results['heal'] = acc.roll_percent(heroine_stats['heal_chance'] + acc.stat_bonus(heroine, 'heal_chance'))
+    roll_results['aoe_heal'] = acc.roll_percent(heroine_stats['aoe_heal_chance'] + acc.stat_bonus(heroine, 'aoe_heal_chance'))
     return roll_results
 
 def get_mob_rolls(mob: object) -> dict:
@@ -93,17 +93,8 @@ async def check_last_cleric(fallen : list, party : list):
     if clerics_fell and not clerics_left and any(not x.is_dead for x in party):
         await say(LAST_CLERIC_LINES)
 
-def item_label(item_name : str) -> str: # one line of the item menu
-    data = acc.get_item(item_name)
-    desc = data['item_desc']
-    low = data['damage_low']
-    high = data['damage_high']
-    if data['attack_type'] == 'hail_mary':
-        return f'{desc} (hail mary)'
-    if low >= 0:
-        return f'{desc} ({low} - {high} damage)'
-    else:
-        return f'{desc} ({-1 * high} - {-1 * low} healing)'
+def item_label(item_name : str, heroine : object = None) -> str: # one line of the item menu
+    return acc.describe_item(acc.get_item(item_name), acc.uses_left(heroine, item_name) if heroine else None)
 
 async def get_target_choice(mobs : list, party : list, healing : bool = False) -> object:
     living_party = [x for x in party if not x.is_dead]
@@ -160,7 +151,7 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
             await target.healed_by(heroine)
         return (party_dict, mobs, False) # healing a mob never earns the luck roll
 
-    if not heroine_rolls['heal']:
+    if not heroine_rolls['heal'] and not item['uses']: # potions and the like always work: you just drink them
         await say(f"{heroine.name} tries to heal {'herself' if heroine == target else target.name}, but does a piss-poor job and just ends up wasting her turn.  [narr]Doh![/]")
         await pause()
         return (party_dict, mobs, False)
@@ -383,7 +374,7 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
 async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if heroine.is_dead:
         return (party_dict, mobs, False)
-    inv = heroine.inv
+    inv = [x for x in heroine.inv if acc.get_item(x)['attack_type'] != 'trinket'] # trinkets just ride along in the bag
     inv_len = len(inv)
     if inv_len < 1:
         await say(f"[narr]{heroine.name} has no inventory, so I guess she's skipping this turn...[/]")
@@ -391,7 +382,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
         return (party_dict, mobs, False)
     await say(f"\n{heroine.name}'s turn:")
     spent = getattr(heroine, 'spent_specials', [])
-    item_labels = [item_label(item) + ('  (recharging)' if item in spent else '') for item in inv]
+    item_labels = [item_label(item, heroine) + ('  (recharging)' if item in spent else '') for item in inv]
     while True:
         if inv_len > 1:
             item_choice = await choose( # lists the items, keeps asking until the pick is valid
@@ -412,6 +403,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
             return (party_dict, mobs, False)
 
     item = acc.get_item(inv[item_choice])
+    acc.use_up(heroine, item['item']) # one less use, for a consumable
     if item['special']:
         heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss
     item_attack_type = item['attack_type']

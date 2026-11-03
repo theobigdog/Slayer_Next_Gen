@@ -116,7 +116,7 @@ async def play_game(party_dict: dict) -> dict:
             await combat.show_current_status(party_dict['party'], mobs, round_num)
             await pause()
     if party_dict['wiped']:
-        party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead)
+        party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
         party_dict = acc.refresh_party(party_dict, False)
 
     return party_dict

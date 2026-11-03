@@ -1,4 +1,5 @@
 import random
+import re
 import csv
 import json
 import zlib
@@ -254,33 +255,138 @@ AFFLICTIONS = {
     },
 }
 
-async def get_loot(mob : object, party_dict : dict) -> dict:
-    """A mob's loot: every row of items.csv whose source is that mob's class (e.g. 'Disgruntled Dwarf').
-    The player picks who carries each piece, from the heroines whose class is in its classes list.
-    An affliction (the norovirus) goes to one random heroine instead, for the rest of the run."""
+# ---------- loot and the bag ---------------------------------------------------
+# Loot comes from items.csv: a row whose source is a mob's class is in that mob's loot table, and its
+# drop_chance (%) is rolled for each one of those mobs that died. Happy hands his over after the tavern.
+# Each heroine's bag holds BAG_SIZE items. The Token and afflictions don't count. Loot is kept across runs
+# and through wipes. A full bag means dropping something (starting gear too), and dropped is gone for good.
+# Consumables (a uses number) get used up; finding another tops up the uses. Trinkets (attack_type trinket)
+# can't be used in a fight: they give their bonus (e.g. luck+5) while she carries them.
+BAG_SIZE = 6
+MAX_STACK = 2 # a consumable tops up to at most twice its uses
+
+def not_in_bag(item_name : str) -> bool:
+    return item_name == 'token_of_the_wise_witch' or item_name in AFFLICTIONS
+
+def bag(heroine : object) -> list:
+    """What counts against her 6: what she's carrying, plus starting gear that's only gone for this run
+    (a used Big Badda Boom) and comes back next run."""
+    dropped = getattr(heroine, 'dropped', [])
+    pending = [item for item in heroine.starting_inv if item not in heroine.inv and item not in dropped]
+    return [item for item in heroine.inv + pending if not not_in_bag(item)]
+
+def describe_item(item : dict, left : int = None) -> str:
+    """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (+5 luck)', 'Fire Bomb (15 - 25 damage, 2 left)'."""
+    desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
+    if item['attack_type'] == 'hail_mary':
+        return f'{desc} (hail mary)'
+    if item['attack_type'] == 'trinket':
+        return f"{desc} ({', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus']))})"
+    what = f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing'
+    if item['uses']:
+        what += f", {item['uses']} uses" if left is None else f", {left} left"
+    return f'{desc} ({what})'
+
+def parse_bonus(bonus) -> list:
+    """'luck+5 dodge+2' -> [('luck', '+', 5), ('dodge', '+', 2)]"""
+    return [(stat, sign, int(amount)) for stat, sign, amount in re.findall(r'(\w+)([+-])(\d+)', bonus or '')]
+
+def stat_bonus(heroine : object, stat : str) -> int:
+    """What her trinkets add to one stat right now."""
+    total = 0
+    for item_name in heroine.inv:
+        item = get_item(item_name)
+        if item['attack_type'] == 'trinket':
+            total += sum(amount if sign == '+' else -amount for name, sign, amount in parse_bonus(item['bonus']) if name == stat)
+    return total
+
+def uses_left(heroine : object, item_name : str):
+    return getattr(heroine, 'uses', {}).get(item_name)
+
+def add_item(heroine : object, item : dict) -> str:
+    """Put a found item in her bag (room already checked). Returns what happened, for the narration."""
+    heroine.uses = getattr(heroine, 'uses', {})
+    if item['uses'] and item['item'] in heroine.inv:
+        heroine.uses[item['item']] = min(item['uses'] * MAX_STACK, heroine.uses.get(item['item'], 0) + item['uses'])
+        return f"[narr]Topped up: {heroine.name} now has {heroine.uses[item['item']]} uses of {item['item_desc']}.[/]"
+    heroine.inv.append(item['item'])
+    if item['uses']:
+        heroine.uses[item['item']] = item['uses']
+    return f"[narr]{heroine.name} takes {item['item_desc']}.[/]"
+
+def drop_item(heroine : object, item_name : str):
+    """Gone for good, starting gear included (it won't come back next run)."""
+    if item_name in heroine.inv:
+        heroine.inv.remove(item_name)
+    if item_name in heroine.starting_inv:
+        heroine.dropped = getattr(heroine, 'dropped', []) + [item_name]
+    getattr(heroine, 'uses', {}).pop(item_name, None)
+
+def use_up(heroine : object, item_name : str):
+    """She just used a consumable: one less use, and it's gone at zero."""
+    left = uses_left(heroine, item_name)
+    if left is None:
+        return
+    heroine.uses[item_name] = left - 1
+    if left - 1 <= 0:
+        heroine.inv.remove(item_name)
+        del heroine.uses[item_name]
+
+async def give_loot(item : dict, source : str, party : list):
+    """One piece of loot: the player picks who gets it (or leaves it), and makes room if her bag is full."""
     from ast import literal_eval
-    from Slayer_UI import choose_target
+    from Slayer_UI import choose
+    able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
+    label = describe_item(item)
+    if not able:
+        await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it stays on the floor.[/]")
+        return
+    await say(f"From {source}: {label}.")
+    while True:
+        names = [f"{x.name}  ({class_label(x.hero_class)}, bag {len(bag(x))}/{BAG_SIZE})" for x in able]
+        pick = await choose(f"Who gets {item['item_desc']}?  ", names + ['Leave it behind'], "One of THOSE numbers, please:  ")
+        if pick == len(able):
+            await say(f"[narr]Fine.  {item['item_desc']} stays on the floor.  Somebody's gonna trip on that.[/]")
+            return
+        who = able[pick]
+        if (item['uses'] and item['item'] in who.inv) or len(bag(who)) < BAG_SIZE:
+            await say(add_item(who, item))
+            return
+        droppable = [x for x in who.inv if not not_in_bag(x)]
+        labels = [describe_item(get_item(x), uses_left(who, x)) for x in droppable]
+        out = await choose(f"{who.name}'s bag is full.  Drop something to make room for {item['item_desc']}?  ",
+                           labels + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
+        if out == len(droppable):
+            continue
+        drop_item(who, droppable[out])
+        await say(f"[narr]{who.name} tosses her {get_item(droppable[out])['item_desc']}.[/]")
+        await say(add_item(who, item))
+        return
+
+async def get_loot(mob : object, party_dict : dict, others : list = ()) -> dict:
+    """After a fight: mob (here, Happy) hands over his loot, and every one of the others that died drops
+    theirs, each piece rolled against its drop_chance. An affliction (the norovirus) goes to one random
+    heroine for the rest of the run instead."""
+    from ast import literal_eval
     party = party_dict['party']
-    for item in [row for row in items_table if row['source'] == mob.mob_class]:
-        able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
-        if not able:
-            continue
-        if item['item'] in AFFLICTIONS:
-            for heroine in party: # only ever one of them has it
-                if item['item'] in heroine.inv:
-                    heroine.inv.remove(item['item'])
-            who = random.choice(able)
-            who.inv.append(item['item'])
-            await say(AFFLICTIONS[item['item']]['caught'].format(mob=mob.name, who=who.name))
-            continue
-        carrier = next((heroine for heroine in party if item['item'] in heroine.inv), None)
-        if carrier: # a one-of-a-kind piece the party already has
-            continue
-        await say(f"{mob.name} hands over a little something for the road:  {item['item_desc']}.")
-        who = able[0] if len(able) == 1 else await choose_target(
-            f"Who gets to carry {item['item_desc']}?  ", able, [], "One of THOSE numbers, please:  ")
-        who.inv.append(item['item'])
-        await say(f"[narr]{who.name} is now the proud owner of {item['item_desc']}.  Lucky her.[/]")
+    found = []
+    for source in [mob] + [m for m in others if m is not mob and m.is_dead]:
+        for item in [row for row in items_table if row['source'] == source.mob_class]:
+            if item['item'] in AFFLICTIONS:
+                able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
+                for heroine in party: # only ever one of them has it
+                    if item['item'] in heroine.inv:
+                        heroine.inv.remove(item['item'])
+                if able:
+                    who = random.choice(able)
+                    who.inv.append(item['item'])
+                    await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
+            elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
+                found.append((item, source.name))
+    if found:
+        await say(f"\n[narr]Loot!  Let's see what's on the floor.[/]")
+    for item, source in found:
+        await give_loot(item, source, party)
     await pause()
     return party_dict
 
@@ -406,10 +512,19 @@ async def start_new_run(party_dict : dict) -> dict:
     return party_dict
 
 def restore_starting_items(heroine : object):
-    """Every dungeon run starts with the full starting kit (the Token included); anything else she's carrying stays."""
+    """Every dungeon run gives back the starting gear that was only used up (the Token, Big Badda Boom),
+    not anything she dropped. Everything else she's carrying stays. Safety net: if she's left with nothing
+    to fight with but the Token and a bandage, her first starting weapon comes back."""
+    dropped = getattr(heroine, 'dropped', [])
     for position, item in enumerate(heroine.starting_inv):
-        if item not in heroine.inv:
+        if item not in heroine.inv and item not in dropped:
             heroine.inv.insert(min(position, len(heroine.inv)), item)
+    fighting = [x for x in heroine.inv if get_item(x)['attack_type'] not in ('hail_mary', 'trinket') and x != 'plain_bandage']
+    if not fighting:
+        backup = next((x for x in heroine.starting_inv if get_item(x)['attack_type'] not in ('hail_mary', 'trinket') and x != 'plain_bandage'), None)
+        if backup:
+            heroine.inv.append(backup)
+            heroine.dropped = [x for x in dropped if x != backup]
 
 def wipe_party(party_dict : dict) -> dict:
     party_dict['wiped'] = True
