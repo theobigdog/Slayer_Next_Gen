@@ -6,7 +6,7 @@ import base64
 import hmac
 import sys
 from pathlib import Path
-import Slayer_UI as ui
+from Slayer_UI import say, wait, pause, ask_text
 
 
 whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls", "I haven't had a day off since the Third Age, but sure, let's go", "I'm running on four hours of sleep and pure spite, but for YOU? Anything", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
@@ -59,13 +59,16 @@ def dev_mode() -> bool:
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 
+def class_label(hero_class : str) -> str:
+    return hero_class.replace('_', ' ') # 'Battle_Mage' is the code's name for her; players see 'Battle Mage'
+
 async def end(full = False):
-    await ui.say()
-    await ui.say("The End.")
+    await say()
+    await say("The End.")
     if full:
         pass # TO Do - full ending
-    await ui.say()
-    await ui.say()
+    await say()
+    await say()
     sys.exit()
 
 def multi_roll(low_range : int, high_range : int) -> int:
@@ -89,10 +92,10 @@ def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine. 
     }
 
 async def print_classes():
-    await ui.say('Class Options:')
-    await ui.say()
+    await say('Class Options:')
+    await say()
     for hero_class in get_hero_classes():
-        await ui.say(hero_class)
+        await say(class_label(hero_class))
 
 def party_to_data(party_dict : dict) -> dict:
     """The party as plain data (text, numbers, lists, dicts) that JSON can store.
@@ -146,9 +149,9 @@ async def save_party(party : dict):
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
     with open(save_dir / f"{name}.sav", 'w', encoding='ascii') as f:
         f.write(scramble(json.dumps(party_to_data(party))))
-    await ui.say(f"Your party has been saved as {name}.")
-    await ui.say(f"Keep track of this saved name if you want to recover your party: {name}")
-    await ui.pause()
+    await say(f"Your party has been saved as {name}.")
+    await say(f"Keep track of this saved name if you want to recover your party: {name}")
+    await pause()
 
 def load_party(name : str) -> dict:
     with open(save_dir / f'{name.title()}.sav', encoding='ascii') as f: # a missing save raises FileNotFoundError, which get_party relies on
@@ -159,34 +162,34 @@ def whine() -> str:
 
 async def print_player_starting_summary(party : list):
     for dudette in party:
-        await ui.say(f"{dudette.name}:  {dudette.hero_class}")
-        await ui.say('Inventory:  ')
+        await say(f"{dudette.name}:  {class_label(dudette.hero_class)}")
+        await say('Inventory:  ')
         for inv_item in dudette.inv:
-            await ui.say(get_item(inv_item)['item_desc'])
-        await ui.say(f"Starting Health: {int(round(dudette.starting_health, 0))}")
-        await ui.say()
-    await ui.pause()
+            await say(get_item(inv_item)['item_desc'])
+        await say(f"Starting Health: {int(round(dudette.starting_health, 0))}")
+        await say()
+    await pause()
 
 async def check_bad_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        await ui.say('No.')
-        await ui.wait(2)
+        await say('[narr]No.[/]')
+        await wait(2)
         if name.upper() in db:
-            name = (await ui.ask_text(f'No, Bubba!  {whine()}.  Try again!  ')).title().strip()
+            name = (await ask_text(f'[narr]No, Bubba!  {whine()}.  Try again![/]  ')).title().strip()
         else:
-            name = (await ui.ask_text(f"Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.  ")).title().strip()
+            name = (await ask_text(f"[narr]Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.[/]  ")).title().strip()
     return name
 
 async def check_bad_heroine_name(name : str) -> str:
     name = name.strip()
     while name.upper() in db or name == '':
-        await ui.say('Nope.')
-        await ui.wait(2)
+        await say('[narr]Nope.[/]')
+        await wait(2)
         if name.upper() in db:
-            name = (await ui.ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.  ")).strip()
+            name = (await ask_text(f"[narr]Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.[/]  ")).strip()
         else:
-            name = (await ui.ask_text(f"Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.  ")).strip()
+            name = (await ask_text(f"[narr]Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.[/]  ")).strip()
     return name
 
 def get_items() -> list:
@@ -235,30 +238,88 @@ def generic_wipe_taunts() -> list:
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\nJesus Christ, what a CUNT!!",
-        "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\nI hope you come back and teach these bitches a lesson!!",
-        "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\nNow was that really necessary.  Don't take their shit!!",
-        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\nDon't let them get away with that.  Come back and take them down next time!!",
+        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\n[narr]Jesus Christ, what a CUNT!![/]",
+        "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\n[narr]I hope you come back and teach these bitches a lesson!![/]",
+        "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\n[narr]Now was that really necessary.  Don't take their shit!![/]",
+        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
     ]
 
+# Afflictions: "loot" that isn't a prize. A mob gives it to one random heroine, she's stuck with it for the
+# rest of that dungeon run (and can use it as an attack), and it clears up when the next run starts.
+AFFLICTIONS = {
+    'happys_norovirus_regurgitation': {
+        'caught': "{mob} leans in close and coughs right in {who}'s face.  [narr]Aaaand {who} has caught Happy's norovirus.  She's stuck with it for the rest of this run, but hey, now she can puke on people too.[/]",
+        'cured': "[narr]Good news: {who}'s norovirus finally cleared up.[/]",
+    },
+}
+
 async def get_loot(mob : object, party_dict : dict) -> dict:
-    await ui.say('Add looting process here, per party member, from specific mob loot-tables in the items.csv')
-    await ui.pause()
+    """A mob's loot: every row of items.csv whose source is that mob's class (e.g. 'Disgruntled Dwarf').
+    The player picks who carries each piece, from the heroines whose class is in its classes list.
+    An affliction (the norovirus) goes to one random heroine instead, for the rest of the run."""
+    from ast import literal_eval
+    from Slayer_UI import choose_target
+    party = party_dict['party']
+    for item in [row for row in items_table if row['source'] == mob.mob_class]:
+        able = [heroine for heroine in party if heroine.hero_class in literal_eval(item['classes'])]
+        if not able:
+            continue
+        if item['item'] in AFFLICTIONS:
+            for heroine in party: # only ever one of them has it
+                if item['item'] in heroine.inv:
+                    heroine.inv.remove(item['item'])
+            who = random.choice(able)
+            who.inv.append(item['item'])
+            await say(AFFLICTIONS[item['item']]['caught'].format(mob=mob.name, who=who.name))
+            continue
+        carrier = next((heroine for heroine in party if item['item'] in heroine.inv), None)
+        if carrier: # a one-of-a-kind piece the party already has
+            continue
+        await say(f"{mob.name} hands over a little something for the road:  {item['item_desc']}.")
+        who = able[0] if len(able) == 1 else await choose_target(
+            f"Who gets to carry {item['item_desc']}?  ", able, [], "One of THOSE numbers, please:  ")
+        who.inv.append(item['item'])
+        await say(f"[narr]{who.name} is now the proud owner of {item['item_desc']}.  Lucky her.[/]")
+    await pause()
     return party_dict
 
 async def get_stat_increases(party_dict : dict) -> dict:
-    await ui.say('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
-    await ui.pause()
+    await say('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
+    await pause()
     return party_dict
 
 def refresh_party(party_dict : dict, increment : bool) -> dict:
+    """A fresh start: everyone alive at full health with her full starting kit (the Token and Big Badda Boom
+    included), and a blown-up Sapper back in one piece. A wipe is a full dungeon restart, so it gets this too.
+    increment=True also counts a new dungeon run (loading a saved party). The tavern wipe doesn't bump the
+    counter, since the dungeon proper hasn't started yet."""
     if increment:
         party_dict['times_run_dungeon'] += 1
+    party_dict['token_used'] = False
     party_dict['wiped'] = False
     for heroine in party_dict['party']:
+        restore_starting_items(heroine)
         heroine.is_dead = False
+        heroine.blown_up = False
         heroine.health = heroine.starting_health
     return party_dict
+
+async def start_new_run(party_dict : dict) -> dict:
+    """The start of a new dungeon run: refresh_party, and any affliction from last run (the norovirus)
+    clears up. Happy hands out a fresh one after the tavern fight."""
+    party_dict = refresh_party(party_dict, True)
+    for heroine in party_dict['party']:
+        for item_name, lines in AFFLICTIONS.items():
+            if item_name in heroine.inv:
+                heroine.inv.remove(item_name)
+                await say(lines['cured'].format(who=heroine.name))
+    return party_dict
+
+def restore_starting_items(heroine : object):
+    """Every dungeon run starts with the full starting kit (the Token included); anything else she's carrying stays."""
+    for position, item in enumerate(heroine.starting_inv):
+        if item not in heroine.inv:
+            heroine.inv.insert(min(position, len(heroine.inv)), item)
 
 def wipe_party(party_dict : dict) -> dict:
     party_dict['wiped'] = True

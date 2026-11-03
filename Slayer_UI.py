@@ -1,31 +1,36 @@
 """Slayer_UI: the one place the game talks to the player.
 
 Game code never calls print(), input(), pause(), cls() or time.sleep() directly.
-It calls these instead, and every one of them is awaited:
+It imports what it needs from here (from Slayer_UI import say, pause, ...) and awaits it:
 
-    await ui.say("Muffy slams Gassy for 8 hp.")       # print a line
-    await ui.wait(0.5)                                 # dramatic pause (was time.sleep)
-    await ui.pause()                                   # wait for Enter / a click
-    await ui.clear()                                   # clear the screen (was cls)
-    index = await ui.choose(prompt, labels, oops)      # pick from a numbered list
-    target = await ui.choose_target(prompt, party, mobs, oops)
-    answer = await ui.yes_no(prompt)                   # True / False
-    text = await ui.ask_text(prompt)                   # free typing (names, numbers)
-    await ui.show_battle(party, mobs, round_num)       # the round status screen
-    await ui.show_party(party)                         # the party lineup
-    await ui.title_screen()                            # the SLAYER opening
-    await ui.loser_banner()                            # the LOSER banner
+    await say("Muffy slams Gassy for 8 hp.")          # print a line
+    await wait(0.5)                                    # dramatic pause (was time.sleep)
+    await pause()                                      # wait for Enter / a click
+    await clear()                                      # clear the screen (was cls)
+    index = await choose(prompt, labels, oops)         # pick from a numbered list
+    target = await choose_target(prompt, party, mobs, oops)
+    answer = await yes_no(prompt)                      # True / False
+    text = await ask_text(prompt)                      # free typing (names, numbers)
+    await show_battle(party, mobs, round_num)          # the round status screen
+    await show_party(party)                            # the party lineup
+    await title_screen()                               # the SLAYER opening
+    await loser_banner()                               # the LOSER banner
+    await effect('boom')                               # a quick flash: 'boom' = the Big Badda Boom keg
 
 say(), choose() and choose_target() take one line or a list of lines for the
 text, prompt and oops; with a list, one line is picked at random each time.
 
 Colors go inside the text as tags, so no colorama codes end up in game code:
-    await ui.say("You're not on [red]The List[/].")
+    await say("You're not on [red]The List[/].")
 Tags: [red], [magenta], [green], [white], and [/] to go back to normal.
+[narr]...[/] is the narrator's own voice: his jokes and comments aimed at YOU, as opposed to
+what's happening in the fight. It gets its own color (cyan in the terminal, teal in the window):
+    await say(f"{heroine.name} heals {mob.name} for 6 hp.  [narr]What were you thinking?[/]")
+Don't put another tag inside a [narr] part: [/] always goes back to normal text.
 
 Which screen all of this lands on is picked once, at startup:
     ui.use(ui.TerminalUI())    # the command-prompt game
-    ui.use(WindowUI())         # the Pygame window (coming later)
+    ui.use(WindowUI())         # the Pygame window (Slayer_Window.py, started by main.py)
 """
 import asyncio
 import random
@@ -80,6 +85,10 @@ async def title_screen():
 async def loser_banner():
     await _backend.loser_banner()
 
+async def effect(name: str):
+    """A short visual effect, e.g. 'boom' (the keg before a Big Badda Boom)."""
+    await _backend.effect(name)
+
 
 def _or_default(oops):
     if oops is None:
@@ -112,12 +121,13 @@ class TerminalUI:
             'magenta': Fore.MAGENTA,
             'green': Fore.GREEN + Style.BRIGHT,
             'white': Fore.WHITE + Style.BRIGHT,
+            'narr': Fore.CYAN + Style.BRIGHT,
             '/': Style.RESET_ALL,
         }
 
     def paint(self, text: str) -> str:
         """Turn [red]...[/] tags into terminal color codes."""
-        return re.sub(r'\[(red|magenta|green|white|/)\]', lambda m: self.colors[m.group(1)], text)
+        return re.sub(r'\[(red|magenta|green|white|narr|/)\]', lambda m: self.colors[m.group(1)], text)
 
     async def say(self, text=''):
         print(self.paint(text))
@@ -188,7 +198,7 @@ class TerminalUI:
     async def show_party(self, party):
         print()
         for heroine in party:
-            print(f"{heroine.name}:  {heroine.hero_class}, {self.health_text(heroine)}")
+            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}")
 
     async def show_battle(self, party, mobs, round_num):
         await self.clear()
@@ -212,3 +222,10 @@ class TerminalUI:
     async def loser_banner(self):
         import Slayer_Graphics
         Slayer_Graphics.loser_banner()
+
+    async def effect(self, name):
+        if name == 'boom':  # a little ASCII keg with its fuse lit
+            print(self.paint('[red]          *  ~~~\\[/]'))
+            for row in ('       .---------.', '      (  [red]T N T[/]  )', '      |`---------\'|', '      |  [red]T N T[/]  |', '       `---------\''):
+                print(self.paint(row))
+            await asyncio.sleep(0.8)
