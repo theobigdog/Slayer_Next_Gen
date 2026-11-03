@@ -26,9 +26,17 @@ def position(heroine : object) -> str:
     Warrior, Shifter, Battle Mage and Sapper are melee; Hunter, Witch and Cleric are ranged."""
     return 'range' if heroine.attack_style == 'range' else 'melee' # older saves have the Warrior as 'both': still melee
 
+def tally(heroine : object, what : str):
+    """Count something she did (or had done to her) this fight; the stat bonuses afterward lean toward it.
+    what: attacks, crits, heals, hits_taken, dodges, parries, toughs, scared, lucky."""
+    if not getattr(heroine, 'is_mob', True):
+        heroine.fight_tally = getattr(heroine, 'fight_tally', {})
+        heroine.fight_tally[what] = heroine.fight_tally.get(what, 0) + 1
+
 def start_battle(party : list):
-    """Reset what only lasts one battle: each heroine's special weapons are ready again."""
+    """Reset what only lasts one battle: each heroine's special weapons are ready again, and her tally is empty."""
     for heroine in party:
+        heroine.fight_tally = {} # what she did this fight (see tally)
         heroine.spent_specials = [] # special weapons she's already used this battle (a list, so saves can store it)
 
 async def show_current_status(party: list, mobs: list, round_num: int):
@@ -123,6 +131,7 @@ async def get_target_choice(mobs : list, party : list, healing : bool = False) -
 async def get_heal_outcome(heroine : object, item : dict, target : object, party_dict : dict, mobs : list, heroine_rolls : dict, heal_w_crit_mult : float) -> tuple:
     """Every heal, whoever it's aimed at. The amount uses the healer's own class crit
     multiplier (no flat doubling) and never goes past the target's max HP."""
+    tally(heroine, 'heals')
     healing = -int(heal_w_crit_mult) # heal items have negative damage numbers, so flip the sign
     missing_hp = target.starting_health - target.health
     if healing > missing_hp:
@@ -256,6 +265,9 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     rules = {**DEFAULT_AOE, **AOE_RULES.get(item['item'], {})}
     party = party_dict['party']
     power = acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult']
+    tally(heroine, 'attacks')
+    if heroine_rolls['crit_mult'] > 1:
+        tally(heroine, 'crits')
     if rules['once_per_run'] and item['item'] in heroine.inv:
         heroine.inv.remove(item['item']) # back in her kit next dungeon run
     if rules['blows_up_user']:
@@ -329,9 +341,11 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         if target.health <= damage:
             damage = target.health
         if mob_rolls['scare'] and heroine_rolls['fear']:
+            tally(heroine, 'scared')
             await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  [narr]Honestly?  Fair.  That's a lost turn, though.[/]")
             await pause()
             return (party_dict, mobs, False)
+        tally(heroine, 'attacks') # a whiff still counts as practice
         if not heroine_rolls['hit']:
             await say(f"[narr]Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.[/]")
             await pause()
@@ -341,6 +355,8 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             await pause()
             return (party_dict, mobs, False)
         target = update_health(target, damage)
+        if is_crit:
+            tally(heroine, 'crits')
         if mob_rolls['dodge']: # it dodged, but her expertise beat it
             await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} hp.")
         else:
@@ -513,8 +529,12 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     for heroine in [x for x in party if not x.is_dead]:
         rolls = get_heroine_rolls(heroine)
         if rolls['dodge'] and not mob_rolls['expertise']:
+            tally(heroine, 'dodges')
             await say(f"  {heroine.name} ducks out of the way!")
             continue
+        tally(heroine, 'hits_taken')
+        if rolls['toughness']:
+            tally(heroine, 'toughs')
         damage = int(power / 2) if rolls['toughness'] else int(power)
         damage = min(damage, heroine.health)
         update_health(heroine, damage)
@@ -572,10 +592,16 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 await pause()
                 return (party_dict, mobs, False)
             if target_rolls['dodge'] and not mob_rolls['expertise']:
+                tally(target, 'dodges')
                 await say(f"[narr]HELL YES![/]  {target.name} dodges {mob.name}'s attack like a goddamn ninja!")
                 await pause()
                 return (party_dict, mobs, False)
             target = update_health(target, damage)
+            tally(target, 'hits_taken')
+            if tough:
+                tally(target, 'toughs')
+            if parry:
+                tally(target, 'parries')
             if target_rolls['dodge']: # she tried to dodge, but its expertise beat her
                 await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for {damage} hp.")
             else:

@@ -90,6 +90,7 @@ async def play_game(party_dict: dict) -> dict:
                 if not attacker.is_mob: # player's turn with the given heroine
                     party_dict, mobs, luck_roll = await combat.player_turn(attacker, party_dict, mobs)
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs): #  Intentionally, this does not loop, only one lucky attack per round ;)
+                        combat.tally(attacker, 'lucky')
                         await say(f"[narr]{attacker.name}'s lucky fuckin' day![/]  She gets an extra turn.  [narr]Make it count![/]")
                         await pause()
                         await combat.show_current_status(party_dict['party'], mobs, round_num)

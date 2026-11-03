@@ -52,6 +52,7 @@ items_table = read_table('items.csv')
 hero_stats_table = read_table('hero_stats.csv')
 mobs_table = read_table('mobs.csv')
 mob_equipment_table = read_table('mob_equipment.csv')
+stat_growth_table = read_table('stat_growth.csv')
 
 def dev_mode() -> bool:
     return True
@@ -283,9 +284,98 @@ async def get_loot(mob : object, party_dict : dict) -> dict:
     await pause()
     return party_dict
 
+# ---------- stat bonuses after a fight ------------------------------------------
+# Every heroine (dead, alive or blown to bits) improves 1-4 stats by 1-3 points each, plus 1-3 max HP.
+# Which stats: every stat has a base chance, times her class leaning (stat_growth.csv: 1 = normal,
+# 2-3 = leans that way, 0.5 = rarely), times a bonus for what she did this fight (her tally).
+# Gains shrink as a stat gets high, and nothing goes past 95% (fear goes DOWN, to no lower than 5).
+# Players never see the numbers, just the odd hint; dev mode prints them all.
+GROWTH_STATS = ['hit', 'crit_chance', 'crit_mult', 'luck', 'expertise', 'toughness', 'dodge', 'parry', 'fear', 'heal_chance', 'aoe_heal_chance']
+DOING = { # what she did -> the stats it helps
+    'attacks': ['hit', 'expertise'], 'crits': ['crit_chance', 'crit_mult'], 'heals': ['heal_chance', 'aoe_heal_chance'],
+    'hits_taken': ['toughness', 'dodge'], 'dodges': ['dodge'], 'parries': ['parry'], 'toughs': ['toughness'],
+    'scared': ['fear'], 'lucky': ['luck'],
+}
+STAT_CAP, FEAR_FLOOR, CRIT_MULT_CAP = 95, 5, get_dice_cutoffs()['crit_mult_cutoff']
+STAT_HINTS = { # one of these now and then, for the stat she improved most (drafts: Ted, rewrite away)
+    'hit': "{name}'s aim looks a little steadier.",
+    'crit_chance': "{name} has a nasty new glint in her eye.",
+    'crit_mult': "{name} seems to hit a little harder when it counts.",
+    'luck': "{name} found a penny on the floor.  Heads up, even.",
+    'expertise': "{name} is reading her enemies a little better.",
+    'toughness': "{name} looks a bit sturdier.  Scarier, too.",
+    'dodge': "{name} seems quicker on her feet.",
+    'parry': "{name}'s blocking looks a little crisper.",
+    'fear': "{name} doesn't flinch quite so much anymore.",
+    'heal_chance': "{name}'s bandaging is getting less embarrassing.",
+    'aoe_heal_chance': "{name}'s prayers seem to carry a little farther.",
+    'max_hp': "{name} looks a little beefier.",
+}
+HINT_CHANCE = 0.5 # how often a heroine gets a hint after a fight
+
+def growth_weights(heroine : object) -> dict:
+    leaning = find_row(stat_growth_table, 'hero_class', heroine.hero_class)
+    done = getattr(heroine, 'fight_tally', {})
+    weights = {}
+    for stat in GROWTH_STATS:
+        value = heroine.stats[stat]
+        capped = value <= FEAR_FLOOR if stat == 'fear' else value >= (CRIT_MULT_CAP if stat == 'crit_mult' else STAT_CAP)
+        if capped:
+            continue
+        bonus = min(2.0, 0.4 * sum(count for what, count in done.items() if stat in DOING.get(what, [])))
+        weights[stat] = leaning[stat] * (1 + bonus)
+    return weights
+
+def grow_stat(heroine : object, stat : str) -> float:
+    """Raise one stat (lower, for fear) and return the change."""
+    value = heroine.stats[stat]
+    if stat == 'crit_mult':
+        new = min(CRIT_MULT_CAP, round(value + random.uniform(0.02, 0.06), 2))
+    elif stat == 'fear':
+        gain = 1 if value <= 15 else random.randint(1, 3)
+        new = max(FEAR_FLOOR, value - gain)
+    else:
+        gain = random.randint(1, 3)
+        if value >= 85:
+            gain = 1
+        elif value >= 70:
+            gain = max(1, gain - 1)
+        new = min(STAT_CAP, value + gain)
+    heroine.stats[stat] = new
+    return round(new - value, 2)
+
+def improve_heroine(heroine : object) -> dict:
+    """One heroine's bonuses for one fight: {stat: change}, max_hp included."""
+    changes = {}
+    weights = growth_weights(heroine)
+    for _ in range(random.randint(1, 4)):
+        if not weights:
+            break
+        stat = random.choices(list(weights), list(weights.values()))[0]
+        del weights[stat] # four different stats at most
+        changes[stat] = grow_stat(heroine, stat)
+    hp = random.randint(1, 3)
+    heroine.starting_health += hp
+    heroine.health = min(heroine.starting_health, heroine.health + hp)
+    changes['max_hp'] = hp
+    heroine.fight_tally = {}
+    return changes
+
 async def get_stat_increases(party_dict : dict) -> dict:
-    await say('Add stat increase process here, per party member.  Right now, NOT specified by mob, or difficulty thereof, but this should probably be implemented.')
-    await pause()
+    lines = []
+    for heroine in party_dict['party']:
+        changes = improve_heroine(heroine)
+        if dev_mode():
+            shown = ', '.join(f"{stat} {'-' if stat == 'fear' else '+'}{abs(change)} ({heroine.stats[stat] if stat != 'max_hp' else heroine.starting_health})"
+                              for stat, change in changes.items())
+            lines.append(f"[dev] {heroine.name}: {shown}")
+        if random.random() < HINT_CHANCE:
+            biggest = max(changes, key=lambda stat: abs(changes[stat]) * (30 if stat == 'crit_mult' else 1))
+            lines.append(f"[narr]{STAT_HINTS[biggest].format(name=heroine.name)}[/]")
+    for line in lines:
+        await say(line)
+    if lines:
+        await pause()
     return party_dict
 
 def refresh_party(party_dict : dict, increment : bool) -> dict:
