@@ -303,20 +303,44 @@ def carried(heroine : object, kind : str) -> list:
 def slot_label(heroine : object, kind : str) -> str:
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
+# How a stat bonus reads to players, without numbers: (going up, going down). A small bonus (1-3) gets
+# "a bit", a big one (7+) gets "much". The hint column in items.csv replaces these with Ted's own words.
+BONUS_WORDS = {
+    'luck': ('luckier', 'unluckier'), 'dodge': ('harder to hit', 'easier to hit'), 'toughness': ('tougher', 'softer'),
+    'parry': ('better at blocking', 'worse at blocking'), 'hit': ('better aim', 'shakier aim'),
+    'expertise': ('reads enemies better', 'reads enemies worse'), 'crit_chance': ('more crits', 'fewer crits'),
+    'crit_mult': ('harder crits', 'softer crits'), 'fear': ('jumpier', 'braver'),
+    'heal_chance': ('better at healing', 'worse at healing'), 'aoe_heal_chance': ('better group heals', 'worse group heals'),
+}
+
+def bonus_hint(item : dict) -> str:
+    """'luck+5 dodge-2' -> 'luckier, a bit easier to hit'. The item's hint column wins if it has one."""
+    if item.get('hint'):
+        return item['hint']
+    words = []
+    for stat, sign, amount in parse_bonus(item['bonus']):
+        up, down = BONUS_WORDS.get(stat, (f'more {stat}', f'less {stat}'))
+        size = 'a bit ' if amount <= 3 else 'much ' if amount >= 7 else ''
+        words.append(size + (up if sign == '+' else down))
+    return ', '.join(words)
+
 def describe_item(item : dict, left : int = None) -> str:
-    """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket)', 'Fire Bomb (15 - 25 damage, 2 uses)'.
-    Stat bonuses (+5 luck, -5 dodge) stay behind the scenes, like the stats themselves; dev mode shows them."""
+    """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket: luckier)',
+    'Fire Bomb (15 - 25 damage, 2 uses)'. Stat bonuses show as a hint, not numbers (the stats themselves stay
+    behind the scenes); dev mode adds the numbers."""
     desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
-    bonus = ', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus'])) if dev_mode() else ''
+    hint = bonus_hint(item)
+    if dev_mode() and item['bonus']:
+        hint += f" [{', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus']))}]"
     if item['attack_type'] == 'hail_mary':
         return f'{desc} (hail mary)'
     if item['attack_type'] == 'trinket':
-        return f"{desc} ({bonus or 'trinket'})"
+        return f"{desc} (trinket{': ' + hint if hint else ''})"
     what = f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing'
     if item['uses']:
         what += f", {item['uses']} uses" if left is None else f", {left} left"
-    if bonus:
-        what += f', {bonus}'
+    if hint:
+        what += f', {hint}'
     return f'{desc} ({what})'
 
 def parse_bonus(bonus) -> list:
