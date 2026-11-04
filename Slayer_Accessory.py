@@ -16,6 +16,36 @@ game_dir = Path(__file__).parent # the folder these .py files live in, so the ga
 docs_dir = game_dir / 'supporting_docs'
 save_dir = game_dir / 'saved_parties'
 
+# In the browser (pygbag), files vanish when the page closes, so every save is also kept in the browser's
+# localStorage, and copied back into saved_parties when the game starts. (Untested until the first web build.)
+BROWSER_SAVE_PREFIX = 'slayer_save:'
+
+def browser_storage():
+    """The browser's localStorage when running on the web, else None."""
+    if sys.platform != 'emscripten':
+        return None
+    try:
+        import platform
+        return platform.window.localStorage
+    except Exception as error:
+        print('Slayer: no browser storage, saves only last until the page closes:', error)
+        return None
+
+def restore_browser_saves():
+    storage = browser_storage()
+    if storage is None:
+        return
+    try:
+        save_dir.mkdir(exist_ok=True)
+        for i in range(int(storage.length)):
+            key = str(storage.key(i))
+            if key.startswith(BROWSER_SAVE_PREFIX):
+                (save_dir / f'{key[len(BROWSER_SAVE_PREFIX):]}.sav').write_text(str(storage.getItem(key)), encoding='ascii')
+    except Exception as error:
+        print('Slayer: could not read saves from the browser:', error)
+
+restore_browser_saves()
+
 def read_table(file_name : str) -> list:
     """Read one CSV from supporting_docs into a list of rows, one dict per row, keyed by the
     column names. Each column is converted as a whole, the way pandas did it: all whole
@@ -149,8 +179,15 @@ def unscramble(blob : str) -> str:
 async def save_party(party : dict):
     name = party['name'].title()
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
+    blob = scramble(json.dumps(party_to_data(party)))
     with open(save_dir / f"{name}.sav", 'w', encoding='ascii') as f:
-        f.write(scramble(json.dumps(party_to_data(party))))
+        f.write(blob)
+    storage = browser_storage()
+    if storage is not None: # on the web: keep it in the browser too, so it survives closing the page
+        try:
+            storage.setItem(BROWSER_SAVE_PREFIX + name, blob)
+        except Exception as error:
+            print('Slayer: could not save to the browser:', error)
     await say(f"Your party has been saved as {name}.")
     await say(f"Keep track of this saved name if you want to recover your party: {name}")
     await pause()
