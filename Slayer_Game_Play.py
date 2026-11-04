@@ -44,8 +44,8 @@ async def play_game(party_dict: dict) -> dict:
                 await say("[narr]Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.[/]")
             await pause()
             if party_dict['narration']:
-                await nar.intro()
-                await nar.happy_intro()
+                party_dict = await nar.intro(party_dict)
+                await nar.happy_intro(party_dict)
         else:
             first = await yes_no("[narr]I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?[/]  ")
             if first:
