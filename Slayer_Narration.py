@@ -93,7 +93,7 @@ async def happy_intro(party_dict : dict) -> None:
     await say("\"Oh lassie.... Now take it easy or you might make me angry.\"")
     await say(f"{h2.name} belts out with laughter, \"Really, you think I'm scared of some old, washed-up dwarf?  I eat pieces of shit like you for breakfast!\"")
     await pause()
-    await say("His brows furrow briefly, and there is the briefest hint of almost purple-fire, reflecting across his eyes.  \"Why did you have to go and say something like that?  We dwarves, say what you will about us, but, shit?  For breakfast?  I don't think so!!\" he growls and nimbly leaps over the bar in front of the party.")
+    await say("His brows furrow, and there is the briefest hint of almost-purple fire, reflecting across his eyes.  \"Why did you have to go and say something like that?  We dwarves, say what you will about us, but, shit?  For breakfast?  I don't think so!!\" he growls and nimbly leaps over the bar in front of the party.")
     await say("The two drunk dwarves suddenly stop their incoherent babbling, and seem to be taking notice of the situation.")
     await say(f"\"Now hold on, buddy,\" starts {h1.name}, but she is immediately interrupted.")
     await pause()
