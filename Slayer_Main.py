@@ -14,10 +14,11 @@ async def play():
     await clear()
     party_dict = await fp.get_party()
     party_dict = await gp.play_game(party_dict)
+    won = party_dict.pop('run_result', None) == 'won' # beat the Kobolds: no LOSER banner this time
     confirm_save = await yes_no(f"Would you like to save your game (as {party_dict['name'].title()})?  ")
     if confirm_save:
         await acc.save_party(party_dict)
-    if not dev_mode:
+    if not dev_mode and not won:
         await loser_banner()
     await acc.end()
 
