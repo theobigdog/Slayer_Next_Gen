@@ -121,6 +121,7 @@ class WindowUI:
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
+        self.active = None  # whoever's turn it is: her box gets a gold frame
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
         self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
@@ -556,13 +557,13 @@ class WindowUI:
         self.echo(answer.strip())
         return answer
 
-    async def show_battle(self, party, mobs, round_num):
+    async def show_battle(self, party, mobs, round_num, active=None):
         await self.clear()
-        self.mode, self.party, self.mobs, self.round_num = 'battle', party, mobs, round_num
+        self.mode, self.party, self.mobs, self.round_num, self.active = 'battle', party, mobs, round_num, active
 
-    async def show_party(self, party):
+    async def show_party(self, party, active=None):
         await self.until_typed()
-        self.mode, self.party = 'party', party
+        self.mode, self.party, self.active = 'party', party, active
 
     async def title_screen(self):
         await TitleAnimation(self).play()
@@ -804,9 +805,15 @@ class WindowUI:
             self.draw_health_bar(heroine, rect, slot_w - 12)
             self.sprite_rects.append((rect, heroine))
 
+    def mob_label(self, mob):
+        return getattr(mob, 'label', mob.mob_class) + (' (enraged)' if mob.enraged else '')
+
     def draw_mobs(self):
         bosses = [m for m in self.mobs if getattr(m, 'is_boss', False)]
         others = [m for m in self.mobs if m not in bosses]
+        if not bosses and len(others) > 4:  # a big pack (the Krazy Kobolds, up to 8): two rows
+            self.draw_mob_rows(others)
+            return
         order = others[:len(others) // 2] + bosses + others[len(others) // 2:]
         sizes = []
         for mob in order:
@@ -820,11 +827,24 @@ class WindowUI:
         floor = 360
         for mob, (w, h) in zip(order, sizes):
             rect = pygame.Rect(x, floor - h, w, h)
-            label = mob.mob_class + (' (enraged)' if mob.enraged else '')
-            self.draw_sprite(mob, rect, label, ENRAGED_BOX if mob.enraged else MOB_BOX)
+            self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
             self.draw_health_bar(mob, rect, max(w, 130))
             self.sprite_rects.append((rect, mob))
             x += w + gap
+
+    def draw_mob_rows(self, mobs):
+        """Up to 8 mobs in two rows on the right half, each box 104 x 112 with its HP bar under it."""
+        w, h, gap = 104, 112, 30
+        per_row = -(-len(mobs) // 2)
+        for row, group in enumerate((mobs[:per_row], mobs[per_row:])):
+            total = len(group) * w + (len(group) - 1) * gap
+            x = 660 + (600 - total) // 2
+            for mob in group:
+                rect = pygame.Rect(x, 52 + row * 188, w, h)
+                self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
+                self.draw_health_bar(mob, rect, 130)
+                self.sprite_rects.append((rect, mob))
+                x += w + gap
 
     def draw_sprite(self, entity, rect, label, box_color):
         dead = entity.is_dead
@@ -850,6 +870,11 @@ class WindowUI:
             image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
         if pose.angle:
             image = pygame.transform.rotate(image, pose.angle)
+        if entity is self.active and not dead:  # whose turn it is: a gold frame that breathes a little
+            glow = 150 + int(80 * math.sin(pygame.time.get_ticks() / 250))
+            frame = pygame.Surface((rect.width + 16, rect.height + 16), pygame.SRCALPHA)
+            pygame.draw.rect(frame, (*GOLD, glow), frame.get_rect(), 4, border_radius=12)
+            self.screen.blit(frame, frame.get_rect(center=rect.center))
         self.screen.blit(image, image.get_rect(midbottom=(rect.centerx + pose.dx, rect.bottom + pose.dy)))
         if not dead:
             self.motion.effects(entity, kind, rect)
