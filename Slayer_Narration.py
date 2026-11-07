@@ -103,3 +103,107 @@ async def happy_intro(party_dict : dict) -> None:
     await say("\"ENOUGH!\" he booms.  \"I think it's about time you lassies learn a little respect....\"")
     await say(f"{h1.name} stares the tavern keeper in the eyes, hissing, \"Bring it!!\"")
     await pause()
+
+
+# =====================================================================================================
+#   TED'S WRITING SPOTS
+#
+#   Each function below is one moment in the game, in the order they happen. Everything in them now is a
+#   placeholder (your old notes, or Claude's drafts marked DRAFT), so rewrite, add and delete lines freely:
+#   say(), pause(), wait(seconds) and clear() all work here, same as in intro() above.
+#
+#   The only rules: keep each function's name and the things in its parentheses (the game calls them by
+#   name), and close every [narr] tag on the same line it opens.
+#
+#   Handy things you can use in any of them:
+#     party = party_dict['party']               the heroines (each has .name, .hero_class, .is_dead)
+#     random.choice(party), random.sample(party, 2)   pick one or two at random
+#     party_dict['name']                        the player's name
+#     party_dict['times_run_dungeon']           1 on the first run, 2 on the second...
+#     party_dict.get('narration')               True if they said yes to narrative (None in dev mode)
+#     say([line_a, line_b, line_c])             a list makes the game pick one line at random
+# =====================================================================================================
+
+# ---------- The tavern, after the Happy fight -------------------------------------------------------
+
+async def happy_wipe(party_dict : dict, happy_killed : bool) -> None:
+    """Plays the moment enraged Happy has wiped the party. happy_killed is True when they actually killed
+    enraged Happy (he wipes them anyway); False when he just beat them to death the normal way."""
+    if happy_killed:
+        await say('Add Immortal Happy -> wipes the party anyway narration')
+    else:
+        await say('Add wipe narration here')
+
+async def happy_resurrection(party_dict : dict) -> None:
+    """Plays right after happy_wipe: Happy brings everyone back. (The design doc also has him getting sappy
+    about his 'Disgruntled' bouncer job here.) Leave it empty and nothing plays."""
+    pass
+
+async def happy_loot(party_dict : dict) -> None:
+    """Plays just before Happy hands over his loot (and whatever his dead buddies dropped). The loot menus
+    come right after this."""
+    await say('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
+
+async def happy_stats(party_dict : dict) -> None:
+    """Plays just before the first stat raises (Happy explaining that fights make them better). After this,
+    some heroines get one of the STAT_HINTS lines below."""
+    await say('Add specific Happy narration here for get stat increases, to explain how it works even, maybe?  Actual stats will never be shown, just set and updated in the background, so nothing should actually print from this function when finished.')
+    await say('1 idea:  "Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!')
+    await say('Don\'t ask me who improved in what, or by how much.')
+    await say('Also, I would expect this to occur again after each successful encounter you wee lassies may face.')
+    await pause()
+
+async def happy_back_room(party_dict : dict) -> None:
+    """Plays just before the stash menu in Happy's back room."""
+    await say("\n[narr]Happy unlocks his back room, where your stash lives.  Last chance to swap gear before heading down.[/]")
+
+async def secret_entrance(party_dict : dict) -> None:
+    """Plays after the back room: Happy's toe-tap opens the secret dungeon entrance. (Not hooked in until
+    the Kobold fight is built.)"""
+    await say("[narr]DRAFT: Happy taps his toes in some weird little pattern, and a chunk of the tavern floor grinds open.  Stairs.  Down.  Of course it's down.[/]")
+    await pause()
+
+# ---------- Stat raises (after every fight the party survives) --------------------------------------
+
+# After each fight, about half the heroines get one of these, for the stat she improved most. {name} becomes
+# her name. These are Claude's drafts: rewrite away. (Keep the words on the left of each colon as they are.)
+STAT_HINTS = {
+    'hit': "{name}'s aim looks a little steadier.",
+    'crit_chance': "{name} has a nasty new glint in her eye.",
+    'crit_mult': "{name} seems to hit a little harder when it counts.",
+    'luck': "{name} found a penny on the floor.  Heads up, even.",
+    'expertise': "{name} is reading her enemies a little better.",
+    'toughness': "{name} looks a bit sturdier.  Scarier, too.",
+    'dodge': "{name} seems quicker on her feet.",
+    'parry': "{name}'s blocking looks a little crisper.",
+    'fear': "{name} doesn't flinch quite so much anymore.",
+    'heal_chance': "{name}'s bandaging is getting less embarrassing.",
+    'aoe_heal_chance': "{name}'s prayers seem to carry a little farther.",
+    'max_hp': "{name} looks a little beefier.",
+}
+
+# ---------- The dungeon (not hooked in until the Kobold fight is built) -----------------------------
+
+async def kobolds_appear(party_dict : dict, kobolds : list) -> None:
+    """Plays when the Krazy Kobolds show up, before the fight. kobolds is the list of them (each has .name)."""
+    await say(f"[narr]DRAFT: Something giggles in the dark.  Then something else giggles back.  {len(kobolds)} somethings, actually.[/]")
+    await pause()
+
+async def fight_won(party_dict : dict, mobs : list) -> None:
+    """Plays when the party wins a dungeon fight, before the Token, loot and stat raises."""
+    await say("[narr]DRAFT: And THAT is how it's done.  Somebody check the bodies for shinies.[/]")
+    await pause()
+
+async def loot_found(party_dict : dict) -> None:
+    """Plays before the loot menus after any fight that dropped something (at the tavern too)."""
+    await say(f"\n[narr]Loot!  Let's see what's on the floor.[/]")
+
+async def stats_after_fight(party_dict : dict) -> None:
+    """Plays before the stat raises after a dungeon fight (Happy's happy_stats covers the tavern). Leave it
+    empty and only the STAT_HINTS lines play."""
+    pass
+
+async def dungeon_wipe(party_dict : dict, mobs : list) -> None:
+    """Plays when the whole party dies in the dungeon. That ends the run."""
+    await say("[narr]DRAFT: Well.  Shit.  That's the run, folks.[/]")
+    await pause()

@@ -1,5 +1,6 @@
 import Slayer_Accessory as acc
 from Slayer_UI import say, pause, clear
+import Slayer_Narration as nar
 
 
 mobs_table = acc.get_mobs()
@@ -32,18 +33,15 @@ class Disgruntled_Dwarf:
         await pause()
 
     async def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool, mobs : list = ()) -> dict:
-        if happy_killed:
-            await say('Add Immortal Happy -> wipes the party anyway narration')
-        else:
-            await say('Add wipe narration here')
-        await say('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
+        """After the tavern fight: the wipe, the resurrection, Happy's loot, the first stat raises and the back
+        room. The story lines are Ted's, in Slayer_Narration.py."""
+        await nar.happy_wipe(party_dict, happy_killed)
+        await nar.happy_resurrection(party_dict)
+        await nar.happy_loot(party_dict)
         party_dict = await acc.get_loot(self, party_dict, mobs, at_tavern=True) # Happy's loot, plus whatever his dead buddies dropped
-        await say('Add specific Happy narration here for get stat increases, to explain how it works even, maybe?  Actual stats will never be shown, just set and updated in the background, so nothing should actually print from this function when finished.')
-        await say('1 idea:  "Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!')
-        await say('Don\'t ask me who improved in what, or by how much.')
-        await say('Also, I would expect this to occur again after each successful encounter you wee lassies may face.')
-        await pause()
+        await nar.happy_stats(party_dict)
         party_dict = await acc.get_stat_increases(party_dict)
+        await nar.happy_back_room(party_dict)
         party_dict = await acc.visit_stash(party_dict) # swap gear in Happy's back room before the dungeon
         return party_dict
 

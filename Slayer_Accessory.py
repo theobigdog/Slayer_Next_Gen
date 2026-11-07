@@ -546,7 +546,8 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))
     if found:
-        await say(f"\n[narr]Loot!  Let's see what's on the floor.[/]")
+        import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
+        await nar.loot_found(party_dict)
     for item, source in found:
         await give_loot(item, source, party_dict, at_tavern)
     await pause()
@@ -563,7 +564,6 @@ async def visit_stash(party_dict : dict) -> dict:
     from Slayer_UI import choose
     party = party_dict['party']
     party_dict.setdefault('stash', [])
-    await say("\n[narr]Happy unlocks his back room, where your stash lives.  Last chance to swap gear before heading down.[/]")
     while True:
         stash = party_dict['stash']
         what = await choose(f"The stash: {stash_label(party_dict)}.  What'll it be?  ",
@@ -630,20 +630,7 @@ DOING = { # what she did -> the stats it helps
     'scared': ['fear'], 'lucky': ['luck'],
 }
 STAT_CAP, FEAR_FLOOR, CRIT_MULT_CAP = 95, 5, get_dice_cutoffs()['crit_mult_cutoff']
-STAT_HINTS = { # one of these now and then, for the stat she improved most (drafts: Ted, rewrite away)
-    'hit': "{name}'s aim looks a little steadier.",
-    'crit_chance': "{name} has a nasty new glint in her eye.",
-    'crit_mult': "{name} seems to hit a little harder when it counts.",
-    'luck': "{name} found a penny on the floor.  Heads up, even.",
-    'expertise': "{name} is reading her enemies a little better.",
-    'toughness': "{name} looks a bit sturdier.  Scarier, too.",
-    'dodge': "{name} seems quicker on her feet.",
-    'parry': "{name}'s blocking looks a little crisper.",
-    'fear': "{name} doesn't flinch quite so much anymore.",
-    'heal_chance': "{name}'s bandaging is getting less embarrassing.",
-    'aoe_heal_chance': "{name}'s prayers seem to carry a little farther.",
-    'max_hp': "{name} looks a little beefier.",
-}
+# The hint lines themselves (STAT_HINTS) are Ted's, in Slayer_Narration.py.
 HINT_CHANCE = 0.5 # how often a heroine gets a hint after a fight
 
 def growth_weights(heroine : object) -> dict:
@@ -696,6 +683,7 @@ def improve_heroine(heroine : object) -> dict:
     return changes
 
 async def get_stat_increases(party_dict : dict) -> dict:
+    import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
     lines = []
     for heroine in party_dict['party']:
         changes = improve_heroine(heroine)
@@ -705,7 +693,7 @@ async def get_stat_increases(party_dict : dict) -> dict:
             lines.append(f"[dev] {heroine.name}: {shown}")
         if random.random() < HINT_CHANCE:
             biggest = max(changes, key=lambda stat: abs(changes[stat]) * (30 if stat == 'crit_mult' else 1))
-            lines.append(f"[narr]{STAT_HINTS[biggest].format(name=heroine.name)}[/]")
+            lines.append(f"[narr]{nar.STAT_HINTS[biggest].format(name=heroine.name)}[/]")
     for line in lines:
         await say(line)
     if lines:
