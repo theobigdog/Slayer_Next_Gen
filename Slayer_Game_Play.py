@@ -102,7 +102,7 @@ async def dungeon(party_dict: dict) -> dict:
     await nar.secret_entrance(party_dict)
     kobolds = Slayer_Kobolds.make_pack(len(party_dict['party']))
     await nar.kobolds_appear(party_dict, kobolds)
-    party_dict = await battle(party_dict, kobolds, Slayer_Kobolds.round_end)
+    party_dict = await battle(party_dict, kobolds, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn)
     if party_dict['wiped']:
         party_dict['run_result'] = 'wiped'
         await nar.dungeon_wipe(party_dict, kobolds)
@@ -124,9 +124,10 @@ async def between_battles(party_dict: dict, mobs: list) -> dict:
     return party_dict
 
 
-async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
+async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) -> dict:
     """One fight, round after round, until the party wipes or every mob is down. round_end(party_dict, mobs,
-    round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there)."""
+    round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there), and
+    after_turn(mobs) after every turn (the Kobolds' rage keeps track with it)."""
     combat.start_battle(party_dict['party']) # special weapons are ready again
     party_dict['wipe_taunted'] = False # one wipe taunt per fight, from whichever mob gets there first
 
@@ -163,6 +164,8 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
                         await say(f"[narr]Oh, shit.[/]  {attacker.name} gets an extra attack!  [narr]Brace yourselves![/]")
                         party_dict, mobs, _ = await combat.mob_turn(attacker, party_dict , mobs, extra=True) # straight to the results
                 party_dict['wiped'] = check_wiped(party_dict['party'])
+                if after_turn:
+                    after_turn(mobs)
         if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):
             if round_num == CRANKY_ROUND:
                 await say(f"[narr]Round {CRANKY_ROUND}?  Seriously?  Everybody in here is getting cranky, me included.  The mobs hit harder every round from now on, until SOMEBODY wins.[/]")
