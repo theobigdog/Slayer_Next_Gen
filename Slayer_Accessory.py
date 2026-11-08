@@ -287,7 +287,7 @@ def item_specific_wipe_taunts() -> list:
         "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\n[narr]Jesus Christ, what a CUNT!![/]",
         "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\n[narr]I hope you come back and teach these bitches a lesson!![/]",
         "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\n[narr]Now was that really necessary.  Don't take their shit!![/]",
-        "\nWith her last dying breath, {victim} makes one more attempt with the {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
+        "\nWith her last dying breath, {victim} makes one more attempt with her {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
     ]
 
 # Afflictions: "loot" that isn't a prize. A mob gives it to one random heroine, she's stuck with it for the
@@ -337,7 +337,20 @@ def carried(heroine : object, kind : str) -> list:
     pending = [item for item in heroine.starting_inv if item not in heroine.inv and item not in dropped]
     return [item for item in heroine.inv + pending if slot_kind(get_item(item)) == kind]
 
-def slot_label(heroine : object, kind : str) -> str:
+def slot_label(heroine : object, kind : str, item : dict = None) -> str:
+    """The right-hand side of her row in the 'Who gets it?' menu. For a potion it says what she's holding (and
+    what this one would do to it), so a swap is never a surprise."""
+    if kind == 'potion':
+        hers = [x for x in carried(heroine, 'potion') if x in heroine.inv]
+        if not hers:
+            return 'potion: none'
+        mine = get_item(hers[0])
+        left = uses_left(heroine, hers[0])
+        if item and item['item'] == hers[0]:
+            if stack_full(heroine, item):
+                return f"has {mine['item_desc']} ({left} left): full up"
+            return f"has {mine['item_desc']} ({left} left): tops up to {min(item['uses'] * MAX_STACK, left + item['uses'])}"
+        return f"has {mine['item_desc']} ({left} left): swap"
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
 # How a stat bonus reads to players, without numbers: (going up, going down). A small bonus (1-3) gets
@@ -402,8 +415,9 @@ def add_item(heroine : object, item : dict, uses : int = None) -> str:
     heroine.uses = getattr(heroine, 'uses', {})
     uses = item['uses'] if uses is None else uses
     if item['uses'] and item['item'] in heroine.inv:
-        heroine.uses[item['item']] = min(item['uses'] * MAX_STACK, heroine.uses.get(item['item'], 0) + uses)
-        return f"[narr]Topped up: {heroine.name} now has {heroine.uses[item['item']]} uses of {item['item_desc']}.[/]"
+        before = heroine.uses.get(item['item'], 0)
+        heroine.uses[item['item']] = min(item['uses'] * MAX_STACK, before + uses)
+        return f"[narr]{heroine.name} stacks it with the {item['item_desc']} she already had: {before} uses, now {heroine.uses[item['item']]}.[/]"
     heroine.inv.append(item['item'])
     if item['uses']:
         heroine.uses[item['item']] = uses
@@ -454,10 +468,14 @@ def can_use(heroine : object, item : dict) -> bool:
     from ast import literal_eval
     return heroine.hero_class in literal_eval(item['classes'])
 
+def stack_full(heroine : object, item : dict) -> bool:
+    """She already carries this consumable at its stacking limit (MAX_STACK times its uses)."""
+    return bool(item['uses']) and item['item'] in heroine.inv and (uses_left(heroine, item['item']) or 0) >= item['uses'] * MAX_STACK
+
 def has_room(heroine : object, item : dict) -> bool:
     kind = slot_kind(item)
     if item['uses'] and item['item'] in heroine.inv:
-        return True # tops up what she has
+        return not stack_full(heroine, item) # tops up what she has
     return kind == 'none' or len(carried(heroine, kind)) < slots(heroine, kind)
 
 async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern : bool, new_can_stash : bool = True):
@@ -469,11 +487,12 @@ async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern 
     hers = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
     to_stash = at_tavern and stash_has_room(party_dict)
     verb = 'Stash' if to_stash else 'Drop'
-    labels = [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers]
+    labels = ([f"{verb} her {describe_item(get_item(x), uses_left(heroine, x))}, take {item['item_desc']}" for x in hers] if kind == 'potion'
+              else [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers])
     extra = [f"Put {item['item_desc']} in the stash instead"] if to_stash and new_can_stash else []
     full = '' if to_stash or not at_tavern else f"  (The stash is full too: {stash_label(party_dict)}.)"
     prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?{full}  " if kind != 'potion'
-              else f"{heroine.name} already has a potion.  Swap it for {item['item_desc']}?{full}  ")
+              else f"{heroine.name} can only carry one potion, and she already has {get_item(hers[0])['item_desc']} ({uses_left(heroine, hers[0])} left).  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
     out = await choose(prompt, labels + extra + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
     if out < len(hers):
         old = get_item(hers[out])
@@ -504,7 +523,7 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
         return
     await say(f"From {source}: {label}.")
     while True:
-        names = [f"{x.name}  ({class_label(x.hero_class)})\t{slot_label(x, kind)}" for x in able]
+        names = [f"{x.name}  ({class_label(x.hero_class)})\t{slot_label(x, kind, item)}" for x in able]
         extra = [f"Put it in the stash\tstash {stash_label(party_dict)}"] if at_tavern and stash_has_room(party_dict) else []
         pick = await choose(f"Who gets {item['item_desc']}?  ", names + extra + ['Leave it behind'], "One of THOSE numbers, please:  ")
         if pick >= len(able):
@@ -515,6 +534,9 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
                 await say(f"[narr]Fine.  {item['item_desc']} stays on the floor.  Somebody's gonna trip on that.[/]")
             return
         who = able[pick]
+        if stack_full(who, item):
+            await say(f"[narr]{who.name} can't carry any more {item['item_desc']} than she's got.  Pick someone else.[/]")
+            continue
         if not has_room(who, item):
             result = await make_room(who, item, party_dict, at_tavern)
             if result == 'back':
