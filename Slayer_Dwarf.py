@@ -35,8 +35,18 @@ class Disgruntled_Dwarf:
     async def trigger_happy_wipe(self, party_dict : dict, happy_killed : bool, mobs : list = ()) -> dict:
         """After the tavern fight: the wipe, the resurrection, Happy's loot, the first stat raises and the back
         room. The story lines are Ted's, in Slayer_Narration.py."""
+        standing = party_dict.pop('standing_at_wipe', []) # who was still up when the killing blow landed (wipe_party)
+        if not happy_killed:
+            standing = []
+        for spot, health in standing: # they killed him: whoever was still up is alive for the scene, until he gets back up
+            party_dict['party'][spot].is_dead, party_dict['party'][spot].health = False, health
         await nar.happy_wipe(party_dict, happy_killed)
+        for spot, _ in standing:
+            party_dict['party'][spot].is_dead, party_dict['party'][spot].health = True, 0
+        self.is_dead, self.enraged = False, False # he always gets back up, and the rage is spent: calm Happy does the resurrecting
+        self.starting_health = self.health = self.stats['starting_hp']
         await nar.happy_resurrection(party_dict)
+        party_dict = acc.refresh_party(party_dict, False) # everyone's back on her feet (and on screen) once Happy's done
         await nar.happy_loot(party_dict)
         party_dict = await acc.get_loot(self, party_dict, mobs, at_tavern=True) # Happy's loot, plus whatever his dead buddies dropped
         await nar.happy_stats(party_dict)

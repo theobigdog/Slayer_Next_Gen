@@ -743,7 +743,10 @@ def restore_starting_items(heroine : object):
             heroine.dropped = [x for x in dropped if x != backup]
 
 def wipe_party(party_dict : dict) -> dict:
+    """Everyone dies at once (killing enraged Happy). Who was still standing, and with how much HP, is kept in
+    standing_at_wipe (spot in the party, HP) so Ted's happy_wipe scene can have them watch him get back up."""
     party_dict['wiped'] = True
+    party_dict['standing_at_wipe'] = [[spot, heroine.health] for spot, heroine in enumerate(party_dict['party']) if not heroine.is_dead]
     for heroine in party_dict['party']:
         heroine.is_dead = True
         heroine.health = 0
