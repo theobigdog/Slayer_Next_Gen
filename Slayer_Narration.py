@@ -164,7 +164,7 @@ async def happy_resurrection(party_dict : dict) -> None:
     await say("\"I have fucking had it with playing a glorified bouncer for this - \'organization\'!\" he booms.  \"I'm going to show THEM a thing or two, and maybe they'll think twice before giving me such a shit-job again.\"")
     await say("[narr]I think I can see now where the \"Disgruntled\" part of his title comes from![/]")
     await pause()
-    await say("Happy stops blubbering and closes his eyes.  He holds both arms out to the sides, palms up and begins muttering some sort of rapid, runic language.")
+    await say("Happy stops blubbering and closes his eyes.  He holds both arms out to his sides, palms up and begins muttering some sort of rapid, runic language.")
     await say("Heatless, purple fire, the same shade as what was briefly caught in Happy\'s eyes, begins to stream from his palms.")
     await say(f"Purple tendrils thicken and split, wrapping {h.name if solo else 'each heroine'}\'s body until you can\'t see a square millimeter of the unfortunate, engulfed adventurer.")
     await say('Sweat begins to bead up on Happy\'s forehead, quickly becoming a flowing stream, as he almost literally pours every ounce of his magical capacity into the process.')
