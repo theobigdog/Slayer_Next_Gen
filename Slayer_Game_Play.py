@@ -8,6 +8,10 @@ import random
 
 happy_buddy_names = ['Burpy', 'Gassy', 'Smelly', 'Grumpy', 'Hairy', 'Slappy', 'Fuck-Head', 'Bloaty']
 
+# A fight that just won't end (a party that can only heal, say a lone Cleric, against mobs she can out-heal) gets
+# a push: after CRANKY_ROUND rounds, every mob hits CRANKY_STEP times harder each round until somebody wins.
+CRANKY_ROUND, CRANKY_STEP = 30, 1.25
+
 def get_turn_order(party: list, mobs: list) -> list:
     heroine_dice_cutoff = acc.get_dice_cutoffs()['speed_cutoff']
     mob_dice_cutoff = acc.get_dice_cutoffs_mobs()['speed_cutoff']
@@ -158,6 +162,12 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
                         await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
                         party_dict, mobs, _ = await combat.mob_turn(attacker, party_dict , mobs, extra=True) # straight to the results
                 party_dict['wiped'] = check_wiped(party_dict['party'])
+        if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):
+            if round_num == CRANKY_ROUND:
+                await say(f"[narr]Round {CRANKY_ROUND}?  Seriously?  Everybody in here is getting cranky, me included.  The mobs hit harder every round from now on, until SOMEBODY wins.[/]")
+                await pause()
+            for mob in mobs:
+                mob.damage_mult = getattr(mob, 'damage_mult', 1) * CRANKY_STEP
         if round_end and not party_dict['wiped'] and alive_mobs(mobs):
             await combat.show_current_status(party_dict['party'], mobs, round_num)
             await round_end(party_dict, mobs, round_num)
