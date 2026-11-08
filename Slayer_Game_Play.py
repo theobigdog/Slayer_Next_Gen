@@ -128,6 +128,7 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
     """One fight, round after round, until the party wipes or every mob is down. round_end(party_dict, mobs,
     round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there)."""
     combat.start_battle(party_dict['party']) # special weapons are ready again
+    party_dict['wipe_taunted'] = False # one wipe taunt per fight, from whichever mob gets there first
 
     round_num = 0
     while not party_dict['wiped'] and alive_mobs(mobs):
@@ -146,7 +147,7 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
                         await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
                         party_dict, mobs, _ = await combat.player_turn(attacker, party_dict, mobs)
                     for mob in mobs:
-                        if not mob.is_dead:
+                        if not mob.is_dead and not check_wiped(party_dict['party']): # no bonus attacks on a party that's already down
                             turn_stat = 'enraged_turn_chance' if mob.enraged else 'turn_chance'
                             if acc.multi_roll(1,100) <= mob.stats[turn_stat]:
                                 party_dict['wiped'] = check_wiped(party_dict['party'])
@@ -158,8 +159,8 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
                     party_dict, mobs, luck_roll = await combat.mob_turn(attacker, party_dict, mobs)
                     party_dict['wiped'] = check_wiped(party_dict['party'])
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party_dict['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
+                        await combat.show_current_status(party_dict['party'], mobs, round_num, attacker) # screen first, so the line stays up
                         await say(f"[narr]Oh, shit.[/]  {attacker.name} gets an extra attack!  [narr]Brace yourselves![/]")
-                        await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
                         party_dict, mobs, _ = await combat.mob_turn(attacker, party_dict , mobs, extra=True) # straight to the results
                 party_dict['wiped'] = check_wiped(party_dict['party'])
         if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):
@@ -174,4 +175,5 @@ async def battle(party_dict: dict, mobs: list, round_end=None) -> dict:
         if party_dict['wiped'] or not alive_mobs(mobs):
             await combat.show_current_status(party_dict['party'], mobs, round_num)
             await pause()
+    party_dict.pop('wipe_taunted', None) # only for this fight (keeps it out of the save)
     return party_dict

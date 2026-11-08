@@ -569,7 +569,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     party = party_dict['party']
     crit = mob_rolls['crit_mult'] # one crit for the whole spray; the damage itself is rolled for each heroine
     if item['item'] == 'vomit':
-        await say(f"{mob.name} doubles over, gurgles, and sprays {item['item_desc']} across the whole party!  [narr]Oh god.  The SMELL.[/]")
+        await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Ah, I feel so much better,\" he taunts.")
     else:
         await say(f"{mob.name} unleashes {item['item_desc']} on the whole party!")
     if not mob_rolls['hit']:
@@ -594,7 +594,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
             fallen.append(heroine)
             await say(f"  {heroine.name} takes {damage} hp.  [red]slain[/]")
         else:
-            await say(f"  {heroine.name} takes {damage} hp{'  (tough: half)' if rolls['toughness'] else ''}.")
+            await say(f"  {heroine.name} takes {damage} hp.{'  [narr]Tough motherfucker: damage halved![/]' if rolls['toughness'] else ''}")
     await check_last_cleric(fallen, party)
     await pause()
     return (party_dict, mobs, mob_rolls['luck'])
@@ -735,9 +735,11 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
     """extra=True for a bonus attack: the line announcing it already said whose it is, so no "'s turn:" header."""
     if mob.is_dead:
         return (party_dict, mobs, False)
-    if party_dict['wiped']:
-        await say(party_wiped_taunt(mob, party_dict['party']))
-        await pause()
+    if party_dict['wiped']: # one taunt per fight (Ted, Nov 8): the first mob to get a turn after the wipe
+        if not party_dict.get('wipe_taunted'):
+            party_dict['wipe_taunted'] = True
+            await say(party_wiped_taunt(mob, party_dict['party']))
+            await pause()
         return (party_dict, mobs, False)
 
     if not extra:
