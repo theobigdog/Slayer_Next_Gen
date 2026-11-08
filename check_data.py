@@ -12,9 +12,9 @@ import sys
 from pathlib import Path
 
 DOCS = Path(__file__).parent / 'supporting_docs'
-ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'trinket', 'hail_mary'}
+ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 'hail_mary'}
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
-MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
+MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
 problems = []
 

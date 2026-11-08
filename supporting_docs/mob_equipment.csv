@@ -12,7 +12,7 @@ jeweled_dagger,Jeweled Dagger,Drunk Dwarf,6,9,FALSE,melee,,,
 back_hand,Back-Hand,Drunk Dwarf,3,13,FALSE,melee,,,
 swig_of_ale,Swig of Ale,Drunk Dwarf,-9,-4,FALSE,melee,,,a heal (negative numbers); Drunk Dwarves only manage it at their heal_chance (5%)
 claws,Claws,Krazy Kobolds,5,10,FALSE,melee,,3,
-bite,Bite,Krazy Kobolds,3,12,FALSE,melee,,3,
+bite,Bite,Krazy Kobolds,3,12,FALSE,melee,poison,3,"if it lands, half the time she is poisoned: 2-3 damage at the start of each of her next 3 turns"
 fart,Gas Release,Krazy Kobolds,0,4,TRUE,aoe,gas,0.4,melee heroines only; each one rolls to dodge; a hit costs her next turn
 junk_attack,Junk Attack,Krazy Kobolds,2,10,TRUE,melee,junk,1.5,"if it lands, her next damage is cut in half"
 terrifying_hiss,Terrifying Hiss,Krazy Kobolds,0,0,TRUE,melee,hiss,1,"if it lands, she can't dodge for the rest of the fight (it never picks someone already rattled)"

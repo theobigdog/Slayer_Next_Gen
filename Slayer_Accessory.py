@@ -321,7 +321,7 @@ def slot_kind(item : dict) -> str:
         return 'none'
     if item['attack_type'] == 'trinket':
         return 'trinket'
-    if item['attack_type'] == 'heal' and item['uses']:
+    if item['attack_type'] in ('heal', 'aoe_heal') and item['uses']:
         return 'potion'
     return 'gear'
 
@@ -387,6 +387,10 @@ def describe_item(item : dict, left : int = None) -> str:
     if item['attack_type'] == 'trinket':
         return f"{desc} (trinket{': ' + hint if hint else ''})"
     what = f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing'
+    if item['attack_type'] == 'aoe':
+        what += ', hits them all'
+    elif item['attack_type'] == 'aoe_heal':
+        what += ', heals everyone'
     if item['uses']:
         what += f", {item['uses']} uses" if left is None else f", {left} left"
     if hint:

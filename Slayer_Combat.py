@@ -13,9 +13,13 @@ AOE_RULES = {
         'party_share': {'melee': 0.30, 'range': 0.15},  # what the party catches, by position
         'blows_up_user': True,                      # she's out for the rest of the run
         'once_per_run': True,                       # gone from her kit until the next dungeon run
+        'full_targets': None,                       # full damage to every mob, however many
     },
 }
-DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False}
+# Every other area attack (Fire Bomb, Fire Rain, Stink Pouch) does full damage to up to full_targets mobs; with
+# more of them, the blast spreads thinner: each takes full_targets / (how many) of it (Ted, Nov 8: a Fire Bomb
+# flattened the whole Kobold pack). 3 = a pack of 6 takes half each, 8 take 3/8.
+DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3}
 
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
@@ -168,6 +172,9 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         await say(f"[narr]That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?[/]")
         await pause()
         return (party_dict, mobs, heroine_rolls['luck'])
+    if status(heroine).pop('junked', False): # a Junk Attack halves her next heal too (Ted, Nov 8)
+        healing = max(1, healing // 2)
+        await say(f"[narr]{heroine.name}'s junk still hurts, so it's a half-strength heal.[/]")
     target = update_health(target, -healing)
     await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
     await say("[narr]I'm so proud of you![/]")
@@ -266,7 +273,10 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     party = party_dict['party']
     crit = heroine_rolls['crit_mult'] # one crit for the whole blast; the damage itself is rolled for each target
     junked = status(heroine).get('junked', False) # a Junk Attack halves this whole blast (used up once it lands)
+    standing = len([m for m in mobs if not m.is_dead])
+    spread = min(1, rules['full_targets'] / standing) if rules['full_targets'] and standing else 1
     roll = lambda: acc.multi_roll(item['damage_low'], item['damage_high']) * crit * (0.5 if junked else 1)
+    mob_roll = lambda: roll() * spread
     tally(heroine, 'attacks')
     if heroine_rolls['crit_mult'] > 1:
         tally(heroine, 'crits')
@@ -285,13 +295,15 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     if junked:
         del heroine.status['junked']
         await say(f"[narr]Her junk still hurts, so it's a half-strength blast.[/]")
+    if spread < 1:
+        await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
     killed = []
     for mob in [m for m in mobs if not m.is_dead]:
         mob_rolls = get_mob_rolls(mob)
         if not rules['unavoidable'] and mob_rolls['dodge'] and not heroine_rolls['expertise']:
             await say(f"  {mob.name} dives out of the way!")
             continue
-        power = roll()
+        power = mob_roll()
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
         damage = int(min(damage, mob.health))
         update_health(mob, damage)
@@ -332,6 +344,35 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
             await mob.enrage()
             await pause()
             return (party_dict, mobs, False)
+    await pause()
+    return (party_dict, mobs, heroine_rolls['luck'])
+
+
+async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mobs : list, heroine_rolls : dict) -> tuple:
+    """An area heal (attack_type aoe_heal): everyone still standing in the party gets patched up, each amount
+    rolled on its own, one crit for the lot. A consumable always works (you just pop it); anything else needs her
+    group-heal roll (aoe_heal_chance). A Junk Attack halves it, like any heal."""
+    party = party_dict['party']
+    tally(heroine, 'heals')
+    if not heroine_rolls['aoe_heal'] and not item['uses']:
+        await say(f"{heroine.name} tries to heal the whole party with her {item['item_desc']}, but it fizzles out.  [narr]Doh![/]")
+        await pause()
+        return (party_dict, mobs, False)
+    junked = status(heroine).pop('junked', False)
+    await say(f"{heroine.name} uses her {item['item_desc']} on the whole party!")
+    if junked:
+        await say(f"[narr]Her junk still hurts, so it's a half-strength heal.[/]")
+    helped = 0
+    for member in [x for x in party if not x.is_dead]:
+        amount = int(-acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult'] * (0.5 if junked else 1))
+        amount = min(max(1, amount), member.starting_health - member.health)
+        if amount <= 0:
+            continue
+        update_health(member, -amount)
+        helped += 1
+        await say(f"  {member.name} +{amount} hp")
+    if not helped:
+        await say("[narr]Nobody even needed it.  Very generous of you.[/]")
     await pause()
     return (party_dict, mobs, heroine_rolls['luck'])
 
@@ -403,6 +444,19 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
 async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
     if heroine.is_dead:
         return (party_dict, mobs, False)
+    poison = status(heroine).get('poisoned')
+    if poison: # ticks at the start of her turn
+        sting = min(heroine.health, acc.multi_roll(poison['low'], poison['high']))
+        update_health(heroine, sting)
+        poison['turns'] -= 1
+        if poison['turns'] <= 0 or heroine.is_dead:
+            del heroine.status['poisoned']
+        if heroine.is_dead:
+            await say(f"\n[green]The poison finishes what the Kobold started.[/]  {heroine.name} takes {sting} hp and drops.  [red]slain[/]")
+            await check_last_cleric([heroine], party_dict['party'])
+            await pause()
+            return (party_dict, mobs, False)
+        await say(f"\n[green]The poison burns:[/]  {heroine.name} takes {sting} hp." + ("  [narr]That's the last of it, at least.[/]" if 'poisoned' not in heroine.status else ""))
     if status(heroine).pop('gassed', False):
         await say(f"\n{heroine.name} is still doubled over, retching from the Kobold gas.  She loses her turn.  [narr]Breathe through your mouth, sweetie.[/]")
         await pause()
@@ -448,6 +502,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
 
     if item_attack_type == 'aoe':
         return await heroine_aoe(heroine, item, party_dict, mobs, get_heroine_rolls(heroine))
+    if item_attack_type == 'aoe_heal':
+        return await heroine_aoe_heal(heroine, item, party_dict, mobs, get_heroine_rolls(heroine))
     if item_attack_type == 'hail_mary':
         return await use_hail_mary(heroine, item, party_dict, mobs)
 
@@ -496,14 +552,16 @@ def party_wiped_taunt(mob : object, party : list) -> str:
 # Mob attacks are always repeatable within a fight (no once-per-battle rule for mobs).
 AI_LEVELS = {'easy': 'easy', 'medium': 'medium', 'normal': 'medium', 'hard': 'hard'} # 'normal' = medium (the Krazy Kobolds use it)
 WEIGHT_RANGE = {'easy': (1.0, 0.4), 'medium': (1.0, 0.7), 'hard': (0.6, 1.0)} # weight of its weakest attack, weight of its strongest
-HEAL_TRY = {'easy': 0.15, 'medium': 0.35, 'hard': 0.6} # how often a mob with a heal item uses it while a mob is below 60% HP
+HEAL_TRY = {'easy': 0.10, 'medium': 0.25, 'hard': 0.6} # how often a mob with a heal item uses it while a mob is below 60% HP
 # The weight column in mob_equipment.csv multiplies an attack's chance on top of all that (blank = 1): the Kobolds'
 # Claws come up 3 times as often as their Hiss. Specials with an effect column need the right kind of target:
 #   gas   - Gas Release: hits only melee heroines (each rolls to dodge); a hit costs her next turn
-#   junk  - Junk Attack: a normal hit, and her next damage is cut in half
+#   junk  - Junk Attack: a normal hit, and her next damage or heal is cut in half
 #   hiss  - Terrifying Hiss: no damage; if it lands she can't dodge for the rest of the fight (skips anyone already rattled)
 #   blink - Blink Stab: teleports behind a ranged heroine; she can't dodge or parry it
-MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink')
+#   poison - a normal hit; if it lands, POISON_CHANCE of the time she's poisoned for her next POISON_TURNS turns
+MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison')
+POISON_CHANCE, POISON_TURNS, POISON_DAMAGE = 0.5, 3, (2, 3) # Kobold Bite (Ted, Nov 8); the damage ticks at the start of her turn
 
 def ai_level(ai : str) -> str:
     return AI_LEVELS.get(str(ai).lower(), 'easy')
@@ -710,6 +768,10 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 await say(f"{mob.name} lands their {item['item_desc']} on {target.name} for {damage} hp.")
             else:
                 await say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for {damage} hp.")
+            if item.get('effect') == 'poison' and not target.is_dead and random.random() < POISON_CHANCE:
+                mult = getattr(mob, 'damage_mult', 1)
+                status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': max(1, round(POISON_DAMAGE[0] * mult)), 'high': max(1, round(POISON_DAMAGE[1] * mult))}
+                await say(f"[green]The bite was poisoned![/]  {target.name} will take a little damage at the start of each of her next {POISON_TURNS} turns.")
             if target.is_dead:
                 await say([
                     f"[narr]NOOO![/]  {target.name} has been slain!  [narr]We'll remember you, bud.[/]",
