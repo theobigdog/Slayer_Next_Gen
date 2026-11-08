@@ -19,6 +19,12 @@ from Slayer_UI import say, pause
 PACK_EXTRA, PACK_MIN, PACK_MAX = 2, 4, 8 # the party's size + 2 Kobolds, never fewer than 4 or more than 8 (8 fill the screen)
 LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its starting HP (0.35 = 35%)
 
+# How tough the Kobolds are, by party size: (HP, damage), each a multiplier. HP is starting_hp from mobs.csv
+# (the HP for a party of 4) times the first number; every hit they land does the second number times its usual
+# damage. Bigger parties face beefier, harder-hitting Kobolds; smaller ones scrawnier, softer ones (Ted, Nov 7:
+# 8 heroines winning 95% felt too easy). Tuned by simulation so every party size wins about as often.
+PARTY_SCALE = {1: (0.3, 0.7), 2: (0.65, 0.95), 3: (0.9, 1.0), 4: (1.0, 1.0), 5: (1.1, 1.05), 6: (1.2, 1.05), 7: (1.3, 1.2), 8: (1.4, 1.35)}
+
 # Ted: rename these freely (the game picks one per Kobold, no repeats, so keep at least 8).
 KOBOLD_NAMES = ['Snik', 'Grizzik', 'Tazzle', 'Pib', 'Skritch', 'Nibbles', 'Kekk', 'Zib', 'Twitch', 'Yipyip', 'Squee', 'Krinkle']
 
@@ -75,8 +81,19 @@ class Krazy_Kobold:
         await say(f"[red]The rest of the pack shrieks![/]  {names_list(angry)} {'goes' if one else 'go'} absolutely feral.  [narr]Oh, you pissed them off now.[/]")
 
 
+def party_scale(party_size : int) -> tuple:
+    """(HP multiplier, damage multiplier) for this party size (see PARTY_SCALE)."""
+    return PARTY_SCALE[max(min(PARTY_SCALE), min(max(PARTY_SCALE), party_size))]
+
+def kobold_hp(party_size : int) -> int:
+    """Each Kobold's HP for this party size."""
+    return max(1, round(acc.get_mob_stats('Krazy Kobolds', mobs_table)['starting_hp'] * party_scale(party_size)[0]))
+
 def make_pack(party_size : int) -> list:
     kobolds = [Krazy_Kobold(name) for name in random.sample(KOBOLD_NAMES, pack_size(party_size))]
+    for kobold in kobolds:
+        kobold.starting_health = kobold.health = kobold_hp(party_size)
+        kobold.damage_mult = party_scale(party_size)[1]
     pack = Pack(kobolds)
     for kobold in kobolds:
         kobold.pack = pack

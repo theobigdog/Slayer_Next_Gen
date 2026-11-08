@@ -415,6 +415,10 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
         return (party_dict, mobs, False)
     await say(f"\n{heroine.name}'s turn:")
     spent = getattr(heroine, 'spent_specials', [])
+    if all(item in spent for item in inv): # nothing but used-up specials: no point asking (it would ask forever)
+        await say(f"[narr]Everything {heroine.name} is carrying is still recharging, so she spends this turn catching her breath.[/]")
+        await pause()
+        return (party_dict, mobs, False)
     item_labels = [item_label(item, heroine) + ('  (recharging)' if item in spent else '') for item in inv]
     while True:
         if inv_len > 1:
@@ -582,7 +586,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
         tally(heroine, 'hits_taken')
         if rolls['toughness']:
             tally(heroine, 'toughs')
-        power = acc.multi_roll(item['damage_low'], item['damage_high']) * crit
+        power = acc.multi_roll(item['damage_low'], item['damage_high']) * crit * getattr(mob, 'damage_mult', 1)
         damage = int(power / 2) if rolls['toughness'] else int(power)
         damage = min(damage, heroine.health)
         update_health(heroine, damage)
@@ -612,7 +616,7 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
             await say(f"  {heroine.name} holds her breath and ducks out of it!")
             continue
         tally(heroine, 'hits_taken')
-        damage = min(int(acc.multi_roll(item['damage_low'], item['damage_high']) * mob_rolls['crit_mult']), heroine.health)
+        damage = min(int(acc.multi_roll(item['damage_low'], item['damage_high']) * mob_rolls['crit_mult'] * getattr(mob, 'damage_mult', 1)), heroine.health)
         update_health(heroine, damage)
         if heroine.is_dead:
             fallen.append(heroine)
@@ -641,6 +645,8 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
     crit_mult = mob_rolls['crit_mult']
     is_crit = crit_mult > 1 # intended to be used for autocommenting, for future work
     delta_w_crit = base_delta * crit_mult
+    if item['damage_high'] >= 0:
+        delta_w_crit *= getattr(mob, 'damage_mult', 1) # a mob scaled to the party's size (the Kobolds) hits harder or softer
     if item['damage_high'] < 0:
         healing = -int(delta_w_crit)
         if target.health + healing > target.starting_health:
