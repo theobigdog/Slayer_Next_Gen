@@ -445,6 +445,26 @@ STASH_SIZES = {1: 10, 2: 18, 3: 24, 4: 28, 5: 34, 6: 38, 7: 44, 8: 50} # Ted's t
 def stash_capacity(party_dict : dict) -> int:
     return STASH_SIZES.get(len(party_dict['party']), max(STASH_SIZES.values()))
 
+def capacity_facts(party_dict : dict) -> dict:
+    """The carrying limits, read live from the real rules, for Happy's speech in Slayer_Narration.happy_loot (Ted,
+    Nov 8: 'there should be some kind of link to the proper value, so Happy is always accurate'). Trinket room
+    depends on class, so 'trinkets' names only the classes in this party: 'Warriors can carry 2, Clerics 3'."""
+    by_class = {}
+    for heroine in party_dict['party']:
+        by_class.setdefault(heroine.hero_class, slots(heroine, 'trinket'))
+    plural = lambda cls: class_label(cls) + ('es' if cls.endswith(('ch', 'sh', 's')) else 's')
+    and_list = lambda words: words[0] if len(words) == 1 else ', '.join(words[:-1]) + ' and ' + words[-1]
+    groups = {} # classes with the same room go together: 'Clerics, Hunters and Shifters 3'
+    for cls, n in by_class.items():
+        groups.setdefault(n, []).append(plural(cls))
+    if len(party_dict['party']) == 1:
+        trinkets = f"you can carry {next(iter(by_class.values()))}"
+    else:
+        parts = [f"{and_list(sorted(names))} {'can carry ' if spot == 0 else ''}{n}" for spot, (n, names) in enumerate(sorted(groups.items()))]
+        trinkets = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ', and ' + parts[-1]
+    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'stack': {2: 'twice', 3: 'three times'}.get(MAX_STACK, f'{MAX_STACK} times'),
+            'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
+
 def stash_has_room(party_dict : dict) -> bool:
     return len(party_dict.setdefault('stash', [])) < stash_capacity(party_dict)
 

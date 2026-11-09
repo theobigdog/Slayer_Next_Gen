@@ -185,17 +185,23 @@ async def happy_loot(party_dict : dict) -> None:
     await say('\"Now don\'t you go thinking that Happy is just a big softy, but he ain\'t stingy neither!\" he starts.  \"It seems like you all could use a little extra help.  I honestly don\'t have a great deal here to help you out, but I don\'t want to quite literally toss you to the wolves without any help!\"')
     await say('[narr]Goddamnit, that had better not be foreshadowing - Hey I\'m on your side here, but I doubt you can handle a challenge of that magnitude![/]')
     await say(f'{h1.name} whispers, \"Wolves?  I fucking hate wolves....\"')
-    await say(f'\"Breathe easy lassie,\" Happy reassures.  \"We haven\'t had any wolves in these parts for at least the last week or two.  No stress."  Happy shoots a quick wink at {h1.name} who just shudders.')
+    await say(f'\"Breathe easy, lassie,\" Happy reassures.  \"We haven\'t had any wolves in these parts for at least the last week or two.  No stress."  Happy shoots a quick wink at {h1.name} who just shudders.')
     await pause()
-    await say(f'\"Anyway, I want to make sure that you fine heroines have a better chance in the future,\" Happy starts, \"so I have assembled a goodie bag for you{" to distribute as you see fit." if len(party_dict['party']) > 1 else "."}\"')
+    to_share = ' to distribute as you see fit.' if len(party_dict['party']) > 1 else '.'
+    await say(f'\"Anyway, I want to make sure that you fine heroines have a better chance in the future,\" Happy starts, \"so I have assembled a goodie bag for you{to_share}\"')
     if party_dict['times_run_dungeon'] == 1:
-        await say('\"Your loot may include potions and/or trinkets.  Each heroine can carry {heroine potion capacity} potions, with up to {x} capacity per potion.  A similar but separate capacity exists for trinkets (claude, please provide those numbers here) - small items that give you stat buffs.\"')
-        await say('\"If you choose a potion that you already have, it will just be topped-off.  If you choose a new potion, it will replace the old one, which you will have to discard.\"')
+        cap = acc.capacity_facts(party_dict) # the real limits, so Happy stays right if they ever change
+        potions = f"{cap['potions']} potion" + ('' if cap['potions'] == 1 else 's')
+        await say(f'\"Your loot may include potions and/or trinkets.  Each heroine can carry {potions}, with up to {cap["stack"]} its usual doses per potion.  A similar but separate capacity exists for trinkets - small items that give you stat buffs: {cap["trinkets"]}.  Weapons and the rest of your gear go in a bag that holds {cap["gear"]} pieces.\"')
+        if cap['potions'] == 1:
+            await say('\"If you choose a potion that you already have, it will just be topped-off.  If you choose a new potion, it will replace the old one, which you will have to discard.\"')
+        else:
+            await say('\"If you choose a potion that you already have, it will just be topped-off.  If her potions are full, a new one will replace one of the old ones, which you will have to discard.\"')
         await say('\"Be careful with all items you obtain during your adventures - you can only carry so many, and anything you can\'t carry is simply left behind.\"  [narr]Leave no trace....  you littering fucks![/]')
         await pause()
         await say('\"Your Stash.  Every time you attempt to complete this dungeon, you will start at this Tavern.  To make your lives easier, I have installed a Stash for you to use and reuse.\"')
-        await say('\"It holds up to 50 different objects, so you shouldn\'t have too much trouble finding space there, but be mindful of what you are carrying into the dungeon, because once you enter, there is no turning back to recover these items until the next time you visit these parts again.\"')
-        await say('\"Do keep in mind that, potentially, item upgrades will require you to make a permanent decision to discard another item, if you are at inventory capacity\"')
+        await say(f'\"It holds up to {cap["stash"]} different objects, so you shouldn\'t have too much trouble finding space there, but be mindful of what you are carrying into the dungeon, because once you enter, there is no turning back to recover these items until the next time you visit these parts again.\"')
+        await say('\"Do keep in mind that, potentially, item upgrades will require you to make a permanent decision to discard another item, if you are at inventory capacity.\"')
         await pause()
         await say('\"I believe that is about it.  Who\'s first?\"')
 
