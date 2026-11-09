@@ -25,7 +25,7 @@ LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its sta
 # (the HP for a party of 4) times the first number; every hit they land does the second number times its usual
 # damage. Bigger parties face beefier, harder-hitting Kobolds; smaller ones scrawnier, softer ones (Ted, Nov 7:
 # 8 heroines winning 95% felt too easy). Tuned by simulation so every party size wins about as often.
-PARTY_SCALE = {1: (0.25, 0.5), 2: (0.5, 0.8), 3: (0.8, 0.85), 4: (0.85, 0.8), 5: (0.85, 0.84), 6: (1.0, 0.86), 7: (1.2, 0.98), 8: (1.25, 1.08)}
+PARTY_SCALE = {1: (0.8, 0.35), 2: (0.75, 0.8), 3: (1.0, 0.82), 4: (1.1, 0.8), 5: (1.1, 0.84), 6: (1.15, 0.78), 7: (1.3, 0.9), 8: (1.4, 1.15)}
 
 # Ted: rename these freely (the game picks one per Kobold, no repeats, so keep at least 8).
 KOBOLD_NAMES = ['Snik', 'Grizzik', 'Tazzle', 'Pib', 'Skritch', 'Nibbles', 'Nipples', 'Kekk', 'Zib', 'Twitch', 'Yipyip', 'Squee', 'Krinkle']
