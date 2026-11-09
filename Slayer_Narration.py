@@ -181,7 +181,23 @@ async def happy_resurrection(party_dict : dict) -> None:
 async def happy_loot(party_dict : dict) -> None:
     """Plays just before Happy hands over his loot (and whatever his dead buddies dropped). The loot menus
     come right after this."""
-    await say('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
+    h1 = random.choice(party_dict['party'])
+    await say('\"Now don\'t you go thinking that Happy is just a big softy, but he ain\'t stingy neither!\" he starts.  \"It seems like you all could use a little extra help.  I honestly don\'t have a great deal here to help you out, but I don\'t want to quite literally toss you to the wolves without any help!\"')
+    await say('[narr]Goddamnit, that had better not be foreshadowing - Hey I\'m on your side here, but I doubt you can handle a challenge of that magnitude![/]')
+    await say(f'{h1.name} whispers, \"Wolves?  I fucking hate wolves....\"')
+    await say(f'\"Breathe easy lassie,\" Happy reassures.  \"We haven\'t had any wolves in these parts for at least the last week or two.  No stress."  Happy shoots a quick wink at {h1.name} who just shudders.')
+    await pause()
+    await say(f'\"Anyway, I want to make sure that you fine heroines have a better chance in the future,\" Happy starts, \"so I have assembled a goodie bag for you{" to distribute as you see fit." if len(party_dict['party']) > 1 else "."}\"')
+    if party_dict['times_run_dungeon'] == 1:
+        await say('\"Your loot may include potions and/or trinkets.  Each heroine can carry {heroine potion capacity} potions, with up to {x} capacity per potion.  A similar but separate capacity exists for trinkets (claude, please provide those numbers here) - small items that give you stat buffs.\"')
+        await say('\"If you choose a potion that you already have, it will just be topped-off.  If you choose a new potion, it will replace the old one, which you will have to discard.\"')
+        await say('\"Be careful with all items you obtain during your adventures - you can only carry so many, and anything you can\'t carry is simply left behind.\"  [narr]Leave no trace....  you littering fucks![/]')
+        await pause()
+        await say('\"Your Stash.  Every time you attempt to complete this dungeon, you will start at this Tavern.  To make your lives easier, I have installed a Stash for you to use and reuse.\"')
+        await say('\"It holds up to 50 different objects, so you shouldn\'t have too much trouble finding space there, but be mindful of what you are carrying into the dungeon, because once you enter, there is no turning back to recover these items until the next time you visit these parts again.\"')
+        await say('\"Do keep in mind that, potentially, item upgrades will require you to make a permanent decision to discard another item, if you are at inventory capacity\"')
+        await pause()
+        await say('\"I believe that is about it.  Who\'s first?\"')
 
 async def happy_stats(party_dict : dict) -> None:
     """Plays just before the first stat raises (Happy explaining that fights make them better). After this,
