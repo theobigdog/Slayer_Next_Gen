@@ -343,14 +343,14 @@ def slot_label(heroine : object, kind : str, item : dict = None) -> str:
     if kind == 'potion':
         hers = [x for x in carried(heroine, 'potion') if x in heroine.inv]
         if not hers:
-            return 'potion: none'
+            return 'no potion'
         mine = get_item(hers[0])
         left = uses_left(heroine, hers[0])
         if item and item['item'] == hers[0]:
             if stack_full(heroine, item):
-                return f"has {mine['item_desc']} ({left} left): full up"
-            return f"has {mine['item_desc']} ({left} left): tops up to {min(item['uses'] * MAX_STACK, left + item['uses'])}"
-        return f"has {mine['item_desc']} ({left} left): swap"
+                return f"has {left}, full"
+            return f"has {left}, stacks to {min(item['uses'] * MAX_STACK, left + item['uses'])}"
+        return f"swap out {mine['item_desc']} ({left})"
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
 # How a stat bonus reads to players, without numbers: (going up, going down). A small bonus (1-3) gets
@@ -746,11 +746,15 @@ async def start_new_run(party_dict : dict) -> dict:
     """The start of a new dungeon run: refresh_party, and any affliction from last run (the norovirus)
     clears up. Happy hands out a fresh one after the tavern fight."""
     party_dict = refresh_party(party_dict, True)
+    cured = False
     for heroine in party_dict['party']:
         for item_name, lines in AFFLICTIONS.items():
             if item_name in heroine.inv:
                 heroine.inv.remove(item_name)
                 await say(lines['cured'].format(who=heroine.name))
+                cured = True
+    if cured:
+        await pause() # read it before the party screen replaces it (Ted, Nov 8: it flashed past)
     return party_dict
 
 def restore_starting_items(heroine : object):

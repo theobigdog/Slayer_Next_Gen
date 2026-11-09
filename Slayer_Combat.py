@@ -104,6 +104,7 @@ async def check_last_cleric(fallen : list, party : list):
     clerics_fell = any(x.hero_class == 'Cleric' for x in fallen)
     clerics_left = any(x.hero_class == 'Cleric' and not x.is_dead for x in party)
     if clerics_fell and not clerics_left and any(not x.is_dead for x in party):
+        await say('') # a blank line first, so it stands out (Ted, Nov 8)
         await say(LAST_CLERIC_LINES)
 
 def item_label(item_name : str, heroine : object = None) -> str: # one line of the item menu
@@ -176,6 +177,7 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         healing = max(1, healing // 2)
         await say(f"[narr]{heroine.name}'s junk still hurts, so it's a half-strength heal.[/]")
     target = update_health(target, -healing)
+    await cleanse(target, item)
     await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
     await say("[narr]I'm so proud of you![/]")
     await pause()
@@ -295,7 +297,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     if junked:
         del heroine.status['junked']
         await say(f"[narr]Her junk still hurts, so it's a half-strength blast.[/]")
-    if spread < 1:
+    if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
         await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
     killed = []
     for mob in [m for m in mobs if not m.is_dead]:
@@ -348,6 +350,11 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     return (party_dict, mobs, heroine_rolls['luck'])
 
 
+async def cleanse(heroine : object, item : dict):
+    """A healer's heal burns out Kobold poison (Ted, Nov 8). A potion doesn't: anything with uses is one."""
+    if not item['uses'] and status(heroine).pop('poisoned', None):
+        await say(f"  [green]...and it burns the poison right out of {heroine.name}, too.[/]")
+
 async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mobs : list, heroine_rolls : dict) -> tuple:
     """An area heal (attack_type aoe_heal): everyone still standing in the party gets patched up, each amount
     rolled on its own, one crit for the lot. A consumable always works (you just pop it); anything else needs her
@@ -371,6 +378,7 @@ async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mob
         update_health(member, -amount)
         helped += 1
         await say(f"  {member.name} +{amount} hp")
+        await cleanse(member, item)
     if not helped:
         await say("[narr]Nobody even needed it.  Very generous of you.[/]")
     await pause()

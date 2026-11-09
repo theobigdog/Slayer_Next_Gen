@@ -28,7 +28,7 @@ LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its sta
 PARTY_SCALE = {1: (0.25, 0.5), 2: (0.5, 0.8), 3: (0.8, 0.85), 4: (0.85, 0.8), 5: (0.85, 0.84), 6: (1.0, 0.86), 7: (1.2, 0.98), 8: (1.25, 1.08)}
 
 # Ted: rename these freely (the game picks one per Kobold, no repeats, so keep at least 8).
-KOBOLD_NAMES = ['Snik', 'Grizzik', 'Tazzle', 'Pib', 'Skritch', 'Nibbles', 'Kekk', 'Zib', 'Twitch', 'Yipyip', 'Squee', 'Krinkle']
+KOBOLD_NAMES = ['Snik', 'Grizzik', 'Tazzle', 'Pib', 'Skritch', 'Nibbles', 'Nipples', 'Kekk', 'Zib', 'Twitch', 'Yipyip', 'Squee', 'Krinkle']
 
 mobs_table = acc.get_mobs()
 
