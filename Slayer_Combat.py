@@ -635,7 +635,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     party = party_dict['party']
     crit = mob_rolls['crit_mult'] # one crit for the whole spray; the damage itself is rolled for each heroine
     if item['item'] == 'vomit':
-        await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Ah, I feel so much better,\" he taunts.")
+        await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Och, I feel sae much better,\" he taunts.")
     else:
         await say(f"{mob.name} unleashes {item['item_desc']} on the whole party!")
     if not mob_rolls['hit']:
