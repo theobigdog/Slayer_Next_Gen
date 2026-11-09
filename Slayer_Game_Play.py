@@ -2,10 +2,15 @@ import Slayer_Accessory as acc
 from Slayer_UI import pause, say, wait, yes_no
 import Slayer_Combat as combat
 import Slayer_Dwarf
+import Slayer_Kobolds
 import Slayer_Narration as nar
 import random
 
 happy_buddy_names = ['Burpy', 'Gassy', 'Smelly', 'Grumpy', 'Hairy', 'Slappy', 'Fuck-Head', 'Bloaty']
+
+# A fight that just won't end (a party that can only heal, say a lone Cleric, against mobs she can out-heal) gets
+# a push: after CRANKY_ROUND rounds, every mob hits CRANKY_STEP times harder each round until somebody wins.
+CRANKY_ROUND, CRANKY_STEP = 30, 1.25
 
 def get_turn_order(party: list, mobs: list) -> list:
     heroine_dice_cutoff = acc.get_dice_cutoffs()['speed_cutoff']
@@ -74,10 +79,57 @@ async def play_game(party_dict: dict) -> dict:
                 await say('[narr]Umm....  May I at least have a small breathing hole?  I have a deviated septum and I\'m a mouth-breather....[/]')
                 await pause()
 
+    party_dict = await tavern(party_dict)
+    party_dict = await dungeon(party_dict)
+    return party_dict
+
+
+async def tavern(party_dict: dict) -> dict:
+    """The Happy fight. It always ends in his wipe, the resurrection, loot, stat raises and the back room."""
     happy = Slayer_Dwarf.Disgruntled_Dwarf('Happy')
     buddy1, buddy2 = random.sample(happy_buddy_names, 2)
     mobs = [happy, Slayer_Dwarf.Drunk_Dwarf(buddy1), Slayer_Dwarf.Drunk_Dwarf(buddy2)]
+    party_dict = await battle(party_dict, mobs)
+    if party_dict['wiped']:
+        party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
+        party_dict = acc.refresh_party(party_dict, False)
+    return party_dict
+
+
+async def dungeon(party_dict: dict) -> dict:
+    """Down through Happy's secret entrance to the Krazy Kobolds. A wipe ends the run; a win gets the
+    between-battles step. Either way the run is over for now (the Kobolds are as deep as it goes)."""
+    await nar.secret_entrance(party_dict)
+    kobolds = Slayer_Kobolds.make_pack(len(party_dict['party']))
+    await nar.kobolds_appear(party_dict, kobolds)
+    party_dict = await battle(party_dict, kobolds, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn)
+    if party_dict['wiped']:
+        party_dict['run_result'] = 'wiped'
+        await nar.dungeon_wipe(party_dict, kobolds)
+    else:
+        party_dict['run_result'] = 'won'
+        await nar.fight_won(party_dict, kobolds)
+        party_dict = await between_battles(party_dict, kobolds)
+        await say("[narr]PLACEHOLDER: ...and that's as deep as the dungeon goes, for now.  To be continued![/]")
+        await pause()
+    return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
+
+
+async def between_battles(party_dict: dict, mobs: list) -> dict:
+    """After a won fight in the dungeon: gamble the Token on anyone who's down, the loot, then the stat raises."""
+    party_dict = await combat.token_between_battles(party_dict)
+    party_dict = await acc.get_loot(mobs[0], party_dict, mobs) # every one of them rolls its own drops
+    await nar.stats_after_fight(party_dict)
+    party_dict = await acc.get_stat_increases(party_dict)
+    return party_dict
+
+
+async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) -> dict:
+    """One fight, round after round, until the party wipes or every mob is down. round_end(party_dict, mobs,
+    round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there), and
+    after_turn(mobs) after every turn (the Kobolds' rage keeps track with it)."""
     combat.start_battle(party_dict['party']) # special weapons are ready again
+    party_dict['wipe_taunted'] = False # one wipe taunt per fight, from whichever mob gets there first
 
     round_num = 0
     while not party_dict['wiped'] and alive_mobs(mobs):
@@ -85,7 +137,7 @@ async def play_game(party_dict: dict) -> dict:
         turn_order = get_turn_order(party_dict['party'], mobs)
         for attacker in turn_order:
             if not attacker.is_dead and alive_mobs(mobs):
-                await combat.show_current_status(party_dict['party'], mobs, round_num)
+                await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
                 await wait(0.5)
                 if not attacker.is_mob: # player's turn with the given heroine
                     party_dict, mobs, luck_roll = await combat.player_turn(attacker, party_dict, mobs)
@@ -93,14 +145,14 @@ async def play_game(party_dict: dict) -> dict:
                         combat.tally(attacker, 'lucky')
                         await say(f"[narr]{attacker.name}'s lucky fuckin' day![/]  She gets an extra turn.  [narr]Make it count![/]")
                         await pause()
-                        await combat.show_current_status(party_dict['party'], mobs, round_num)
+                        await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
                         party_dict, mobs, _ = await combat.player_turn(attacker, party_dict, mobs)
                     for mob in mobs:
-                        if not mob.is_dead:
+                        if not mob.is_dead and not check_wiped(party_dict['party']): # no bonus attacks on a party that's already down
                             turn_stat = 'enraged_turn_chance' if mob.enraged else 'turn_chance'
                             if acc.multi_roll(1,100) <= mob.stats[turn_stat]:
                                 party_dict['wiped'] = check_wiped(party_dict['party'])
-                                await combat.show_current_status(party_dict['party'], mobs, round_num)
+                                await combat.show_current_status(party_dict['party'], mobs, round_num, mob)
                                 await say(f"{mob.name}, that insane bastard, moves like a horny jack-rabbit on a date and gets an extra attack.  [narr]Boo.[/]")
                                 party_dict, mobs, _ = await combat.mob_turn(mob, party_dict, mobs, extra=True)
                                 
@@ -108,15 +160,23 @@ async def play_game(party_dict: dict) -> dict:
                     party_dict, mobs, luck_roll = await combat.mob_turn(attacker, party_dict, mobs)
                     party_dict['wiped'] = check_wiped(party_dict['party'])
                     if luck_roll and not attacker.is_dead and alive_mobs(mobs) and not party_dict['wiped']:#  Intentionally, this does not loop, only one lucky attack per round ;) - though it's possible I might want to be able to toggle this for mobs so that multiple luck rolls are possible.  Maybe a separate luck function for certain mob class_types
+                        await combat.show_current_status(party_dict['party'], mobs, round_num, attacker) # screen first, so the line stays up
                         await say(f"[narr]Oh, shit.[/]  {attacker.name} gets an extra attack!  [narr]Brace yourselves![/]")
-                        await combat.show_current_status(party_dict['party'], mobs, round_num)
                         party_dict, mobs, _ = await combat.mob_turn(attacker, party_dict , mobs, extra=True) # straight to the results
                 party_dict['wiped'] = check_wiped(party_dict['party'])
+                if after_turn:
+                    after_turn(mobs)
+        if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):
+            if round_num == CRANKY_ROUND:
+                await say(f"[narr]Round {CRANKY_ROUND}?  Seriously?  Everybody in here is getting cranky, me included.  The mobs hit harder every round from now on, until SOMEBODY wins.[/]")
+                await pause()
+            for mob in mobs:
+                mob.damage_mult = getattr(mob, 'damage_mult', 1) * CRANKY_STEP
+        if round_end and not party_dict['wiped'] and alive_mobs(mobs):
+            await combat.show_current_status(party_dict['party'], mobs, round_num)
+            await round_end(party_dict, mobs, round_num)
         if party_dict['wiped'] or not alive_mobs(mobs):
             await combat.show_current_status(party_dict['party'], mobs, round_num)
             await pause()
-    if party_dict['wiped']:
-        party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
-        party_dict = acc.refresh_party(party_dict, False)
-
+    party_dict.pop('wipe_taunted', None) # only for this fight (keeps it out of the save)
     return party_dict

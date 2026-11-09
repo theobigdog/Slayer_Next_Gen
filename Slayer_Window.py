@@ -121,6 +121,7 @@ class WindowUI:
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
+        self.active = None  # whoever's turn it is: her box gets a gold frame
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
         self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
@@ -556,13 +557,13 @@ class WindowUI:
         self.echo(answer.strip())
         return answer
 
-    async def show_battle(self, party, mobs, round_num):
+    async def show_battle(self, party, mobs, round_num, active=None):
         await self.clear()
-        self.mode, self.party, self.mobs, self.round_num = 'battle', party, mobs, round_num
+        self.mode, self.party, self.mobs, self.round_num, self.active = 'battle', party, mobs, round_num, active
 
-    async def show_party(self, party):
+    async def show_party(self, party, active=None):
         await self.until_typed()
-        self.mode, self.party = 'party', party
+        self.mode, self.party, self.active = 'party', party, active
 
     async def title_screen(self):
         await TitleAnimation(self).play()
@@ -586,10 +587,33 @@ class WindowUI:
             return pygame.Rect(16, 444, 780 if self.menu_open() else 1248, 264)
         return pygame.Rect(60, 60, 1160 if not self.menu_open() else 740, 600)
 
+    MENU_ROW = 30  # pixels per menu row
+
     def menu_area(self):
+        """In a battle or party screen the menu sits bottom right. A long one (more than 7 choices) grows upward
+        over the enemies' side instead of splitting into two cramped columns, so every row stays one full line
+        (Ted, Nov 8: names were getting cut to 'Thea (Wa...')."""
         if self.mode in ('battle', 'party'):
-            return pygame.Rect(808, 444, 456, 264)
+            rows = len(self.menu_labels) if self.menu_open() and not self.short_labels() else 0
+            height = min(708 - 64, max(264, 50 + rows * self.MENU_ROW + 6))
+            return pygame.Rect(808, 708 - height, 456, height)
         return pygame.Rect(812, 60, 408, 600)
+
+    def short_labels(self):
+        """Every label fits half a menu (target names do): two columns are fine, no need to grow."""
+        fnt = self.fonts['menu_s']
+        return all(fnt.size(f'00   {label}')[0] <= 196 for label in self.menu_labels)
+
+    def menu_font(self, labels, width):
+        """The biggest menu font every row fits in, so the rows all match (the smallest if none fits)."""
+        def short(label): # a long name may lose a few letters ('Brumhilda (Battl...'), rather than every row shrinking
+            name, tab, side = label.replace('  (recharging)', '   Recharging').partition('\t')
+            return (name if len(name) <= 18 else name[:15] + '...') + ('   ' + side if tab else '')
+        for name in ('menu', 'menu_s', 'menu_xs'):
+            fnt = self.fonts[name]
+            if all(fnt.size(f'00   ' + short(label))[0] <= width - 16 for label in labels):
+                return name
+        return 'menu_xs'
 
     def menu_open(self):
         """A side menu is showing (Yes/No buttons sit inside the text box instead)."""
@@ -727,25 +751,38 @@ class WindowUI:
         if self.num_buffer:
             title += f'   {self.num_buffer}_'  # a two-digit number being typed
         self.blit_text(title, (area.x + 16, area.y + 10), 'menu_title', GOLD)
-        columns = 1 if (area.height - 50) // max(1, len(labels)) >= 30 else 2  # a long list (say 11 targets) goes in two columns
+        columns = 1 if (area.height - 50) // max(1, len(labels)) >= self.MENU_ROW else 2  # only if even the tall menu can't fit them
         per_column = -(-len(labels) // columns)
         row_h = min(34, (area.height - 50) // max(1, per_column))
         col_w = (area.width - 20 - (columns - 1) * 8) // columns
         self.buttons = []
         mouse = pygame.mouse.get_pos()
+        font_name = self.menu_font(labels, col_w)
         for i, label in enumerate(labels):
             col, row = divmod(i, per_column)  # numbers run down the first column, then the second
             rect = pygame.Rect(area.x + 10 + col * (col_w + 8), area.y + 44 + row * row_h, col_w, row_h - 4)
             hover = rect.collidepoint(mouse)
             pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
-            self.draw_menu_label(rect, str(i + 1), label)
+            self.draw_menu_label(rect, str(i + 1), label, font_name)
             self.buttons.append(Button(rect, label, extra['options'][i]))
+            if hover:
+                self.frame_who(label, extra['options'][i])
         if kind == 'choose_target':
             self.targets = [(rect, ent) for rect, ent in self.sprite_rects if ent in extra['options']]
             for rect, _ in self.targets:
-                pygame.draw.rect(self.screen, GOLD, rect.inflate(10, 10), 3, border_radius=8)
+                if not rect.colliderect(area): # never draw a target's outline over the menu itself
+                    pygame.draw.rect(self.screen, GOLD, rect.inflate(10, 10), 3, border_radius=8)
 
-    def draw_menu_label(self, rect, key, label):
+    def frame_who(self, label, option):
+        """Hovering a menu row about a heroine (or a target) frames her box up top, so 'Who gets it?' is never
+        a guess about which Warrior is which."""
+        who = option if hasattr(option, 'name') else next(
+            (h for h in self.party if label.startswith(h.name + '  (') or label == h.name), None)
+        for rect, entity in self.sprite_rects:
+            if entity is who and not rect.colliderect(self.menu_area()):
+                pygame.draw.rect(self.screen, GOLD, rect.inflate(16, 16), 4, border_radius=12)
+
+    def draw_menu_label(self, rect, key, label, font_name=None):
         """One menu row: its number, then the label in the biggest size that fits. A special weapon
         that's recharging is red and crossed out, with 'Recharging' after it. A label with a tab in it
         ('Xena  (Warrior)\tbag 4/6') keeps the part after the tab on the right edge, always whole:
@@ -754,7 +791,7 @@ class WindowUI:
         base = label.replace('  (recharging)', '')
         base, _, side = base.partition('\t')
         room = rect.width - 16
-        for name in ('menu', 'menu_s', 'menu_xs'):
+        for name in ((font_name,) if font_name else ('menu', 'menu_s', 'menu_xs')):
             fnt = self.fonts[name]
             tail = [('   Recharging', GOLD)] if recharging else []
             if side:
@@ -767,9 +804,15 @@ class WindowUI:
         number = fnt.render(f'{key}   ', True, TEXT)
         self.screen.blit(number, (x, y))
         x += number.get_width()
+        if side and x + fnt.size(base[:8])[0] + tail_w > rect.right - 8: # the tail would run over the name: trim the tail too
+            side_text = tail[-1][0]
+            while x + fnt.size(base[:8])[0] + fnt.size(side_text)[0] > rect.right - 8 and len(side_text) > 6:
+                side_text = side_text[:-4].rstrip() + '...'
+            tail[-1] = (side_text, tail[-1][1])
+            tail_w = sum(fnt.size(t)[0] for t, _ in tail)
         text = base
         while fnt.size(text)[0] > rect.right - 8 - tail_w - x and len(text) > 4:
-            text = text[:-4].rstrip() + '...'  # trim the name, never the tail
+            text = text[:-4].rstrip() + '...'  # trim the name before the tail
         color = (220, 80, 70) if recharging else TEXT
         surf = fnt.render(text, True, color)
         self.screen.blit(surf, (x, y))
@@ -804,9 +847,15 @@ class WindowUI:
             self.draw_health_bar(heroine, rect, slot_w - 12)
             self.sprite_rects.append((rect, heroine))
 
+    def mob_label(self, mob):
+        return getattr(mob, 'label', mob.mob_class) + (' (enraged)' if mob.enraged else '')
+
     def draw_mobs(self):
         bosses = [m for m in self.mobs if getattr(m, 'is_boss', False)]
         others = [m for m in self.mobs if m not in bosses]
+        if not bosses and len(others) > 4:  # a big pack (the Krazy Kobolds, up to 8): two rows
+            self.draw_mob_rows(others)
+            return
         order = others[:len(others) // 2] + bosses + others[len(others) // 2:]
         sizes = []
         for mob in order:
@@ -820,11 +869,24 @@ class WindowUI:
         floor = 360
         for mob, (w, h) in zip(order, sizes):
             rect = pygame.Rect(x, floor - h, w, h)
-            label = mob.mob_class + (' (enraged)' if mob.enraged else '')
-            self.draw_sprite(mob, rect, label, ENRAGED_BOX if mob.enraged else MOB_BOX)
+            self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
             self.draw_health_bar(mob, rect, max(w, 130))
             self.sprite_rects.append((rect, mob))
             x += w + gap
+
+    def draw_mob_rows(self, mobs):
+        """Up to 8 mobs in two rows on the right half, each box 104 x 112 with its HP bar under it."""
+        w, h, gap = 104, 112, 30
+        per_row = -(-len(mobs) // 2)
+        for row, group in enumerate((mobs[:per_row], mobs[per_row:])):
+            total = len(group) * w + (len(group) - 1) * gap
+            x = 660 + (600 - total) // 2
+            for mob in group:
+                rect = pygame.Rect(x, 52 + row * 188, w, h)
+                self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
+                self.draw_health_bar(mob, rect, 130)
+                self.sprite_rects.append((rect, mob))
+                x += w + gap
 
     def draw_sprite(self, entity, rect, label, box_color):
         dead = entity.is_dead
@@ -850,6 +912,11 @@ class WindowUI:
             image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
         if pose.angle:
             image = pygame.transform.rotate(image, pose.angle)
+        if entity is self.active and not dead:  # whose turn it is: a gold frame that breathes a little
+            glow = 150 + int(80 * math.sin(pygame.time.get_ticks() / 250))
+            frame = pygame.Surface((rect.width + 16, rect.height + 16), pygame.SRCALPHA)
+            pygame.draw.rect(frame, (*GOLD, glow), frame.get_rect(), 4, border_radius=12)
+            self.screen.blit(frame, frame.get_rect(center=rect.center))
         self.screen.blit(image, image.get_rect(midbottom=(rect.centerx + pose.dx, rect.bottom + pose.dy)))
         if not dead:
             self.motion.effects(entity, kind, rect)

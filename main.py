@@ -4,6 +4,7 @@ This file has to be called main.py: pygbag, which packs the game for the browser
 On the web there's no window to close, so after "The End" a click starts a fresh game.
 """
 import asyncio
+import pygame  # unused here, but Pydroid 3 (Android) looks for this line to start in graphics mode
 import Slayer_UI as ui
 from Slayer_Window import WindowUI
 

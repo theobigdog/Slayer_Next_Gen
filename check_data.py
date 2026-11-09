@@ -12,8 +12,9 @@ import sys
 from pathlib import Path
 
 DOCS = Path(__file__).parent / 'supporting_docs'
-ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'trinket', 'hail_mary'}
+ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 'hail_mary'}
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
+MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
 problems = []
 
@@ -106,6 +107,10 @@ for i, row in enumerate(gear, start=2):
     high = number('mob_equipment.csv', i, 'damage_high', row['damage_high'])
     if low is not None and high is not None and low > high:
         problem('mob_equipment.csv', i, "damage_low is bigger than damage_high.")
+    if row.get('effect') and row['effect'] not in MOB_EFFECTS:
+        problem('mob_equipment.csv', i, f"effect '{row['effect']}' isn't one the game knows ({', '.join(sorted(MOB_EFFECTS))}), or leave it empty.")
+    if 'weight' in row:
+        number('mob_equipment.csv', i, 'weight', row['weight'], float, 0, 100, blank_ok=True)
 
 # ---------- items.csv ----------
 _, items = read('items.csv')

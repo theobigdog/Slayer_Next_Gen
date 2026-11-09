@@ -13,11 +13,13 @@ Name: `<class>_<pose>.png`, all lowercase, spaces become underscores.
 | `disgruntled_dwarf_idle.png` | Happy |
 | `disgruntled_dwarf_enraged.png` | Happy after he enrages (falls back to the idle one if it's missing) |
 | `drunk_dwarf_idle.png` | the drunk dwarves |
+| `krazy_kobolds_idle.png`, `krazy_kobolds_enraged.png` | the Krazy Kobolds (the enraged one is optional) |
 
 Tips:
 - PNG with a transparent background.
 - Draw it big; the game scales it down to fit its slot and keeps the shape (it never stretches).
-  Heroines fit in a 104 x 104 box, the dwarves in 120 x 150, Happy in 200 x 240, enraged Happy in 250 x 300.
+  Heroines fit in a 104 x 104 box, the dwarves in 120 x 150, Happy in 200 x 240, enraged Happy in 250 x 300,
+  and each Krazy Kobold in 104 x 112 (up to 8 of them, in two rows).
 - Sprites stand on the bottom edge of their slot, so leave the feet at the bottom of the image.
 - Pixel art: draw it small (say 48 x 48) and tell Claude, so it gets scaled up with sharp pixels instead of smoothed.
 - Dead combatants are drawn darkened automatically; no separate art needed.

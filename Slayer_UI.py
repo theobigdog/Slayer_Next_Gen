@@ -11,7 +11,7 @@ It imports what it needs from here (from Slayer_UI import say, pause, ...) and a
     target = await choose_target(prompt, party, mobs, oops)
     answer = await yes_no(prompt)                      # True / False
     text = await ask_text(prompt)                      # free typing (names, numbers)
-    await show_battle(party, mobs, round_num)          # the round status screen
+    await show_battle(party, mobs, round_num, active)  # the round status screen (active: whose turn it is)
     await show_party(party)                            # the party lineup
     await title_screen()                               # the SLAYER opening
     await loser_banner()                               # the LOSER banner
@@ -73,8 +73,9 @@ async def yes_no(prompt: str) -> bool:
 async def ask_text(prompt: str) -> str:
     return await _backend.ask_text(prompt)
 
-async def show_battle(party: list, mobs: list, round_num: int):
-    await _backend.show_battle(party, mobs, round_num)
+async def show_battle(party: list, mobs: list, round_num: int, active=None):
+    """active: whoever's turn it is (a heroine or a mob), so the screen can point her out. None = nobody."""
+    await _backend.show_battle(party, mobs, round_num, active)
 
 async def show_party(party: list):
     await _backend.show_party(party)
@@ -196,23 +197,24 @@ class TerminalUI:
             return f"{self.Fore.MAGENTA}{health}{self.Style.RESET_ALL}/{entity.starting_health}"
         return f"{health}/{entity.starting_health}"
 
-    async def show_party(self, party):
+    async def show_party(self, party, active=None):
         print()
         for heroine in party:
-            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}")
+            turn = '   <-- her turn' if heroine is active else ''
+            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{turn}")
 
-    async def show_battle(self, party, mobs, round_num):
+    async def show_battle(self, party, mobs, round_num, active=None):
         await self.clear()
         print(f'Round:{round_num}\n\n')
         print('Enemy')
         for mob in mobs:
             print()
-            print(f"Name: {mob.name}")
-            print(f"Class: {mob.mob_class}")
+            print(f"Name: {mob.name}{'   <-- its turn' if mob is active else ''}")
+            print(f"Class: {getattr(mob, 'label', mob.mob_class)}{' (enraged)' if mob.enraged and not getattr(mob, 'is_boss', False) else ''}")
             print(f"Current Health: {self.health_text(mob)}")
         print()
         print('Party')
-        await self.show_party(party)
+        await self.show_party(party, active)
 
     # The ASCII art openings live in Slayer_Graphics and stay terminal-only.
 

@@ -130,19 +130,80 @@ async def happy_wipe(party_dict : dict, happy_killed : bool) -> None:
     """Plays the moment enraged Happy has wiped the party. happy_killed is True when they actually killed
     enraged Happy (he wipes them anyway); False when he just beat them to death the normal way."""
     if happy_killed:
-        await say('Add Immortal Happy -> wipes the party anyway narration')
+        living_party = [x for x in party_dict['party'] if not x.is_dead]
+        h = random.choice(living_party)
+        await say('Happy hits the ground.  Hard.')
+        await say(f"Still catching her breath, {h.name} begins to walk over to the crumpled dwarf.")
+        await pause()
+        await say("As she approaches, Happy's body begins to twitch.  And then bounce a bit.  Even a little jiggling. [narr] WHAT THE FUCK?[/]")
+        await say(f"{h.name} pauses, \"Is he... laughing?\"")
+        await say('Happy continues to chuckle, then in one extremely quick move, flips directly onto his feet.')
+        await say(f"\"Now wait a second...\" begins {h.name} and she reaches for the nearest weapon her hand can find.")
+        await pause()
+        await say(f"Before {h.name} can say another word, Happy stops laughing, concurrently sweeping a beefy leg across her face, snapping her neck instantly.")
+        if len(living_party) > 1:
+            remaining_members = [x for x in living_party if x != h]
+            await say("Moving with such blazing fast speed that all any remaining heroine can see are blurred motions, Happy systematically shreds every remaining party member's defense, pulverizing each victim as he somersaults from one to the next.")
+            await say(f"Happy drops what\'s left of {random.choice(remaining_members).name}, and begins to take in the carnage.")
+            await say("[narr]Fuck, you didn\'t have a chance, did you?[/]")
     else:
-        await say('Add wipe narration here')
+        await say('As the final heroine hits the floor, Happy takes a second to stop and smile - he savors the moment.')
+    await pause()
 
 async def happy_resurrection(party_dict : dict) -> None:
     """Plays right after happy_wipe: Happy brings everyone back. (The design doc also has him getting sappy
     about his 'Disgruntled' bouncer job here.) Leave it empty and nothing plays."""
-    pass
+    h = random.choice(party_dict['party'])
+    solo = len(party_dict['party']) == 1 # a party of one gets her name instead of "each heroine"
+    await say(f"\"Yes, yes, I have done fine work today,\" he mutters to himself, chuckling.  That is, until he catches a glimpse of {h.name}\'s mangled corpse.")
+    await say("Happy stops to look deeply into the blank eyes of the poor, late heroine.  That purple flame briefly lights up in Happy's eyes again, and then he appears to suddenly experience a complete metaphysical breakdown.")
+    await say("Huge tears well up in his eyes as he thinks back to all of his countless victims over the years.")
+    await say(f"[narr]Happy my ass...[/]")
+    await pause()
+    await say("\"All the murder.  All the senseless killing.  And what the fuck am I even getting out of this?\" he cries.")
+    await say("\"I have fucking had it with playing a glorified bouncer for this - \'organization\'!\" he booms.  \"I'm going to show THEM a thing or two, and maybe they'll think twice before giving me such a shit-job again.\"")
+    await say("[narr]I think I can see now where the \"Disgruntled\" part of his title comes from![/]")
+    await pause()
+    await say("Happy stops blubbering and closes his eyes.  He holds both arms out to his sides, palms up and begins muttering some sort of rapid, runic language.")
+    await say("Cold, purple fire, the same shade as what was briefly caught in Happy\'s eyes, begins to stream from his palms.")
+    await say(f"Purple tendrils thicken and split, wrapping {h.name if solo else 'each heroine'}\'s body until you can\'t see a square millimeter of the unfortunate, engulfed adventurer.")
+    await say('Sweat begins to bead up on Happy\'s forehead, quickly becoming a flowing stream, as he almost literally pours every ounce of his magical capacity into the process.')
+    if solo:
+        await say(f"As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  {h.name} begins to slowly rouse, moaning painfully as she returns to the land of the living.")
+    else:
+        await say("As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  One by one, each heroine begins to slowly rouse, moaning painfully as they return to the land of the living.")
+    await pause()
+    await say("[narr]Oh.  Oh my.  I just went from 6 to midnight....[/]")
+    await say(f"{h.name if solo else 'The final party member'} comes back to full consciousness, and Happy\'s face softens, the staccato runes slow down and eventually cease completely.")
+    await say('\"Welcome Back!\" Happy booms.')
+
 
 async def happy_loot(party_dict : dict) -> None:
     """Plays just before Happy hands over his loot (and whatever his dead buddies dropped). The loot menus
     come right after this."""
-    await say('Add specific Happy narration here for getting the loot, maybe explaining whats up, though this part may not be necessary to explain')
+    h1 = random.choice(party_dict['party'])
+    await say('\"Now don\'t you go thinking that Happy is just a big softy, but he ain\'t stingy neither!\" he starts.  \"It seems like you all could use a little extra help.  I honestly don\'t have a great deal here to help you out, but I don\'t want to quite literally toss you to the wolves without any help!\"')
+    await say('[narr]Goddamnit, that had better not be foreshadowing - Hey I\'m on your side here, but I doubt you can handle a challenge of that magnitude![/]')
+    await say(f'{h1.name} whispers, \"Wolves?  I fucking hate wolves....\"')
+    await say(f'\"Breathe easy, lassie,\" Happy reassures.  \"We haven\'t had any wolves in these parts for at least the last week or two.  No stress."  Happy shoots a quick wink at {h1.name} who just shudders.')
+    await pause()
+    to_share = ' to distribute as you see fit.' if len(party_dict['party']) > 1 else '.'
+    await say(f'\"Anyway, I want to make sure that you fine heroines have a better chance in the future,\" Happy starts, \"so I have assembled a goodie bag for you{to_share}\"')
+    if party_dict['times_run_dungeon'] == 1:
+        cap = acc.capacity_facts(party_dict) # the real limits, so Happy stays right if they ever change
+        potions = f"{cap['potions']} potion" + ('' if cap['potions'] == 1 else 's')
+        await say(f'\"Your loot may include potions and/or trinkets.  Each heroine can carry {potions}, with up to {cap["stack"]} its usual doses per potion.  A similar but separate capacity exists for trinkets - small items that give you stat buffs: {cap["trinkets"]}.  Weapons and the rest of your gear go in a bag that holds {cap["gear"]} pieces.\"')
+        if cap['potions'] == 1:
+            await say('\"If you choose a potion that you already have, it will just be topped-off.  If you choose a new potion, it will replace the old one, which you will have to discard.\"')
+        else:
+            await say('\"If you choose a potion that you already have, it will just be topped-off.  If her potions are full, a new one will replace one of the old ones, which you will have to discard.\"')
+        await say('\"Be careful with all items you obtain during your adventures - you can only carry so many, and anything you can\'t carry is simply left behind.\"  [narr]Leave no trace....  you littering fucks![/]')
+        await pause()
+        await say('\"Your Stash.  Every time you attempt to complete this dungeon, you will start at this Tavern.  To make your lives easier, I have installed a Stash for you to use and reuse.\"')
+        await say(f'\"It holds up to {cap["stash"]} different objects, so you shouldn\'t have too much trouble finding space there, but be mindful of what you are carrying into the dungeon, because once you enter, there is no turning back to recover these items until the next time you visit these parts again.\"')
+        await say('\"Do keep in mind that, potentially, item upgrades will require you to make a permanent decision to discard another item, if you are at inventory capacity.\"')
+        await pause()
+        await say('\"I believe that is about it.  Who\'s first?\"')
 
 async def happy_stats(party_dict : dict) -> None:
     """Plays just before the first stat raises (Happy explaining that fights make them better). After this,
