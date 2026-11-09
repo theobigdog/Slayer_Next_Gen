@@ -203,25 +203,64 @@ async def happy_loot(party_dict : dict) -> None:
         await say(f'\"It holds up to {cap["stash"]} different objects, so you shouldn\'t have too much trouble finding space there, but be mindful of what you are carrying into the dungeon, because once you enter, there is no turning back to recover these items until the next time you visit these parts again.\"')
         await say('\"Do keep in mind that, potentially, item upgrades will require you to make a permanent decision to discard another item, if you are at inventory capacity.\"')
         await pause()
-        await say('\"I believe that is about it.  Who\'s first?\"')
+        await say('\"I believe that is about it.  Let\'s see what you got.\"')
+    ### CLAUDE: can we add an else right here, to prompt for the desire of repeated directions, even if this isn't the first run?  I could see someone wanting to read it again or something.
 
 async def happy_stats(party_dict : dict) -> None:
     """Plays just before the first stat raises (Happy explaining that fights make them better). After this,
-    some heroines get one of the STAT_HINTS lines below."""
-    await say('Add specific Happy narration here for get stat increases, to explain how it works even, maybe?  Actual stats will never be shown, just set and updated in the background, so nothing should actually print from this function when finished.')
-    await say('1 idea:  "Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!')
-    await say('Don\'t ask me who improved in what, or by how much.')
-    await say('Also, I would expect this to occur again after each successful encounter you wee lassies may face.')
+    some heroines get one of the STAT_HINTS lines below."""  ##  This part might need to be updated if we "fix" the part below in the fashion I suggest
+    await say("\"Now listen close, young lassies, I don\'t know exactly how this could be, but this last battle seems to have increased certain skills, for each of you, at a rate I didn\'t think was possible for folks to improve, but you appear to be no average adventurers!\"")
+    # maybe this is where we have the comments of "Neyssa feels more beefy" or whatever, which will then use party_dict, which isn't utilized right now?  CLAUDE: can you do this?
+    await pause()
+    await say('\"Seeing as how you have improved so vastly, so rapidly, I would expect this sort of thing to occur again after each successful encounter you wee lassies may face.\"')
+    h = random.choice(party_dict['party'])
+    await say(f"{h.name} mutters just loudly enough to be heard, \"I swear to fucking christ if you call us \'wee lassies\' one more time I'm going slit your fucking th...\"")
+    await say(f'A quick look from Happy, eyes once again burning with purple fire changes her mind and she chooses not to complete the sentence.  [narr]Good choice, {h.name}[/].')
+    await pause()
+    await say('\"As I was saying, with how quickly you seem to develop, I would think if you stay at it for a bit, you will be a FORCE to be reckoned with.\"')
+    await say('\"Or see what this dungeon is all about this one time.  The choice is yours, but I hope you enjoy your adventure!\"')
     await pause()
 
 async def happy_back_room(party_dict : dict) -> None:
-    """Plays just before the stash menu in Happy's back room."""
-    await say("\n[narr]Happy unlocks his back room, where your stash lives.  Last chance to swap gear before heading down.[/]")
+    """Plays just before the Stash menu in Happy's back room."""  # CLAUDE:  This can probably just occur during the Happy-Loot section?  I don't think it needs any updates from me either way
+    h = random.choice(party_dict['party'])
+    await say(f"\nHappy walks you back to a VERY dark corner of the room, where he quite briefly makes what you assume must be some obsene gestures.  \"These Highland Dwarves are such a silly people,\" mutters {h.name}.")
+    await say(f'Clearly ignoring {h.name}, Happy begins to reach into the dark corner, seemingly, magically pulling out any of your items currently stored there.')
+    await say("[narr]Looks like this is the last chance to swap gear before heading down.[/]")
+    await pause()
+    #CLAUDE:  I would like to distribute the gear here, and then go back to a couple comments, however you see best to fit this in:
+    await say(f'As Happy returns the party to the Tavern proper, {h.name} closely inspects the dark corner, feeling every inch, and finds nothing.  \"What the fuck?\"')
+    await say(f"[narr]Did you really expect to find anything there, {h.name}?[/]")
+    await pause()
 
 async def secret_entrance(party_dict : dict) -> None:
     """Plays after the back room: Happy's toe-tap opens the secret dungeon entrance. (Not hooked in until
     the Kobold fight is built.)"""
-    await say("[narr]DRAFT: Happy taps his toes in some weird little pattern, and a chunk of the tavern floor grinds open.  Stairs.  Down.  Of course it's down.[/]")
+    h1,h2 = random.choices(party_dict['party'], k=2)
+    party_len = len(party_dict['party'])
+    await say(f"\"That\'s all the information I have for you, fine heroine{'s' if party_len > 1 else ''},\" Happy says, as he abruptly returns to his work as a \"Tavern Keeper\".")
+    await say("[narr]So, uh, now what?[/]")
+    await pause()
+    await say(f"{h1.name} decides to probe.  \"Excuse me, Happy?\" she begins.")
+    await say("Happy looks up from the ledger he has already begun to update.  \"Yes?  Are we not finished, lassies?\"")
+    await say(f"{h1.name} just stares confusedly at Happy, as he mirrors the stare right back at her.")
+    await say("\"Oh!\", he suddenly exclaims.  \"You must be wanting to stick around for some of my famous mountain boar-skin soup?  Very tasty.\"")
+    await say(f"{h1.name} continues to stare at him.  ([narr]Stifling her gag-reflex no doubt![/]")
+    await say("Happy smirks.  \"Oh, right.  You want to actually begin your dungeon crawl,\" he says, as he adds a wink.")
+    await pause()
+    await say('Putting down his ledger, Happy brings the party over to a side room, filled nearly to capacity with barrels of god-knows-what, leaving just enough room to slink through.  The various smells emanating from the barrels are overwhelming.  [narr]Good thing you laid off that stew![/]')
+    await say('As he nears the side room, Happy appears to begin playing a little game of invisible, drunk hopscotch.  [narr]What the fuck is this guy up to now?[/]')
+    await say('As Happy lands his final awkward jump, there is a muffled \"click\".')
+    await say('Just as the click is heard, a stack of barrels is suddenly yanked into a previously-unseen recession, leaving a large, shall we say, heroine-sized hole in the ground, behind it.')
+    await pause()
+    await say(f'\"Now lassie{"s" if party_len > 1 else ''}, this is your final chance to decide - once you drop into that hole, there is no coming back up this way.  Ever.\"')
+    await say('\"You will simply have to ride out the experience until The End.  What that end looks like, only fate can tell.\"')
+    await say(f'\"I\'m not scared,\" starts {h1.name}, but before she can finish the thought, Happy shoves her into the hole.  [narr]What a rude piece of shit![/]')
+    if party_len > 1:
+        await say('Happy stares at the remaining party members.  \"Will you be joining her on your own, or do you need some - encouragement - as well?\"')
+        await say(f'\"You know, for someone so \'helpful\', you certainly are an asshole,\" {h2.name} growls as she drops in.')
+    await say(f'\"Good Luck he yells as {'the final heroine' if party_len > 1 else 'she'} drops into the hole.')
+    await say('\"Just another day at the Devil\'s Brew,\" Happy chuckles, as he returns to his work.')
     await pause()
 
 # ---------- Stat raises (after every fight the party survives) --------------------------------------
@@ -247,12 +286,44 @@ STAT_HINTS = {
 
 async def kobolds_appear(party_dict : dict, kobolds : list) -> None:
     """Plays when the Krazy Kobolds show up, before the fight. kobolds is the list of them (each has .name)."""
-    await say(f"[narr]DRAFT: Something giggles in the dark.  Then something else giggles back.  {len(kobolds)} somethings, actually.[/]")
+    party_len = len(party_dict['party'])
+    h1, h2 = random.choices(party_dict['party'], k=2)
+    kobold_party_len = len(kobolds)
+    k1, k2 = random.sample(kobolds, 2)
+    await say('One-by-one, each party member drops into a basin of some foul-smelling liquid.  [narr]Probably the only thing that saved you from major injury on that fall![/]')  # CLAUDE:  Maybe fix this so it works for singple-heroine parties too?
+    await say(f'\"I\'m going to kill the motherfucker next time I see him!  I hope I don\'t have to deal with that dick again!\" exclaims {h1.name}.')
+    await say('The party takes in the surroundings, or at least they try to.  [narr]It is nearly pitch-black down here motherfuckers!  Somebody light a match.[/]')
+    await pause()
+    await say(f'{h1.name} tries to be patient and let her eyes adjust to the dark.')
+    await say(f'[narr]Wait, what was that scratching sound?[/]  {h1.name} pauses to listen more closely.')
+    await say(f'Something giggles in the dark.  Then something else giggles back.  [narr]{kobold_party_len} somethings, actually.[/]')
+    await pause()
+    await say(f'{h1.name} finally gets a torch burning, and just in time.')
+    await say(f'To the party\'s horror {kobold_party_len} smallish creatures of varying, dark, mottled colors stream out from the shadows.')
+    await say('The little bastards begin teleporting all over the chamber.  [narr]Well this is gonna suck![/]')
+    if party_len > 1:
+        await say(f'\"What the fuck are those things?\" asks {h2.name} in disbelief of what she is seeing.')
+        await say(f'\"Ugh!\" grunts {h1.name}.  \"Those are kobolds.  Nasty little fuckers.  Watch out for their blink-stab!\"')
+    else:
+        await say('\"Kobolds.... I hate kobolds....\"')
+    await pause()
+    await say('As a group, the kobolds all glare at the party and begin to hiss loudly.') #CLAUDE: please fix for singular/plural party count
+    await say('[narr]Them some crazy-looking motherfuckers, and they look hungry!  I wonder when they last ate?  Good luck![/]')
+    await say(f'\"Already?\" sighs {h1.name}, I\'m still barely recovered from that fat dwarf!  [narr]It doesn\'t appear that the kobolds care much, what state you\'re in.[/]')
+    await say(f'One of them stands tall and sticks out his chest.  \"Me {k1.name}, that {k2.name}.\"  [narr]These fuckers speak english???[/]  \"And you are...\"')
+    await say(f'\"{h1.name},\" says {h1.name}, disgusted that she is even speaking to this miserable creature')
+    await pause()
+    await say(f'\"Oh, good, good-good, good-good,\" chatters {k1.name} excitedly.')
+    await say(f'\"Oh yeah?  And why is that so good?\" {h1.name} mumbles.')
+    await say(f'\"Because we very hungry, but we no like eat food we don\'t know,\" says {k2.name}, as he hungrily licks his lips.')
+    await say('Then, again, hissing as one, the kobolds charge in for battle.')
     await pause()
 
 async def fight_won(party_dict : dict, mobs : list) -> None:
     """Plays when the party wins a dungeon fight, before the Token, loot and stat raises."""
-    await say("[narr]DRAFT: And THAT is how it's done.  Somebody check the bodies for shinies.[/]")
+    h1, h2 = random.choices(party_dict['party'], k=2)
+    await say("[narr]And THAT is how it's done.  Somebody check the bodies for shinies.[/]")
+    await say()
     await pause()
 
 async def loot_found(party_dict : dict) -> None:

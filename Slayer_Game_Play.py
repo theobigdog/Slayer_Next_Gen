@@ -110,7 +110,7 @@ async def dungeon(party_dict: dict) -> dict:
         party_dict['run_result'] = 'won'
         await nar.fight_won(party_dict, kobolds)
         party_dict = await between_battles(party_dict, kobolds)
-        await say("[narr]PLACEHOLDER: ...and that's as deep as the dungeon goes, for now.  To be continued![/]")
+        await say("[narr]To be continued![/]")
         await pause()
     return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
 
