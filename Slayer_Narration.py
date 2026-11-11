@@ -191,15 +191,26 @@ async def carrying_rules(party_dict : dict) -> None:
     (acc.capacity_facts), so Happy stays right if they ever change."""
     cap = acc.capacity_facts(party_dict)
     potions = f"{cap['potions']} potion" + ('' if cap['potions'] == 1 else 's')
-    await say(f'\"Yer loot might include potions an\' trinkets.  Each lass can carry {potions}, an\' ye can top a potion up tae {cap["stack"]} its usual number o\' doses.  Trinkets - wee things that give ye stat buffs - have their own separate limit: {cap["trinkets"]}.  Weapons an\' the rest o\' yer gear go in a bag that holds {cap["gear"]} pieces.\"')
-    if cap['potions'] == 1:
-        await say('\"If ye pick a potion ye\'ve already got, it\'ll just be topped off.  If ye pick a new one, it\'ll replace the old one.  While ye\'re here, the old one can go in The Stash, but once ye\'re down in that dungeon, ye\'ll have tae toss it.\"')
+    # Each subject gets said once, with a blank line between subjects (Ted, Nov 10): potions, trinkets, the bag.
+    if acc.MAX_STACK > 1: # a bottle has room for more than it comes with
+        top_up = f'it\'ll just top up the one ye have - a bottle holds {cap["stack"]} what it comes wi\'.'
     else:
-        await say('\"If ye pick a potion ye\'ve already got, it\'ll just be topped off.  If her potions are full, a new one\'ll replace one o\' the old ones.  While ye\'re here, the old one can go in The Stash, but once ye\'re down in that dungeon, ye\'ll have tae toss it.\"')
+        top_up = 'it\'ll just top yers back up tae full.'
+    if cap['potions'] == 1:
+        swap = 'If ye pick a new one, it\'ll replace the old one.'
+    else:
+        swap = 'If her potions are full, a new one\'ll replace one o\' the old ones.'
+    await say(f'\"Yer loot might include potions an\' trinkets.  Potions first: each lass can carry {potions}.  If ye pick one ye\'ve already got, {top_up}  {swap}  While ye\'re here, the old one can go in The Stash, but once ye\'re down in that dungeon, ye\'ll have tae toss it.\"')
+    await say()
+    await say(f'\"Trinkets - wee things that give ye stat buffs - have their own separate limit: {cap["trinkets"]}.\"')
+    await say()
+    await say(f'\"Weapons an\' the rest o\' yer gear go in a bag that holds {cap["gear"]} pieces.\"')
+    await say()
     await say('\"Be careful wi\' everythin\' ye pick up on yer adventures - ye can only carry so much, an\' anythin\' ye cannae carry just gets left behind.\"  [narr]Leave no trace....  you littering fucks![/]')
     await pause()
     await say('\"Now, The Stash.  Every time ye have a go at this dungeon, ye\'ll start right here at this Tavern.  Tae make yer lives easier, I\'ve installed The Stash for ye tae use an\' reuse.\"')
     await say(f'\"It holds up tae {cap["stash"]} things, so ye shouldnae have much trouble findin\' space there, but mind what ye\'re carryin\' intae the dungeon, because once ye\'re in, there\'s nae turnin\' back tae fetch any o\' it until the next time ye visit these parts.\"')
+    await say()
     await say('\"Do keep in mind that, potentially, an upgrade might mean makin\' a permanent decision tae toss another item, if ye\'re at capacity.\"')
     await pause()
 
@@ -272,7 +283,7 @@ async def secret_entrance(party_dict : dict) -> None:
     await say(f"{h1.name} decides to probe.  \"Excuse me, Happy?\" she begins.")
     await say(f"Happy looks up from the ledger he has already begun to update.  \"Aye?  Are we no' finished, {lassies}?\"")
     await say(f"{h1.name} just stares confusedly at Happy, as he mirrors the stare right back at her.")
-    await say("\"Oh!\" he suddenly exclaims.  \"Ye must be wantin' tae stick around for some o' my famous mountain boar-skin soup?  Verra tasty.\"")
+    await say("\"Oh!\" he suddenly exclaims.  \"Ye must be wantin' tae stick around for some o' my famous mountain boar-skin stew?  Verra tasty.\"")
     await say(f"{h1.name} continues to stare at him.  [narr]Stifling her gag-reflex, no doubt![/]")
     await say("Happy smirks.  \"Och, right.  Ye want tae actually begin yer dungeon crawl,\" he says, as he adds a wink.")
     await pause()

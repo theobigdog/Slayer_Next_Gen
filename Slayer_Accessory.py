@@ -590,6 +590,7 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
                 if able:
                     who = random.choice(able)
                     who.inv.append(item['item'])
+                    await say('') # a blank line first: this is a new subject (Ted, Nov 10)
                     await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))
