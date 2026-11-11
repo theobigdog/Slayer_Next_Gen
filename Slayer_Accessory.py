@@ -295,6 +295,7 @@ def item_specific_wipe_taunts() -> list:
 # Its bonus column works like a trinket's: the norovirus is dodge-5 (she doesn't want to move much).
 AFFLICTIONS = {
     'happys_norovirus_regurgitation': {
+        'before': '"Oh, an\' one last thing...."', # Happy, right before he leans in (Ted, Nov 10)
         'caught': "{mob} leans in close and coughs right in {who}'s face.  [narr]Aaaand {who} has caught Happy's norovirus.  She's stuck with it for the rest of this run, but hey, now she can puke on people too.[/]",
         'cured': "[narr]Good news: {who}'s norovirus finally cleared up.[/]",
     },
@@ -591,6 +592,7 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
                     who = random.choice(able)
                     who.inv.append(item['item'])
                     await say('') # a blank line first: this is a new subject (Ted, Nov 10)
+                    await say(AFFLICTIONS[item['item']]['before'])
                     await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))

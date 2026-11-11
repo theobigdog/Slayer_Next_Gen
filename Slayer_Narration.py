@@ -43,7 +43,7 @@ async def intro(party_dict : dict) -> dict:
             heroine.stats['luck'] = min(acc.STAT_CAP, heroine.stats['luck'] + LUCKY_GIFT)
         await say("[narr]Now that my small measure of sappiness is out of my system, let's get to it.[/]")
         await wait(0.5)
-    await say("[narr]Well, whether you have played before or not, welcome to Slayer Next Gen.  The LONG-anticipated version of Slayer, the....[/]")
+    await say("[narr]Well, whether you have played before or not, welcome to Slayer Next Gen.  The LONG-anticipated sequel of Slayer, the....[/]")
     await say(f"[narr]Wait, Slayer 1 never released?  Then why the fuck is this one called Next Gen?  {whine()}[/]")
     await say("[narr]I guess, suffice it to say that this version is at least a mild upgrade.  Anyone out there sick enough to want to try it, contact My Mom![/]")
     await pause()
@@ -89,7 +89,7 @@ async def happy_intro(party_dict : dict) -> None:
     await say(f"Catching the eye of the proprietor, a somewhat-aged, dwarven tavern-keep, {h1.name} maneuvers past two semi-comatose dwarves, incoherently mumbling to each other, more in gurgles and pops than in any identifiable language.")
     await say(f"\"Tavern Keeper!\" yells {h1.name}, in a voice far too loud for such close quarters.  \"A word, please.\"")
     await say("\"It is my understanding that this building is a front for the center of the Nocturnal Order of Males Against Authoritative Matriarchy (NO MAAM) movement.  You ARE familiar with this movement, no?\"")
-    await say("The tavern keeper, carefully cleaning mugs, clearly stifling a sigh, begins, \"Look here, lass, I dinnae ken where ye think ye are, but ye're no' in Vulvamora anymore, an' ye might want tae show a wee bit more respect.\"")
+    await say("The tavern keeper, carefully cleaning mugs, clearly stifling a sigh, begins, \"Look here, lass, I dinnae know where ye think ye are, but ye're no' in Vulvamora anymore, an' ye might want tae show a wee bit more respect.\"")
     await pause()
     item = threatening_item(h1) # a melee weapon if she has one (a Cleric makes do with her Healing Wand)
     await say(f"{h1.name} smirks.  \"Oh, you want a little more respect, do you?\" she says as she, seemingly idly, yet threateningly, fondles her {item}.  \"Perhaps we try this again.\"")
@@ -235,7 +235,7 @@ async def happy_loot(party_dict : dict) -> None:
             await carrying_rules(party_dict)
             await say('\"I believe that\'s aboot it.  Let\'s see what ye got.\"')
         else:
-            await say('\"Right, ye ken the drill, then.  Let\'s see what ye got.\"')
+            await say('\"Right, ye know the drill, then.  Let\'s see what ye got.\"')
 
 async def happy_back_room(party_dict : dict) -> None:
     """Right after Happy's loot: the dark corner where The Stash lives. The Stash menu happens in the middle
@@ -258,7 +258,7 @@ async def happy_stats(party_dict : dict) -> None:
     lassies = 'lassies' if many else 'lassie'
     each = ', for each o\' ye,' if many else ''
     adventurers = 'adventurers' if many else 'adventurer'
-    await say(f"\"Now listen close, young {lassies}.  I dinnae ken exactly how this could be, but that last battle seems tae have increased certain skills{each} at a rate I didnae think was possible for folk tae improve.  But ye appear tae be no average {adventurers}!\"")
+    await say(f"\"Now listen close, young {lassies}.  I dinnae know exactly how this could be, but that last battle seems tae have increased certain skills{each} at a rate I didnae think was possible for folk tae improve.  But ye appear tae be no average {adventurers}!\"")
     await acc.get_stat_increases(party_dict, hint_chance=1)  # <-- the stat raises happen right here: each heroine's hint line ("Neyssa looks a little beefier."), then a pause
     await say(f'\"Seein\' as how ye\'ve improved so vastly, so rapidly, I\'d expect this sort o\' thing tae happen again after each successful encounter ye wee {lassies} might face.\"')
     h = random.choice(party_dict['party'])

@@ -796,7 +796,7 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             if item.get('effect') == 'poison' and not target.is_dead and random.random() < POISON_CHANCE:
                 mult = getattr(mob, 'damage_mult', 1)
                 status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': max(1, round(POISON_DAMAGE[0] * mult)), 'high': max(1, round(POISON_DAMAGE[1] * mult))}
-                await say(f"[green]The bite was poisoned![/]  {target.name} will take a little damage at the start of each of her next {POISON_TURNS} turns.")
+                await say(f"[green]The bite was poisoned![/]  {target.name} will take a little damage at the start of her turns until it wears off.") # no turn count on screen (Ted, Nov 10)
             if target.is_dead:
                 await say([
                     f"[narr]NOOO![/]  {target.name} has been slain!  [narr]We'll remember you, bud.[/]",
