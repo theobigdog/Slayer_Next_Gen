@@ -15,12 +15,13 @@ AOE_RULES = {
         'once_per_run': True,                       # gone from her kit until the next dungeon run
         'full_targets': None,                       # full damage to every mob, however many
         'link_shields': True,                       # a linked pack (the Krazy Kobolds) lives through it: see Pack.shield
+        'full_strength': True,                      # a Junk Attack doesn't halve it (Ted, Nov 10)
     },
 }
 # Every other area attack (Fire Bomb, Fire Rain, Stink Pouch) does full damage to up to full_targets mobs; with
 # more of them, the blast spreads thinner: each takes full_targets / (how many) of it (Ted, Nov 8: a Fire Bomb
 # flattened the whole Kobold pack). 3 = a pack of 6 takes half each, 8 take 3/8.
-DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3, 'link_shields': False}
+DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3, 'link_shields': False, 'full_strength': False}
 
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
@@ -281,7 +282,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     rules = {**DEFAULT_AOE, **AOE_RULES.get(item['item'], {})}
     party = party_dict['party']
     crit = heroine_rolls['crit_mult'] # one crit for the whole blast; the damage itself is rolled for each target
-    junked = status(heroine).get('junked', False) # a Junk Attack halves this whole blast (used up once it lands)
+    junked = status(heroine).get('junked', False) and not rules['full_strength'] # a Junk Attack halves this whole blast (used up once it lands)
     standing = len([m for m in mobs if not m.is_dead])
     spread = min(1, rules['full_targets'] / standing) if rules['full_targets'] and standing else 1
     roll = lambda: acc.multi_roll(item['damage_low'], item['damage_high']) * crit * (0.5 if junked else 1)
@@ -587,6 +588,15 @@ HEAL_TRY = {'easy': 0.10, 'medium': 0.25, 'hard': 0.6} # how often a mob with a 
 #   poison - a normal hit; if it lands, POISON_CHANCE of the time she's poisoned for her next POISON_TURNS turns
 MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison')
 POISON_CHANCE, POISON_TURNS, POISON_DAMAGE = 0.5, 3, (2, 3) # Kobold Bite (Ted, Nov 8); the damage ticks at the start of her turn
+GAS_MAX = 3 # one Gas Release reaches at most this many heroines, and never more than half the front line (rounded up)
+
+def gas_targets(item : dict, party : list) -> list:
+    """Who one Gas Release reaches: a few of the melee heroines, picked at random, not the whole front line
+    (Ted, Nov 10: one fart cost the whole party a round). 1 of 1 or 2, 2 of 3 or 4, 3 of 5 or more."""
+    front = standing_targets(item, party)
+    reach = min(GAS_MAX, -(-len(front) // 2))
+    hit = random.sample(front, reach)
+    return [heroine for heroine in front if heroine in hit] # in party order
 
 def ai_level(ai : str) -> str:
     return AI_LEVELS.get(str(ai).lower(), 'easy')
@@ -683,8 +693,8 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     return (party_dict, mobs, mob_rolls['luck'])
 
 async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob_rolls : dict) -> tuple:
-    """Gas Release: only the melee heroines up front get a lungful. Each one can dodge it (if her dodge beats its
-    expertise); a hit does a little damage and costs her next turn."""
+    """Gas Release: a few of the melee heroines up front get a lungful (gas_targets). Each one can dodge it (if
+    her dodge beats its expertise); a hit does a little damage and costs her next turn."""
     party = party_dict['party']
     await say(f"{mob.name} turns around, squats, and lets rip a {item['item_desc']} right at the front line!  [narr]Oh god.  It's GREEN.[/]")
     if not mob_rolls['hit']:
@@ -692,7 +702,7 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
         await pause()
         return (party_dict, mobs, False)
     fallen = []
-    for heroine in standing_targets(item, party):
+    for heroine in gas_targets(item, party):
         rolls = get_heroine_rolls(heroine)
         if rolls['dodge'] and not mob_rolls['expertise']:
             tally(heroine, 'dodges')
