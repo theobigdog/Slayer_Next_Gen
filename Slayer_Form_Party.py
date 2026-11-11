@@ -126,9 +126,7 @@ async def create_new_party(name: str) -> list:
 async def welcome_back(saved_party : dict) -> dict:
     await pause()
     await clear()
-    saved_party = await acc.start_new_run(saved_party)
-    await show_party(saved_party['party'])
-    await pause()
+    saved_party = await acc.start_new_run(saved_party) # shows the party, with any news under it, and waits for a click
     return saved_party
 
 async def show_the_list():

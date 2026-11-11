@@ -514,12 +514,12 @@ async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern 
     hers = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
     to_stash = at_tavern and stash_has_room(party_dict)
     verb = 'Stash' if to_stash else 'Drop'
-    labels = ([f"{verb} her {describe_item(get_item(x), uses_left(heroine, x))}, take {item['item_desc']}" for x in hers] if kind == 'potion'
+    labels = ([f"{verb} her {get_item(x)['item_desc']}" for x in hers] if kind == 'potion' # short rows: the question above already names both
               else [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers])
     extra = [f"Put {item['item_desc']} in The Stash instead"] if to_stash and new_can_stash else []
     full = '' if to_stash or not at_tavern else f"  (The Stash is full too: {stash_label(party_dict)}.)"
     prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?{full}  " if kind != 'potion'
-              else f"{heroine.name} can only carry one potion, and she already has {get_item(hers[0])['item_desc']} ({uses_left(heroine, hers[0])} left).  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
+              else f"{heroine.name} can only carry one potion, and she already has {describe_item(get_item(hers[0]), uses_left(heroine, hers[0]))}.  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
     out = await choose(prompt, labels + extra + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
     if out < len(hers):
         old = get_item(hers[out])
@@ -609,6 +609,15 @@ def who_can_use(item : dict) -> str:
     classes = literal_eval(item['classes'])
     return 'anyone' if all(c in classes for c in get_hero_classes()) else ', '.join(class_label(c) for c in classes)
 
+def carrying_line(heroine : object) -> str:
+    """What she has on her right now, for The Stash menus (Ted, Nov 10): 'Thea is carrying:  Bag 4/6: Bastard
+    Sword, Battle-Axe.  Potion: Half-Finished Ale (1/4).  Trinkets 1/2: Lucky Bottle Cap.'"""
+    def names(kind):
+        mine = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
+        return ', '.join(get_item(x)['item_desc'] + (f' ({uses_left(heroine, x)}/{MAX_USES})' if get_item(x)['uses'] else '') for x in mine) or 'nothing'
+    return (f"{heroine.name} is carrying:  Bag {len(carried(heroine, 'gear'))}/{slots(heroine, 'gear')}: {names('gear')}.  "
+            f"Potion: {names('potion')}.  Trinkets {len(carried(heroine, 'trinket'))}/{slots(heroine, 'trinket')}: {names('trinket')}.")
+
 async def visit_stash(party_dict : dict) -> dict:
     """Happy's back room, before the dungeon: gear up a heroine from the stash (only what she can use is
     shown), put things in, or look through the whole thing."""
@@ -634,12 +643,14 @@ async def visit_stash(party_dict : dict) -> dict:
         if who_pick == len(party):
             continue
         who = party[who_pick]
+        await say('')
+        await say(carrying_line(who)) # what she already has, before anything goes in or out
         if what == 0:
             hers = [entry for entry in stash if can_use(who, get_item(entry['item']))]
             if not hers:
                 await say(f"[narr]Nothing in there {who.name} can use.[/]")
                 continue
-            labels = [f"{describe_item(get_item(e['item']), e['uses'])}\t{slot_label(who, slot_kind(get_item(e['item'])))}" for e in hers]
+            labels = [describe_item(get_item(e['item']), e['uses']) for e in hers] # the whole item, never cut off; her slots are in the line above
             pick = await choose(f"What does {who.name} take?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
             if pick == len(hers):
                 continue
@@ -776,16 +787,15 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
 async def start_new_run(party_dict : dict) -> dict:
     """The start of a new dungeon run: refresh_party, and any affliction from last run (the norovirus)
     clears up. Happy hands out a fresh one after the tavern fight."""
+    from Slayer_UI import show_party
     party_dict = refresh_party(party_dict, True)
-    cured = False
+    await show_party(party_dict['party']) # the party's on screen first, so any news sits under it (Ted, Nov 10: the message used to show alone, then jump)
     for heroine in party_dict['party']:
         for item_name, lines in AFFLICTIONS.items():
             if item_name in heroine.inv:
                 heroine.inv.remove(item_name)
                 await say(lines['cured'].format(who=heroine.name))
-                cured = True
-    if cured:
-        await pause() # read it before the party screen replaces it (Ted, Nov 8: it flashed past)
+    await pause()
     return party_dict
 
 def restore_starting_items(heroine : object):

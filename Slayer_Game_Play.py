@@ -121,6 +121,8 @@ async def dungeon(party_dict: dict) -> dict:
 async def between_fights(party_dict: dict):
     """Between encounters the screen shows just the party: no mobs and no round counter left over from the
     last fight (Ted, Nov 10). The next fight puts its own mobs up when it starts."""
+    for heroine in party_dict['party']:
+        heroine.status = {} # poison, gas and the rest end with the fight (and her box goes back to its usual colour)
     await clear()
     await show_party(party_dict['party'])
 

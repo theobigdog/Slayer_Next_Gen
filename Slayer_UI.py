@@ -202,7 +202,8 @@ class TerminalUI:
         print()
         for heroine in party:
             turn = '   <-- her turn' if heroine is active else ''
-            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{turn}")
+            sick = f'  {self.Fore.GREEN}(poisoned){self.Style.RESET_ALL}' if getattr(heroine, 'status', None) and heroine.status.get('poisoned') and not heroine.is_dead else ''
+            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{sick}{turn}")
 
     async def show_battle(self, party, mobs, round_num, active=None):
         if not round_num:

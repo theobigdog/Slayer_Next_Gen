@@ -38,6 +38,8 @@ GOLD = (212, 166, 64)
 HERO_BOX = (38, 84, 76)
 MOB_BOX = (106, 46, 36)
 ENRAGED_BOX = (160, 24, 24)
+POISON_BOX = (92, 112, 28)     # a poisoned heroine's box: a sickly yellow-green instead of her healthy teal
+POISON_EDGE = (184, 226, 62)   # the ring round her HP bar, her HP numbers, and the bubbles coming off her
 HP_GOOD = (80, 176, 80)
 HP_LOW = (192, 96, 192)    # the terminal's magenta, at 50% and below
 HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
@@ -868,7 +870,7 @@ class WindowUI:
             x = 24 + col * slot_w
             y = top + row * 190
             rect = pygame.Rect(x + (slot_w - sprite) // 2 - 6, y, sprite, sprite)
-            self.draw_sprite(heroine, rect, heroine.hero_class, HERO_BOX)
+            self.draw_sprite(heroine, rect, heroine.hero_class, POISON_BOX if poisoned(heroine) else HERO_BOX)
             self.draw_health_bar(heroine, rect, slot_w - 12)
             self.sprite_rects.append((rect, heroine))
 
@@ -1067,7 +1069,10 @@ class WindowUI:
         color = HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
         if share > 0:
             pygame.draw.rect(self.screen, color, (bar.x, bar.y, max(4, int(bar.width * share)), bar.height), border_radius=4)
-        self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', DIM, center=True)
+        sick = poisoned(entity)
+        if sick:  # the bar keeps its colour (it still says how hurt she is); a poison-green ring goes round it
+            pygame.draw.rect(self.screen, POISON_EDGE, bar.inflate(8, 8), 2, border_radius=7)
+        self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', POISON_EDGE if sick else DIM, center=True)
 
     def draw_party_lineup(self):
         self.sprite_rects = []
@@ -1075,6 +1080,11 @@ class WindowUI:
         self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.motion.draw_effects()
         self.motion.draw_particles()
+
+
+def poisoned(entity) -> bool:
+    """She's carrying Kobold poison right now (Slayer_Combat keeps it in her status until it wears off or is healed)."""
+    return bool(getattr(entity, 'status', None)) and bool(entity.status.get('poisoned')) and not entity.is_dead
 
 
 def class_key(entity) -> str:
@@ -1221,6 +1231,9 @@ class Motion:
 
     def effects(self, entity, kind, rect):
         now, dt = self.window.now, self.window.dt
+        if poisoned(entity) and random.random() < dt * 5:  # sickly green bubbles drifting up off a poisoned heroine
+            x = rect.x + random.uniform(0.1, 0.9) * rect.width
+            self.particles.append([x, rect.bottom - 6, random.uniform(-6, 6), random.uniform(-34, -18), 0, 1.3, 3, 2, POISON_EDGE])
         if kind == 'warrior':     # a dagger thunks into her box and sticks for a bit
             stab = self.playing(entity, 'stab', 5.0, 1.8)
             if stab is not None:
