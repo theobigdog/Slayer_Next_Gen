@@ -910,6 +910,11 @@ class WindowUI:
             x = 660 + (600 - total) // 2
             for mob in group:
                 rect = pygame.Rect(x, 52 + row * 188, w, h)
+                if getattr(mob, 'mini_boss', False):  # the pack's mini-boss: a bigger box (same feet on the floor) with a gold edge
+                    rect = rect.inflate(22, 0)
+                    rect.height, rect.bottom = h + 24, 52 + row * 188 + h
+                    if not mob.is_dead:
+                        pygame.draw.rect(self.screen, GOLD, rect.inflate(8, 8), 2, border_radius=11)
                 self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
                 self.draw_health_bar(mob, rect, 130)
                 self.sprite_rects.append((rect, mob))
@@ -1193,6 +1198,8 @@ class Motion:
             if entity.enraged:    # shaking with rage
                 return Pose(random.uniform(-2.5, 2.5), random.uniform(-1.5, 1.5))
             return Pose(dy=2 * math.sin(t * 1.4))
+        if kind == 'krazy_kobolds' and entity.enraged:  # hopping mad: fast, high bounces with a jitter, and a size bigger
+            return Pose(random.uniform(-1.5, 1.5), -abs(9 * math.sin(t * 9)), sx=1.08, sy=1.08)
         if kind == 'battle_mage' and self.smacked(entity):  # her staff just smacked her name: the box jolts
             return Pose(random.uniform(-3, 3), 3)
         return Pose(dy=1.5 * math.sin(t * 1.6))  # battle mage, hunter, sapper, anything new
@@ -1260,6 +1267,11 @@ class Motion:
                 x = rect.x + random.uniform(0.15, 0.85) * rect.width
                 self.particles.append([x, rect.y + 10, random.uniform(-8, 8), random.uniform(-40, -20), 0, 1.0, 3, 0,
                                        random.choice([(200, 120, 255), (255, 170, 60)])])
+        elif kind == 'krazy_kobolds' and entity.enraged:  # little puffs of steam off an enraged Kobold
+            for side in (-1, 1):
+                if random.random() < dt * 2.5:
+                    x = rect.centerx + side * rect.width * 0.36
+                    self.particles.append([x, rect.y + 12, side * random.uniform(10, 26), random.uniform(-42, -24), 0, 1.0, 4, 8, (210, 210, 210)])
         elif kind == 'disgruntled_dwarf' and entity.enraged:  # steam venting off the top
             for side in (-1, 1):
                 if random.random() < dt * 3:
