@@ -313,7 +313,8 @@ AFFLICTIONS = {
 # stash; in the dungeon there's no stash, so a full slot means dropping something, and dropped is gone for good.
 # Starting gear can be stashed or dropped too; it doesn't come back next run unless it was only used up.
 GEAR_SLOTS, POTION_SLOTS = 6, 1
-MAX_STACK = 2 # a consumable tops up to at most twice its uses
+MAX_USES = 4 # a bottle (or a pouch of bombs) holds this many uses at most, whatever it came with (Ted, Nov 10).
+              # The uses column in items.csv is how many a found one has in it: 1 to 3, so there's room to top it up.
 SLOT_NAMES = {'gear': 'bag', 'trinket': 'trinkets', 'potion': 'potion'}
 
 def slot_kind(item : dict) -> str:
@@ -349,8 +350,8 @@ def slot_label(heroine : object, kind : str, item : dict = None) -> str:
         left = uses_left(heroine, hers[0])
         if item and item['item'] == hers[0]:
             if stack_full(heroine, item):
-                return f"has {left}, full"
-            return f"has {left}, stacks to {min(item['uses'] * MAX_STACK, left + item['uses'])}"
+                return f"has {left}/{MAX_USES}, full"
+            return f"has {left}/{MAX_USES}, tops up to {min(MAX_USES, left + item['uses'])}"
         return f"swap out {mine['item_desc']} ({left})"
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
@@ -378,7 +379,7 @@ def bonus_hint(item : dict) -> str:
 def describe_item(item : dict, left : int = None) -> str:
     """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket: luckier)',
     'Fire Bomb (15 - 25 damage, 2 uses)'. left: for one she's carrying (or in The Stash), what's left out of the
-    most it can hold: 'Happy's Hangover Cure (12 - 22 healing, 2/6 doses)'. Stat bonuses show as a hint, not
+    most it can hold: 'Happy's Hangover Cure (12 - 22 healing, 2/4 doses)'. Stat bonuses show as a hint, not
     numbers (the stats themselves stay behind the scenes); dev mode adds the numbers."""
     desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
     hint = bonus_hint(item)
@@ -395,7 +396,7 @@ def describe_item(item : dict, left : int = None) -> str:
         what += ', heals everyone'
     if item['uses']: # 'doses' for something she drinks, 'uses' for a bomb. Carried: what's left / the most it holds
         unit = 'dose' if low < 0 else 'use'
-        what += f", {item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f", {left}/{item['uses'] * MAX_STACK} {unit}s"
+        what += f", {item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f", {left}/{MAX_USES} {unit}s"
     if hint:
         what += f', {hint}'
     return f'{desc} ({what})'
@@ -423,8 +424,8 @@ def add_item(heroine : object, item : dict, uses : int = None) -> str:
     uses = item['uses'] if uses is None else uses
     if item['uses'] and item['item'] in heroine.inv:
         before = heroine.uses.get(item['item'], 0)
-        heroine.uses[item['item']] = min(item['uses'] * MAX_STACK, before + uses)
-        return f"[narr]{heroine.name} stacks it with the {item['item_desc']} she already had: {before} uses, now {heroine.uses[item['item']]}.[/]"
+        heroine.uses[item['item']] = min(MAX_USES, before + uses)
+        return f"[narr]{heroine.name} tops up the {item['item_desc']} she already had: {before}/{MAX_USES}, now {heroine.uses[item['item']]}/{MAX_USES}.[/]"
     heroine.inv.append(item['item'])
     if item['uses']:
         heroine.uses[item['item']] = uses
@@ -465,8 +466,7 @@ def capacity_facts(party_dict : dict) -> dict:
     else:
         parts = [f"{and_list(sorted(names))} {'can carry ' if spot == 0 else ''}{n}" for spot, (n, names) in enumerate(sorted(groups.items()))]
         trinkets = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ', and ' + parts[-1]
-    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'stack': {2: 'twice', 3: 'three times'}.get(MAX_STACK, f'{MAX_STACK} times'),
-            'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
+    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'doses': MAX_USES, 'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
 
 def stash_has_room(party_dict : dict) -> bool:
     return len(party_dict.setdefault('stash', [])) < stash_capacity(party_dict)
@@ -496,8 +496,8 @@ def can_use(heroine : object, item : dict) -> bool:
     return heroine.hero_class in literal_eval(item['classes'])
 
 def stack_full(heroine : object, item : dict) -> bool:
-    """She already carries this consumable at its stacking limit (MAX_STACK times its uses)."""
-    return bool(item['uses']) and item['item'] in heroine.inv and (uses_left(heroine, item['item']) or 0) >= item['uses'] * MAX_STACK
+    """She already carries this consumable, and it's full (MAX_USES)."""
+    return bool(item['uses']) and item['item'] in heroine.inv and (uses_left(heroine, item['item']) or 0) >= MAX_USES
 
 def has_room(heroine : object, item : dict) -> bool:
     kind = slot_kind(item)
@@ -761,7 +761,12 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
         party_dict['times_run_dungeon'] += 1
     party_dict['token_used'] = False
     party_dict['wiped'] = False
+    for entry in party_dict.get('stash', []):
+        if entry.get('uses'):
+            entry['uses'] = min(MAX_USES, entry['uses']) # a save from before Nov 10 could hold more than a bottle does now
     for heroine in party_dict['party']:
+        for item_name, left in getattr(heroine, 'uses', {}).items():
+            heroine.uses[item_name] = min(MAX_USES, left)
         restore_starting_items(heroine)
         heroine.is_dead = False
         heroine.blown_up = False

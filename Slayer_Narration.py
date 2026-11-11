@@ -192,10 +192,7 @@ async def carrying_rules(party_dict : dict) -> None:
     cap = acc.capacity_facts(party_dict)
     potions = f"{cap['potions']} potion" + ('' if cap['potions'] == 1 else 's')
     # Each subject gets said once, with a blank line between subjects (Ted, Nov 10): potions, trinkets, the bag.
-    if acc.MAX_STACK > 1: # a bottle has room for more than it comes with
-        top_up = f'it\'ll just top up the one ye have - a bottle holds {cap["stack"]} what it comes wi\'.'
-    else:
-        top_up = 'it\'ll just top yers back up tae full.'
+    top_up = f'it\'ll just top up the one ye have - a bottle holds {cap["doses"]} doses, nae more.' # Ted, Nov 10: always the same size bottle
     if cap['potions'] == 1:
         swap = 'If ye pick a new one, it\'ll replace the old one.'
     else:
