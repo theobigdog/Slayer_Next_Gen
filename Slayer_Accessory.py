@@ -14,7 +14,13 @@ whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good
 
 game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where it's launched from
 docs_dir = game_dir / 'supporting_docs'
-save_dir = game_dir / 'saved_parties'
+
+# FROZEN: running as the Slayer.exe that build_exe.bat makes. The game's own files are unpacked
+# inside the exe's _internal folder, so saves (and crash logs) go in the folder the player can see,
+# right next to Slayer.exe, instead.
+FROZEN = getattr(sys, 'frozen', False)
+player_dir = Path(sys.executable).parent if FROZEN else game_dir
+save_dir = player_dir / 'saved_parties'
 
 # In the browser (pygbag), files vanish when the page closes, so every save is also kept in the browser's
 # localStorage, and copied back into saved_parties when the game starts. (Untested until the first web build.)
@@ -85,8 +91,10 @@ mobs_table = read_table('mobs.csv')
 mob_equipment_table = read_table('mob_equipment.csv')
 stat_growth_table = read_table('stat_growth.csv')
 
+DEV_MODE = True # flip to False to play like a real player; Slayer.exe is always a player build either way
+
 def dev_mode() -> bool:
-    return True
+    return DEV_MODE and not FROZEN
 
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']

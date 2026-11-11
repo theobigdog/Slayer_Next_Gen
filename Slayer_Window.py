@@ -214,6 +214,11 @@ class WindowUI:
             self.error = ''.join(traceback.format_exception(error))
             print(self.error, file=sys.stderr)
             self.lines = ['[red]The game crashed:[/]'] + self.error.strip().splitlines()[-6:]
+            try:  # the whole error, in a file a player can send you (the window only has room for the last few lines)
+                (acc.player_dir / 'crash_log.txt').write_text(self.error, encoding='utf-8')
+                self.lines += ['', 'The whole error is in crash_log.txt, in the game folder.']
+            except Exception:
+                pass  # can't write it (read-only folder, or the browser): the window still shows the error
             self.revealed = self.total_chars()
         self.mode = 'end'
         self.waiting = ('close', None, None)
