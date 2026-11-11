@@ -829,7 +829,8 @@ class WindowUI:
     # battle scene
 
     def draw_battle(self):
-        self.blit_text(f'Round {self.round_num}', (24, 16), 'round', GOLD)
+        if self.round_num:  # round 0 = the fight's over (Happy's scenes after the tavern fight): no round counter
+            self.blit_text(f'Round {self.round_num}', (24, 16), 'round', GOLD)
         self.sprite_rects = []
         self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.draw_mobs()

@@ -74,7 +74,8 @@ async def ask_text(prompt: str) -> str:
     return await _backend.ask_text(prompt)
 
 async def show_battle(party: list, mobs: list, round_num: int, active=None):
-    """active: whoever's turn it is (a heroine or a mob), so the screen can point her out. None = nobody."""
+    """active: whoever's turn it is (a heroine or a mob), so the screen can point her out. None = nobody.
+    round_num 0 = the fight is over but its mobs are still in the scene: no round counter."""
     await _backend.show_battle(party, mobs, round_num, active)
 
 async def show_party(party: list):
@@ -204,6 +205,8 @@ class TerminalUI:
             print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{turn}")
 
     async def show_battle(self, party, mobs, round_num, active=None):
+        if not round_num:
+            return  # round 0 = the fight's over; the window drops its round counter, and there's nothing to redraw here
         await self.clear()
         print(f'Round:{round_num}\n\n')
         print('Enemy')

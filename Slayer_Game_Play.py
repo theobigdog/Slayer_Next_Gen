@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import pause, say, wait, yes_no
+from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party
 import Slayer_Combat as combat
 import Slayer_Dwarf
 import Slayer_Kobolds
@@ -47,10 +47,6 @@ async def play_game(party_dict: dict) -> dict:
                 await say("[narr]Really?  Oh hell yes, I've been practicing my voices.[/]")
             else:
                 await say("[narr]Fair.  I'll be over here.  Quietly.  Silently judging the mobs, not you.[/]")
-            await pause()
-            if party_dict['narration']:
-                party_dict = await nar.intro(party_dict)
-                await nar.happy_intro(party_dict)
         else:
             first = await yes_no("[narr]I'm assuming you don't want to hear me blabber the-fuck on about details again, do you?[/]  ")
             if first:
@@ -77,7 +73,10 @@ async def play_game(party_dict: dict) -> dict:
                 await say('[narr]Understood.  Grabbing a roll of duct tape for my own mouth.[/]')
                 await wait(0.5)
                 await say('[narr]Umm....  May I at least have a small breathing hole?  I have a deviated septum and I\'m a mouth-breather....[/]')
-                await pause()
+        await pause() # read his answer before anything replaces it (Ted, Nov 10: on a later run it flashed past)
+        if party_dict['narration']: # a yes on any run plays the story, not just the first (the luck gift in intro is still first-run only)
+            party_dict = await nar.intro(party_dict)
+            await nar.happy_intro(party_dict)
 
     party_dict = await tavern(party_dict)
     party_dict = await dungeon(party_dict)
@@ -91,6 +90,7 @@ async def tavern(party_dict: dict) -> dict:
     mobs = [happy, Slayer_Dwarf.Drunk_Dwarf(buddy1), Slayer_Dwarf.Drunk_Dwarf(buddy2)]
     party_dict = await battle(party_dict, mobs)
     if party_dict['wiped']:
+        await show_battle(party_dict['party'], mobs, 0) # the fight's over: Happy stays on screen for his scenes, the round counter doesn't
         party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
         party_dict = acc.refresh_party(party_dict, False)
     return party_dict
@@ -100,19 +100,29 @@ async def dungeon(party_dict: dict) -> dict:
     """Down through Happy's secret entrance to the Krazy Kobolds. A wipe ends the run; a win gets the
     between-battles step. Either way the run is over for now (the Kobolds are as deep as it goes)."""
     await nar.secret_entrance(party_dict)
+    await between_fights(party_dict) # down the hole: Happy and his buddies are off the screen
     kobolds = Slayer_Kobolds.make_pack(len(party_dict['party']))
     await nar.kobolds_appear(party_dict, kobolds)
     party_dict = await battle(party_dict, kobolds, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn)
     if party_dict['wiped']:
         party_dict['run_result'] = 'wiped'
+        await show_battle(party_dict['party'], kobolds, 0) # the Kobolds stay to gloat, without the round counter
         await nar.dungeon_wipe(party_dict, kobolds)
     else:
         party_dict['run_result'] = 'won'
+        await between_fights(party_dict)
         await nar.fight_won(party_dict, kobolds)
         party_dict = await between_battles(party_dict, kobolds)
         await say("[narr]To be continued![/]")
         await pause()
     return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
+
+
+async def between_fights(party_dict: dict):
+    """Between encounters the screen shows just the party: no mobs and no round counter left over from the
+    last fight (Ted, Nov 10). The next fight puts its own mobs up when it starts."""
+    await clear()
+    await show_party(party_dict['party'])
 
 
 async def between_battles(party_dict: dict, mobs: list) -> dict:
