@@ -145,6 +145,9 @@ class WindowUI:
         self.typed = ''             # ask_text's input so far
         self.targets = []           # (rect, entity) for clickable sprites during choose_target
         self.sprite_cache = {}
+        self.ink_cache = {}         # (font, text, colour) -> that text already drawn (see ink)
+        self.whole_boxes = {}       # a combatant's box with her name already on it (see draw_sprite)
+        self.frame_rate = 0.0       # frames a second, smoothed (shown in the corner in dev mode)
         self.overlay = None         # title / loser animation frame (a function that draws it)
         self.effect_overlay = None  # a quick effect drawn on top of everything (the Big Badda Boom keg)
         self.title_draw = None      # the finished title screen, shown until the next clear
@@ -173,6 +176,8 @@ class WindowUI:
             if self.fps and not IN_BROWSER:
                 self.clock.tick(self.fps)
             now = pygame.time.get_ticks() / 1000
+            if now > self.now:
+                self.frame_rate += (1 / (now - self.now) - self.frame_rate) * 0.05  # smoothed, so the number is readable
             dt, self.now = min(0.1, now - self.now), now
             self.dt = dt
             for event in pygame.event.get():
@@ -189,6 +194,8 @@ class WindowUI:
             if task.done() and self.mode != 'end':
                 self.finish(task)
             self.draw()
+            if acc.dev_mode():  # frames a second, top right: how smoothly this device is running the game
+                self.blit_text(f'{self.frame_rate:.0f} fps', (SCREEN_W - 58, 4), 'small', DIM)
             pygame.display.flip()
             await asyncio.sleep(0)
 
@@ -675,8 +682,20 @@ class WindowUI:
         pygame.draw.rect(self.screen, PANEL, rect, border_radius=10)
         pygame.draw.rect(self.screen, edge, rect, 2, border_radius=10)
 
+    def ink(self, fnt, text, color):
+        """A piece of text as a picture, drawn once and kept, since turning letters into pixels is slow and most
+        of what's on screen is the same from one frame to the next (Nov 11: the tablet was stuttering).
+        fnt: a name in self.fonts, or a Font. The cache empties itself when it gets big."""
+        key = (fnt, text, tuple(color))
+        surf = self.ink_cache.get(key)
+        if surf is None:
+            if len(self.ink_cache) > 500:
+                self.ink_cache.clear()
+            surf = self.ink_cache[key] = (self.fonts[fnt] if isinstance(fnt, str) else fnt).render(text, True, color)
+        return surf
+
     def blit_text(self, text, pos, fnt='text', color=TEXT, center=False):
-        surf = self.fonts[fnt].render(text, True, color)
+        surf = self.ink(fnt, text, color)
         rect = surf.get_rect(center=pos) if center else surf.get_rect(topleft=pos)
         self.screen.blit(surf, rect)
         return rect
@@ -705,7 +724,8 @@ class WindowUI:
                     link = color == LIST_RED
                     if older:
                         color = tuple(int(c * 0.62 + b * 0.38) for c, b in zip(color, BG))
-                    surf = self.fonts['text'].render(shown, True, color)
+                    # a finished piece of a line is kept (ink); the piece still typing out changes every frame
+                    surf = self.ink('text', shown, color) if shown == chunk else self.fonts['text'].render(shown, True, color)
                     self.screen.blit(surf, (x, y))
                     if link:
                         rect = surf.get_rect(topleft=(x, y))
@@ -827,7 +847,7 @@ class WindowUI:
                 break
         x, y = rect.x + 8, rect.centery - fnt.get_height() // 2
         tail_w = sum(fnt.size(t)[0] for t, _ in tail)
-        number = fnt.render(f'{key}   ', True, TEXT)
+        number = self.ink(fnt, f'{key}   ', TEXT)
         self.screen.blit(number, (x, y))
         x += number.get_width()
         if side and x + fnt.size(base[:8])[0] + tail_w > rect.right - 8: # the tail would run over the name: trim the tail too
@@ -840,16 +860,16 @@ class WindowUI:
         while fnt.size(text)[0] > rect.right - 8 - tail_w - x and len(text) > 4:
             text = text[:-4].rstrip() + '...'  # trim the name before the tail
         color = (220, 80, 70) if recharging else TEXT
-        surf = fnt.render(text, True, color)
+        surf = self.ink(fnt, text, color)
         self.screen.blit(surf, (x, y))
         if recharging:
             pygame.draw.line(self.screen, color, (x, rect.centery + 1), (x + surf.get_width(), rect.centery + 1), 2)
         x += surf.get_width()
         if recharging:
-            surf = fnt.render(tail[0][0], True, tail[0][1])
+            surf = self.ink(fnt, tail[0][0], tail[0][1])
             self.screen.blit(surf, (x, y))
         if side:
-            surf = fnt.render(tail[-1][0], True, tail[-1][1])
+            surf = self.ink(fnt, tail[-1][0], tail[-1][1])
             self.screen.blit(surf, (rect.right - 8 - surf.get_width(), y))  # right edge
 
     # battle scene
@@ -922,23 +942,31 @@ class WindowUI:
 
     def draw_sprite(self, entity, rect, label, box_color):
         dead = entity.is_dead
-        image = self.sprite_for(entity, rect.size)
-        art = image is not None
+        art_image = self.sprite_for(entity, rect.size)
+        art = art_image is not None
         kind = class_key(entity)
-        if image is None:
-            share = max(0.0, min(1.0, entity.health / entity.starting_health))
-            if kind == 'shifter' and not dead:
-                image = self.motion.shifter_box(rect.size, box_color, share)
-            else:
-                image = self.placeholder(rect.size, box_color, dead, share)
-        else:
-            image = image.copy()
-            if dead:
-                image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
-        image = image.copy()
+        share = max(0.0, min(1.0, entity.health / entity.starting_health))
         status = ('in pieces' if getattr(entity, 'blown_up', False) else 'dead') if dead else None
         labels = self.box_labels(rect.size, entity.name, label, status, art)
-        image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))  # her name inside the box, her class under it
+        if not art and kind == 'shifter' and not dead:
+            image = self.motion.shifter_box(rect.size, box_color, share)  # a new picture every frame (she never holds still)
+            image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))
+        else:
+            # The box with her name on it only changes when her HP, colour or status does, so it's put together
+            # once and kept, not rebuilt every frame.
+            key = (id(art_image) if art else None, rect.size, box_color, dead, round(share * 100), entity.name, label, status)
+            image = self.whole_boxes.get(key)
+            if image is None:
+                if len(self.whole_boxes) > 250:
+                    self.whole_boxes.clear()
+                if art:
+                    image = art_image.copy()
+                    if dead:
+                        image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                else:
+                    image = self.placeholder(rect.size, box_color, dead, share).copy()
+                image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))  # her name inside the box, her class under it
+                self.whole_boxes[key] = image
         pose = Pose() if dead else self.motion.pose(entity, kind, rect)
         if pose.sx != 1 or pose.sy != 1:
             image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
@@ -1019,13 +1047,15 @@ class WindowUI:
             age = self.now - f['born']
             rise = 50 * (1 - (1 - age / life) ** 2)  # fast at first, then easing off
             alpha = 255 if age < life / 2 else int(255 * (1 - (age - life / 2) / (life / 2)))
-            fnt = self.fonts['float']
-            text = fnt.render(f['text'], True, f['color'])
-            edge = fnt.render(f['text'], True, (0, 0, 0))
-            surf = pygame.Surface((text.get_width() + 4, text.get_height() + 4), pygame.SRCALPHA)
-            for ox, oy in ((0, 2), (4, 2), (2, 0), (2, 4)):
-                surf.blit(edge, (ox, oy))
-            surf.blit(text, (2, 2))
+            surf = f.get('picture')
+            if surf is None:  # the number with its black edge, built once per floater
+                fnt = self.fonts['float']
+                text = fnt.render(f['text'], True, f['color'])
+                edge = fnt.render(f['text'], True, (0, 0, 0))
+                surf = f['picture'] = pygame.Surface((text.get_width() + 4, text.get_height() + 4), pygame.SRCALPHA)
+                for ox, oy in ((0, 2), (4, 2), (2, 0), (2, 4)):
+                    surf.blit(edge, (ox, oy))
+                surf.blit(text, (2, 2))
             surf.set_alpha(alpha)
             self.screen.blit(surf, surf.get_rect(center=(f['x'], f['y'] - rise)))
 
@@ -1162,6 +1192,7 @@ class Motion:
         self.next_play = {}  # (id(entity), effect) -> when that effect next starts
         self.later = []      # effects to draw after every sprite and nameplate (so they land on top)
         self.popped = {}     # id(sapper) -> which fuse burn already went pop
+        self.patches = {}    # size -> a reusable see-through scrap for the dagger, staff and arrow (see patch)
         self.radii = {name: [1.0] * RAYS if poly is None else [ray_radius(poly, self.ray_angle(i)) for i in range(RAYS)]
                       for name, poly in SHAPES.items()}
 
@@ -1283,6 +1314,19 @@ class Motion:
             draw()
         self.later = []
 
+    def patch(self, area):
+        """A see-through scrap just big enough for one little animation (area: where it goes on the screen), wiped
+        and reused. These used to be drawn on a brand-new see-through layer the size of the whole screen, every
+        frame, which is a lot of work for a tablet (Ted, Nov 11: jittery animations). Returns the scrap and where
+        its top-left corner sits on the screen: take that off every point drawn on it."""
+        area = pygame.Rect(area).clip(pygame.Rect(0, 0, SCREEN_W, SCREEN_H))
+        size = (max(1, area.width), max(1, area.height))
+        if size not in self.patches:
+            self.patches[size] = pygame.Surface(size, pygame.SRCALPHA)
+        surf = self.patches[size]
+        surf.fill((0, 0, 0, 0))
+        return surf, area.x, area.y
+
     def fade(self, progress, fade_at=0.85):
         return 255 if progress < fade_at else max(0, int(255 * (1 - (progress - fade_at) / (1 - fade_at))))
 
@@ -1296,9 +1340,10 @@ class Motion:
             shift = (1 - p / fly) * 90  # still flying in
         else:
             wobble = math.sin(self.window.now * 70) * 3 * max(0.0, 1 - (p - fly) / 0.15)  # quivers when it lands
+        surf, ox, oy = self.patch((tip[0] - 20, tip[1] - 125, 170, 150))  # it flies in from up and to the right of the tip
+        tip = (tip[0] - ox, tip[1] - oy)
         at = lambda s, side=0.0: (tip[0] + back[0] * (s + shift) + perp[0] * (side + wobble),
                                   tip[1] + back[1] * (s + shift) + perp[1] * (side + wobble))
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         if p >= fly:  # the slit where it went in
             pygame.draw.line(surf, (0, 0, 0, 170), at(8, -5), at(8, 5), 3)
         pygame.draw.polygon(surf, (205, 210, 222), [at(8, -2.5), at(8, 2.5), at(32, 4.5), at(32, -4.5)])  # blade (tip buried)
@@ -1307,7 +1352,7 @@ class Motion:
         pygame.draw.line(surf, (110, 70, 40), at(33), at(48), 7)             # grip
         pygame.draw.circle(surf, (190, 150, 60), [round(v) for v in at(51)], 5)  # pommel
         surf.set_alpha(self.fade(p))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_staff(self, rect, p):
         pivot = (rect.right + 26, rect.y - 6)       # where the Battle Mage would be holding it
@@ -1321,8 +1366,11 @@ class Motion:
             angle = hit
         else:
             angle = hit + (raised - hit) * smooth(min(1.0, (p - 0.5) / 0.3))
+        reach = length + 12  # the staff swings round its pivot, and the smack bursts round her name
+        area = pygame.Rect(pivot[0] - reach, pivot[1] - reach, 2 * reach, 2 * reach).union(pygame.Rect(target[0] - 42, target[1] - 42, 84, 84))
+        surf, ox, oy = self.patch(area)
+        pivot, target = (pivot[0] - ox, pivot[1] - oy), (target[0] - ox, target[1] - oy)
         end = (pivot[0] + math.cos(angle) * length, pivot[1] + math.sin(angle) * length)
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         pygame.draw.line(surf, (120, 80, 45), pivot, end, 6)
         pygame.draw.line(surf, (160, 115, 70), pivot, end, 2)
         pygame.draw.circle(surf, (150, 80, 240), [round(v) for v in end], 8)
@@ -1336,16 +1384,17 @@ class Motion:
                                  (target[0] + math.cos(a) * r1, target[1] + math.sin(a) * r1),
                                  (target[0] + math.cos(a) * r2, target[1] + math.sin(a) * r2), 3)
         surf.set_alpha(self.fade(p, 0.7))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_stuck_arrow(self, rect, p):
         fly = 0.12
         bull = (rect.x + rect.width * 0.62, rect.y + rect.height * 0.84)  # low in the box, under her name and class
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        start = rect.x - 90  # where the arrow flies in from
+        surf, ox, oy = self.patch((start - 70, bull[1] - 24, bull[0] - start + 100, 48))
+        bull, start = (bull[0] - ox, bull[1] - oy), start - ox
         for radius, color in ((15, (240, 235, 225)), (11, (200, 50, 50)), (7, (240, 235, 225)), (3, (200, 50, 50))):
             pygame.draw.circle(surf, color, [round(v) for v in bull], radius)
         if p < fly:
-            start = rect.x - 90
             tip = (start + (bull[0] - start) * (p / fly), bull[1])
             tilt, buried = 0.0, 0
         else:
@@ -1363,7 +1412,7 @@ class Motion:
             pygame.draw.line(surf, (210, 60, 60), (fx, fy), (fx + back[0] * 7 - back[1] * 6, fy + back[1] * 7 + back[0] * 6), 2)
             pygame.draw.line(surf, (210, 60, 60), (fx, fy), (fx + back[0] * 7 + back[1] * 6, fy + back[1] * 7 - back[0] * 6), 2)
         surf.set_alpha(self.fade(p))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_fuse(self, entity, rect):
         screen, now, dt = self.window.screen, self.window.now, self.window.dt
@@ -1423,11 +1472,27 @@ class AsciiArt:
             rows = letters[letter]
             color = self.palette.get(colors[letter], TEXT)
             for i, row in enumerate(rows):
-                self.window.screen.blit(self.font.render(row, True, color), (x, y + i * self.cell_h))
+                self.window.screen.blit(self.window.ink(self.font, row, color), (x, y + i * self.cell_h))
             x += len(rows[0]) * self.cell_w
 
     def word_width(self, word, letters):
         return sum(len(letters[ch][0]) for ch in word) * self.cell_w
+
+    def start_beats(self):
+        self.due = pygame.time.get_ticks() / 1000
+
+    async def beat(self, gap):
+        """Wait for the next step of the animation. Each step is due a set time after the one before was DUE,
+        not after it was drawn, so a device that draws slowly skips a flicker here and there but the whole
+        animation lasts as long as it does on a fast PC (Nov 11: on the tablet the title took about twice as
+        long). PC_LAG is what a 60-frames-a-second PC has always added to every step (about two and a half
+        frames; measured Nov 11), kept so the timing on the PC stays what it was."""
+        self.due += gap + self.PC_LAG
+        wait = self.due - pygame.time.get_ticks() / 1000
+        if wait > 0:
+            await asyncio.sleep(wait)
+
+    PC_LAG = 0.042
 
 
 class TitleAnimation(AsciiArt):
@@ -1451,10 +1516,11 @@ class TitleAnimation(AsciiArt):
                 window.blit_text(dare, (SCREEN_W // 2, y + 14 * self.cell_h + 90), 'menu', (230, 30, 30), center=True)
 
         window.overlay = draw
+        self.start_beats()
         for top_end, colors_list in ((40, gr.colors_), (25, gr.colors_s), (27, gr.colors_sl), (31, gr.colors_sla), (27, gr.colors_slay), (25, gr.colors_slaye)):
             for _ in range(1, top_end):
                 state['colors'] = random.choice(colors_list)
-                await asyncio.sleep(gap)
+                await self.beat(gap)
                 gap = gap / (0.0125 + divisor)
                 divisor = divisor + 0.0005
         state['colors'] = gr.colors_slayer[0]
@@ -1482,13 +1548,14 @@ class LoserAnimation(AsciiArt):
         def jump():
             state['pos'] = (random.randint(0, SCREEN_W - width), random.randint(0, SCREEN_H - height))
 
+        self.start_beats()
         for _ in range(1, 10):
             for version in range(6):
                 jump()
                 state['colors'] = gr.letter_colors_loser[version]
-                await asyncio.sleep(gap)
+                await self.beat(gap)
                 gap = gap / divisor
-            await asyncio.sleep(gap)
+            await self.beat(gap)
             gap = gap / divisor
         jump()
         state['colors'] = gr.letter_colors_loser[6]
@@ -1507,6 +1574,8 @@ class KegFlash:
         self.window = window
         self.start = window.now
         self.sparks = []  # [x, y, vx, vy, age, life]
+        self.shade = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)  # one see-through colour over everything (the dark veil, the white flash)
+        self.ring = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)   # the blast ring; both made once and reused, not made new every frame
 
     async def play(self):
         self.start = self.window.now
@@ -1520,9 +1589,8 @@ class KegFlash:
         screen = w.screen
         p = min(1.0, (w.now - self.start) / self.length)
         blast = 0.78  # when the fuse reaches the keg
-        veil = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-        veil.fill((8, 4, 2, int(215 * min(1.0, p / 0.12))))
-        screen.blit(veil, (0, 0))
+        self.shade.fill((8, 4, 2, int(215 * min(1.0, p / 0.12))))
+        screen.blit(self.shade, (0, 0))
         if p < blast:
             slide = smooth(min(1.0, p / 0.18))
             scale = 1 + 0.14 * smooth(min(1.0, p / blast))
@@ -1534,13 +1602,12 @@ class KegFlash:
             self.draw_fuse(screen, cx, top, scale, burned)
         else:
             q = (p - blast) / (1 - blast)  # 0..1 through the blast
-            ring = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            self.ring.fill((0, 0, 0, 0))
             radius = int(60 + 900 * q)
-            pygame.draw.circle(ring, (255, 170, 40, int(230 * (1 - q))), (SCREEN_W // 2, SCREEN_H // 2), radius, max(4, int(70 * (1 - q))))
-            screen.blit(ring, (0, 0))
-            flash = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            flash.fill((255, 250, 235, int(255 * (1 - q) ** 1.5)))
-            screen.blit(flash, (0, 0))
+            pygame.draw.circle(self.ring, (255, 170, 40, int(230 * (1 - q))), (SCREEN_W // 2, SCREEN_H // 2), radius, max(4, int(70 * (1 - q))))
+            screen.blit(self.ring, (0, 0))
+            self.shade.fill((255, 250, 235, int(255 * (1 - q) ** 1.5)))
+            screen.blit(self.shade, (0, 0))
         self.draw_sparks(screen)
 
     def draw_keg(self, screen, cx, cy, kw, kh):
