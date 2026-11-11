@@ -376,8 +376,9 @@ def bonus_hint(item : dict) -> str:
 
 def describe_item(item : dict, left : int = None) -> str:
     """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket: luckier)',
-    'Fire Bomb (15 - 25 damage, 2 uses)'. Stat bonuses show as a hint, not numbers (the stats themselves stay
-    behind the scenes); dev mode adds the numbers."""
+    'Fire Bomb (15 - 25 damage, 2 uses)'. left: for one she's carrying (or in The Stash), what's left out of the
+    most it can hold: 'Happy's Hangover Cure (12 - 22 healing, 2/6 doses)'. Stat bonuses show as a hint, not
+    numbers (the stats themselves stay behind the scenes); dev mode adds the numbers."""
     desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
     hint = bonus_hint(item)
     if dev_mode() and item['bonus']:
@@ -391,8 +392,9 @@ def describe_item(item : dict, left : int = None) -> str:
         what += ', hits them all'
     elif item['attack_type'] == 'aoe_heal':
         what += ', heals everyone'
-    if item['uses']:
-        what += f", {item['uses']} uses" if left is None else f", {left} left"
+    if item['uses']: # 'doses' for something she drinks, 'uses' for a bomb. Carried: what's left / the most it holds
+        unit = 'dose' if low < 0 else 'use'
+        what += f", {item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f", {left}/{item['uses'] * MAX_STACK} {unit}s"
     if hint:
         what += f', {hint}'
     return f'{desc} ({what})'

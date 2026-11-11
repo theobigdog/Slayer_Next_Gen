@@ -121,6 +121,7 @@ class WindowUI:
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
+        self.menu_width_cache = (None, 0)  # (the labels it was worked out for, the width)
         self.active = None  # whoever's turn it is: her box gets a gold frame
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
@@ -427,8 +428,12 @@ class WindowUI:
         return sum(n for _, n, _ in self.visual_lines()[:self.page_end()])
 
     def wrap_width(self):
-        """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines."""
-        return (780 if self.mode in ('battle', 'party') else 740) - 40
+        """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines.
+        The one exception: an item menu that had to widen for a long label (menu_width) narrows the box a bit more
+        while it's open."""
+        if self.mode in ('battle', 'party'):
+            return 780 - (self.menu_width() - self.MENU_W) - 40
+        return 740 - 40
 
     def visual_lines(self):
         """Every narration line wrapped to the box: [(runs, chars_in_line, line_number)]."""
@@ -584,7 +589,7 @@ class WindowUI:
 
     def text_box(self):
         if self.mode in ('battle', 'party'):
-            return pygame.Rect(16, 444, 780 if self.menu_open() else 1248, 264)
+            return pygame.Rect(16, 444, self.menu_area().x - 28 if self.menu_open() else 1248, 264)
         return pygame.Rect(60, 60, 1160 if not self.menu_open() else 740, 600)
 
     MENU_ROW = 30  # pixels per menu row
@@ -596,8 +601,25 @@ class WindowUI:
         if self.mode in ('battle', 'party'):
             rows = len(self.menu_labels) if self.menu_open() and not self.short_labels() else 0
             height = min(708 - 64, max(264, 50 + rows * self.MENU_ROW + 6))
-            return pygame.Rect(808, 708 - height, 456, height)
+            width = self.menu_width()
+            return pygame.Rect(1264 - width, 708 - height, width, height)
         return pygame.Rect(812, 60, 408, 600)
+
+    MENU_W, MENU_W_MAX = 456, 600
+
+    def menu_width(self):
+        """The menu is MENU_W wide, and widens (up to MENU_W_MAX, taking the room from the text box) when an item
+        label is too long for it, so the end of a row is never cut off: that's where a potion's doses are
+        (Ted, Nov 10: 'Happy's Hangover Cure (12 - 22 healing, 2/6 doses)'). Rows with a right-hand side
+        ('Thea  (Warrior)\tbag 4/6') already keep that side whole, so they don't widen it."""
+        if not self.menu_open():
+            return self.MENU_W
+        key = tuple(self.menu_labels)
+        if self.menu_width_cache[0] != key:
+            fnt = self.fonts['menu_s']
+            longest = max([fnt.size(f'00   {label}')[0] for label in self.menu_labels if '\t' not in label], default=0)
+            self.menu_width_cache = (key, max(self.MENU_W, min(self.MENU_W_MAX, longest + 36)))
+        return self.menu_width_cache[1]
 
     def short_labels(self):
         """Every label fits half a menu (target names do): two columns are fine, no need to grow."""
@@ -608,7 +630,9 @@ class WindowUI:
         """The biggest menu font every row fits in, so the rows all match (the smallest if none fits)."""
         def short(label): # a long name may lose a few letters ('Brumhilda (Battl...'), rather than every row shrinking
             name, tab, side = label.replace('  (recharging)', '   Recharging').partition('\t')
-            return (name if len(name) <= 18 else name[:15] + '...') + ('   ' + side if tab else '')
+            if not tab:
+                return name # an item row: measured whole, so its end (damage, doses left) stays readable
+            return (name if len(name) <= 18 else name[:15] + '...') + '   ' + side
         for name in ('menu', 'menu_s', 'menu_xs'):
             fnt = self.fonts[name]
             if all(fnt.size(f'00   ' + short(label))[0] <= width - 16 for label in labels):

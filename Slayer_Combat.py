@@ -170,7 +170,10 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         await pause()
         return (party_dict, mobs, False)
     if target.health == target.starting_health:
-        await say(f"[narr]That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?[/]")
+        if acc.slot_kind(item) == 'potion': # she drank it herself, so there was no target to get wrong (DRAFT line)
+            await say(f"[narr]That was weird.  {target.name} is at full health, goof.  That's a perfectly good dose down the hatch for nothing.[/]")
+        else:
+            await say(f"[narr]That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?[/]")
         await pause()
         return (party_dict, mobs, heroine_rolls['luck'])
     if status(heroine).pop('junked', False): # a Junk Attack halves her next heal too (Ted, Nov 8)
@@ -178,7 +181,10 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         await say(f"[narr]{heroine.name}'s junk still hurts, so it's a half-strength heal.[/]")
     target = update_health(target, -healing)
     await cleanse(target, item)
-    await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
+    if acc.slot_kind(item) == 'potion':
+        await say(f"{heroine.name} knocks back her {item['item_desc']} and heals herself for {healing} hp")
+    else:
+        await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
     await say("[narr]I'm so proud of you![/]")
     await pause()
     return (party_dict, mobs, heroine_rolls['luck'])
@@ -515,7 +521,9 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     if item_attack_type == 'hail_mary':
         return await use_hail_mary(heroine, item, party_dict, mobs)
 
-    if is_heal:
+    if is_heal and acc.slot_kind(item) == 'potion':
+        target = heroine # a potion is drunk by whoever's carrying it (Ted, Nov 10): no picking a target
+    elif is_heal:
         target = await get_target_choice(mobs, party_dict['party'], True) # anyone can heal anyone, a mob too if they insist
     else:
         target = await get_target_choice(mobs, [])
