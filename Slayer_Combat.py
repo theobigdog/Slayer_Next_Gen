@@ -14,12 +14,13 @@ AOE_RULES = {
         'blows_up_user': True,                      # she's out for the rest of the run
         'once_per_run': True,                       # gone from her kit until the next dungeon run
         'full_targets': None,                       # full damage to every mob, however many
+        'link_shields': True,                       # a linked pack (the Krazy Kobolds) lives through it: see Pack.shield
     },
 }
 # Every other area attack (Fire Bomb, Fire Rain, Stink Pouch) does full damage to up to full_targets mobs; with
 # more of them, the blast spreads thinner: each takes full_targets / (how many) of it (Ted, Nov 8: a Fire Bomb
 # flattened the whole Kobold pack). 3 = a pack of 6 takes half each, 8 take 3/8.
-DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3}
+DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3, 'link_shields': False}
 
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
@@ -305,7 +306,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         await say(f"[narr]Her junk still hurts, so it's a half-strength blast.[/]")
     if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
         await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
-    killed = []
+    killed, shielded = [], []
     for mob in [m for m in mobs if not m.is_dead]:
         mob_rolls = get_mob_rolls(mob)
         if not rules['unavoidable'] and mob_rolls['dodge'] and not heroine_rolls['expertise']:
@@ -314,10 +315,16 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         power = mob_roll()
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
         damage = int(min(damage, mob.health))
+        pack = getattr(mob, 'pack', None)
+        if rules['link_shields'] and pack and pack.linked and damage >= mob.health:
+            damage = mob.health - 1 # the Kobolds' life-link won't let the blast kill anyone still standing (Ted, Nov 10)
+            shielded.append(mob)
         update_health(mob, damage)
         if mob.is_dead:
             killed.append(mob)
-        if mob.is_dead and not getattr(mob, 'is_boss', False):
+        if mob in shielded:
+            await say(f"  {mob.name} takes {damage} hp and is...  still standing?!")
+        elif mob.is_dead and not getattr(mob, 'is_boss', False):
             await say(f"  {mob.name} takes {damage} hp and is {'blown to bits' if rules['blows_up_user'] else 'done for'}!")
         else:
             await say(f"  {mob.name} takes {damage} hp.")
@@ -341,6 +348,8 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         fallen.append(heroine)
         await say(f"And {heroine.name}?  Blown into a billion little pieces.  [narr]Even the Cleric can't help her without some serious smelling salts.[/]")
     await check_last_cleric(fallen, party)
+    if shielded:
+        await shielded[0].pack.shield(shielded) # the link took the blast for them, and it's burnt out for good
     for mob in killed:
         if hasattr(mob, 'on_death'): # the Krazy Kobolds' pack enrages
             await mob.on_death(mobs)

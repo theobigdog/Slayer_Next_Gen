@@ -11,6 +11,9 @@ How the pack works (Ted's design, Nov 7):
     wears off.
   - Once the pack's total HP drops below LINK_SNAP of what it started with, the link snaps: no more sharing and no
     more coming back. The dead stay dead, the living keep the HP they have, and the party chops them down.
+  - Big Badda Boom can't kill a linked Kobold (Ted, Nov 10): every one still standing that the blast would have
+    killed is left on 1 hp, and the link burns out for good (Pack.shield). Any that were already dead stay dead.
+    After the link has snapped or burnt out, a Boom kills them like anything else.
 Their attacks are in mob_equipment.csv (Claws, Bite, Spark Flick, Gas Release, Junk Attack, Terrifying Hiss,
 Blink Stab, and a Glowy Mushroom to heal); the special ones work through Slayer_Combat.MOB_EFFECTS.
 """
@@ -58,6 +61,18 @@ class Pack:
 
     def total(self) -> int:
         return sum(k.health for k in self.members if not k.is_dead)
+
+    async def shield(self, saved : list):
+        """Slayer_Combat calls this when a Big Badda Boom would have killed linked Kobolds (saved: the ones it kept
+        alive, on 1 hp each). The link took the blast for them and burns out: no more sharing and no more coming
+        back, so any Kobold that was already dead stays dead (Ted, Nov 10). These lines are Claude's DRAFTS."""
+        self.linked = False
+        dead = [k for k in self.members if k.is_dead]
+        one = len(saved) == 1
+        await say(f"The purple flicker in the Kobolds' eyes flares blinding white.  When the smoke clears, {names_list(saved)} {'is' if one else 'are'} somehow still on {'its' if one else 'their'} feet: scorched, smoking, and hanging on by 1 hp{'' if one else ' each'}.")
+        await say("[narr]WHAT?!  These little shits are LINKED, and the link just ate the whole blast for them!  But it's fried: no more sharing health, no more popping back up." + (f"  {names_list(dead)} {'stays' if len(dead) == 1 else 'stay'} dead." if dead else "") + "  Finish them![/]")
+        if any(k.enraged and not k.is_dead for k in self.members):
+            await say("[red]And they're still pissed.  That's not wearing off now.[/]")
 
 
 class Krazy_Kobold:
