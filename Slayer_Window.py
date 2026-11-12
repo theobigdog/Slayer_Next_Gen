@@ -666,7 +666,11 @@ class WindowUI:
         if self.mode == 'title':
             self.title_draw()
             if self.waiting and self.waiting[0] == 'pause':
-                self.blit_text('click or Enter  \u25bc', (SCREEN_W // 2, SCREEN_H - 60), 'menu', GOLD, center=True)
+                # Just a hint, not a button: a click anywhere (or Enter) moves on. The arrow is drawn, not typed,
+                # because New Rocker has no \u25bc and drew a boxed '?' in its place (Ted, Nov 12).
+                hint = self.blit_text('click or Enter', (SCREEN_W // 2 - 10, SCREEN_H - 60), 'menu', GOLD, center=True)
+                x, y = hint.right + 10, hint.centery + 2
+                pygame.draw.polygon(self.screen, GOLD, [(x, y - 5), (x + 12, y - 5), (x + 6, y + 5)])
             return
         if self.mode == 'battle':
             self.draw_battle()
