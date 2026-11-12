@@ -13,6 +13,7 @@ from pathlib import Path
 
 DOCS = Path(__file__).parent / 'supporting_docs'
 ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 'hail_mary'}
+AFFLICTIONS = {'happys_norovirus_regurgitation'}  # caught, not wielded (Slayer_Accessory.AFFLICTIONS), so the Cleric rule skips them
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
 MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
@@ -65,6 +66,7 @@ def true_false(file, row, column, value):
 hero_header, heroes = read('hero_stats.csv')
 classes = [row['hero_class'] for row in heroes if row]
 stat_names = [c for c in hero_header if c not in ('hero_class', 'low_st_health', 'high_st_health', 'trinket_slots')]
+bonus_stats = stat_names + ['max_hp'] # a trinket can also raise max HP while she carries it
 for i, row in enumerate(heroes, start=2):
     if row is None:
         continue
@@ -146,6 +148,12 @@ for i, row in enumerate(items, start=2):
             problem('items.csv', i, "a heal needs negative numbers (heals 3 to 8 is written -8, -3).")
         if kind in ('melee', 'range', 'both', 'aoe') and low < 0:
             problem('items.csv', i, "an attack has a negative damage number (only heals are negative).")
+        try:
+            cleric = 'Cleric' in ast.literal_eval(row['classes'])
+        except (ValueError, SyntaxError):
+            cleric = False
+        if cleric and kind in ('melee', 'range', 'both', 'aoe') and high > 0 and key not in AFFLICTIONS:
+            problem('items.csv', i, "the Cleric can't hold anything that does damage (it'd burn her fingers): take 'Cleric' out of its classes.")
     source = row['source']
     if source not in ('starting', 'mob') and source not in mob_classes:
         problem('items.csv', i, f"source '{source}' should be starting, or a mob class from mobs.csv ({', '.join(mob_classes)}).")
@@ -158,11 +166,15 @@ for i, row in enumerate(items, start=2):
     if 'bonus' in row and row['bonus']:
         parts = row['bonus'].split()
         for part in parts:
-            match = re.fullmatch(r'(\w+)([+-])(\d+)', part)
+            match = re.fullmatch(r'(\w+)([+-])(\d+(?:\.\d+)?)', part)
             if not match:
-                problem('items.csv', i, f"bonus '{part}' should look like luck+5 or dodge-2 (no spaces inside).")
-            elif match.group(1) not in stat_names:
-                problem('items.csv', i, f"bonus stat '{match.group(1)}' isn't a stat ({', '.join(stat_names)}).")
+                problem('items.csv', i, f"bonus '{part}' should look like luck+5, dodge-2 or crit_mult+0.1 (no spaces inside).")
+            elif match.group(1) not in bonus_stats:
+                problem('items.csv', i, f"bonus stat '{match.group(1)}' isn't a stat ({', '.join(bonus_stats)}).")
+            elif match.group(1) == 'crit_mult' and float(match.group(3)) >= 1:
+                problem('items.csv', i, f"bonus '{part}' is huge: crit power runs about 1.3 to 1.9, so +0.1 to +0.3 is already a lot.")
+            elif match.group(1) != 'crit_mult' and '.' in match.group(3):
+                problem('items.csv', i, f"bonus '{part}' should be a whole number (only crit_mult takes decimals, like crit_mult+0.1).")
     if kind == 'trinket' and not row.get('bonus'):
         problem('items.csv', i, "is a trinket with no bonus, so it does nothing.")
 
