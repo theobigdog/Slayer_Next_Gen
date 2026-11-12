@@ -56,11 +56,48 @@ DIM_OLDER_TEXT = True  # text from before your last click is drawn a little dimm
 # Fonts: New Rocker for everything that isn't narration (names, headings, menus, boxes, numbers);
 # a calmer, still-stylized font for the narration so long lines stay easy to read.
 NARRATION_FONT, NARRATION_SIZE = 'Fondamento-Regular.ttf', 24  # swap the file name to try another font
+# Fondamento's numbers are old-fashioned 'lowercase' ones (its 1 looks like a dotless i, its 0 like an o), so
+# numbers in the narration are drawn in this font instead (Ted, Nov 12: 'Slayer 1' didn't look like a 1).
+# New Rocker matches the numbers on the heroine boxes; ('DejaVuSans.ttf', 20) is a quieter choice.
+NARRATION_DIGITS_FONT, NARRATION_DIGITS_SIZE = 'NewRocker-Regular.ttf', 22
 
 def font(size: int, kind: str = 'regular') -> pygame.font.Font:
     files = {'regular': 'DejaVuSans.ttf', 'bold': 'DejaVuSans-Bold.ttf', 'mono': 'DejaVuSansMono-Bold.ttf',
              'fancy': 'NewRocker-Regular.ttf', 'narration': NARRATION_FONT}
     return pygame.font.Font(ASSETS / 'fonts' / files[kind], size)
+
+
+class NarrationFont:
+    """The narration font, except that every run of digits ('11', '2026') is drawn in NARRATION_DIGITS_FONT,
+    sitting on the same baseline. Works anywhere a pygame Font does here (size, render, get_height...)."""
+    DIGITS = re.compile(r'(\d+)')
+
+    def __init__(self):
+        self.words = font(NARRATION_SIZE, 'narration')
+        self.digits = pygame.font.Font(ASSETS / 'fonts' / NARRATION_DIGITS_FONT, NARRATION_DIGITS_SIZE)
+        self.digit_y = self.words.get_ascent() - self.digits.get_ascent()  # lines the two fonts' baselines up
+
+    def pieces(self, text):
+        """'takes 11 hp' -> [(words, 'takes '), (digits, '11'), (words, ' hp')]"""
+        return [(self.digits if i % 2 else self.words, part) for i, part in enumerate(self.DIGITS.split(text)) if part]
+
+    def size(self, text):
+        return (sum(fnt.size(part)[0] for fnt, part in self.pieces(text)), self.words.get_height())
+
+    def render(self, text, antialias, color, background=None):
+        if background is not None or not self.DIGITS.search(text):
+            return self.words.render(text, antialias, color, background)
+        pieces = [(fnt, fnt.render(part, antialias, color)) for fnt, part in self.pieces(text)]
+        surf = pygame.Surface((sum(s.get_width() for _, s in pieces), self.words.get_height()), pygame.SRCALPHA)
+        surf.fill((*color[:3], 0))  # see-through, but already the text's color, so the letters' soft edges don't go dark
+        x = 0
+        for fnt, piece in pieces:
+            surf.blit(piece, (x, self.digit_y if fnt is self.digits else 0))
+            x += piece.get_width()
+        return surf
+
+    def __getattr__(self, name):  # get_height, get_linesize, get_ascent...: the narration font's own
+        return getattr(self.words, name)
 
 
 def rich_runs(text: str) -> list:
@@ -114,7 +151,7 @@ class WindowUI:
         self.clock = pygame.time.Clock()
         self.fps = headless_fps
         self.fonts = {
-            'text': font(NARRATION_SIZE, 'narration'),
+            'text': NarrationFont(),
             'menu': font(22, 'fancy'), 'menu_s': font(19, 'fancy'), 'menu_xs': font(16, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
             'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'), 'keg': font(96, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
