@@ -45,6 +45,7 @@ def start_battle(party : list):
         heroine.fight_tally = {} # what she did this fight (see tally)
         heroine.spent_specials = [] # special weapons she's already used this battle (a list, so saves can store it)
         heroine.status = {} # what the mobs did to her this fight: gassed, junked, hissed (see MOB_EFFECTS)
+        acc.sync_max_hp(heroine) # a max HP trinket counts (a safety net: picking one up already syncs)
 
 def status(heroine : object) -> dict:
     """Her status effects this fight (older saves and test parties may not have any yet)."""
@@ -58,8 +59,8 @@ async def show_current_status(party: list, mobs: list, round_num: int, active : 
 def get_heroine_rolls(heroine: object) -> dict:
     heroine_stats = heroine.stats
     roll_results = {}
-    if acc.roll_percent(heroine_stats['crit_chance']):
-        roll_results['crit_mult'] = heroine_stats['crit_mult']
+    if acc.roll_percent(heroine_stats['crit_chance'] + acc.stat_bonus(heroine, 'crit_chance')):
+        roll_results['crit_mult'] = round(heroine_stats['crit_mult'] + acc.stat_bonus(heroine, 'crit_mult'), 2)
     else:
         roll_results['crit_mult'] = 1 # if not a crit, multiplier is 1
     for stat in ['hit', 'luck', 'expertise', 'toughness', 'dodge', 'parry', 'fear']:

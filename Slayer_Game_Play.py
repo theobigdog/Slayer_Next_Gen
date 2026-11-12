@@ -18,7 +18,7 @@ def get_turn_order(party: list, mobs: list) -> list:
     entity_dict = {}
     for heroine in party:
         if not heroine.is_dead:
-            speed = heroine.stats['speed']
+            speed = heroine.stats['speed'] + acc.stat_bonus(heroine, 'speed') # a speed trinket counts
             speed_roll = acc.multi_roll(1,heroine_dice_cutoff)
             entity_dict[heroine] = speed + speed_roll
     for mob in mobs:

@@ -371,6 +371,7 @@ BONUS_WORDS = {
     'expertise': ('reads enemies better', 'reads enemies worse'), 'crit_chance': ('more crits', 'fewer crits'),
     'crit_mult': ('harder crits', 'softer crits'), 'fear': ('jumpier', 'braver'),
     'heal_chance': ('better at healing', 'worse at healing'), 'aoe_heal_chance': ('better group heals', 'worse group heals'),
+    'speed': ('quicker', 'slower'), 'max_hp': ('hardier', 'frailer'),
 }
 
 def bonus_hint(item : dict) -> str:
@@ -410,8 +411,9 @@ def describe_item(item : dict, left : int = None) -> str:
     return f'{desc} ({what})'
 
 def parse_bonus(bonus) -> list:
-    """'luck+5 dodge-2' -> [('luck', '+', 5), ('dodge', '-', 2)]"""
-    return [(stat, sign, int(amount)) for stat, sign, amount in re.findall(r'(\w+)([+-])(\d+)', bonus or '')]
+    """'luck+5 dodge-2 crit_mult+0.1' -> [('luck', '+', 5), ('dodge', '-', 2), ('crit_mult', '+', 0.1)]"""
+    return [(stat, sign, float(amount) if '.' in amount else int(amount))
+            for stat, sign, amount in re.findall(r'(\w+)([+-])(\d+(?:\.\d+)?)', bonus or '')]
 
 def stat_bonus(heroine : object, stat : str) -> int:
     """What her items add to (or take off) one stat right now: trinkets, and afflictions like the norovirus."""
@@ -421,6 +423,20 @@ def stat_bonus(heroine : object, stat : str) -> int:
             if name == stat:
                 total += amount if sign == '+' else -amount
     return total
+
+def sync_max_hp(heroine : object):
+    """Max HP trinkets (bonus max_hp+5) count while she carries them. Her max HP and her HP move together by
+    however much that changed since last time, both ways, so swapping one in and out at The Stash isn't a free
+    heal; losing one never takes her below 1. max_hp_from_items remembers what's already counted (saves keep it)."""
+    want = stat_bonus(heroine, 'max_hp')
+    have = getattr(heroine, 'max_hp_from_items', 0)
+    if want == have:
+        return
+    heroine.starting_health += want - have
+    heroine.max_hp_from_items = want
+    if not heroine.is_dead:
+        heroine.health = max(1, heroine.health + want - have)
+    heroine.health = min(heroine.health, heroine.starting_health)
 
 def uses_left(heroine : object, item_name : str):
     return getattr(heroine, 'uses', {}).get(item_name)
@@ -433,12 +449,14 @@ def add_item(heroine : object, item : dict, uses : int = None) -> str:
     if item['uses'] and item['item'] in heroine.inv:
         before = heroine.uses.get(item['item'], 0)
         heroine.uses[item['item']] = min(MAX_USES, before + uses)
+        sync_max_hp(heroine)
         return f"[narr]{heroine.name} tops up the {item['item_desc']} she already had: {before}/{MAX_USES}, now {heroine.uses[item['item']]}/{MAX_USES}.[/]"
     heroine.inv.append(item['item'])
     if item['uses']:
         heroine.uses[item['item']] = uses
     if item['item'] in getattr(heroine, 'dropped', []):
         heroine.dropped.remove(item['item']) # her own starting gear, back from the stash
+    sync_max_hp(heroine)
     return f"[narr]{heroine.name} takes {item['item_desc']}.[/]"
 
 def remove_item(heroine : object, item_name : str):
@@ -447,7 +465,9 @@ def remove_item(heroine : object, item_name : str):
         heroine.inv.remove(item_name)
     if item_name in heroine.starting_inv:
         heroine.dropped = getattr(heroine, 'dropped', []) + [item_name]
-    return getattr(heroine, 'uses', {}).pop(item_name, None)
+    left = getattr(heroine, 'uses', {}).pop(item_name, None)
+    sync_max_hp(heroine)
+    return left
 
 def drop_item(heroine : object, item_name : str):
     remove_item(heroine, item_name)
@@ -789,6 +809,7 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
         restore_starting_items(heroine)
         heroine.is_dead = False
         heroine.blown_up = False
+        sync_max_hp(heroine)
         heroine.health = heroine.starting_health
     return party_dict
 
