@@ -589,7 +589,9 @@ class WindowUI:
 
     async def choose_target(self, prompt, party, mobs, oops):
         self.add_prompt(pick_line(prompt))
-        labels = [f'{t.name}' for t in party + mobs]
+        # HP on the right edge of each row, since a long menu grows up over the enemies' boxes and hides
+        # theirs (Ted, Nov 12: a Cleric healing in the Kobold fight couldn't see the Kobolds' HP)
+        labels = [f'{t.name}\t{int(round(t.health))}/{t.starting_health} hp' for t in party + mobs]
         return await self.menu('choose_target', party + mobs, labels, prompt, oops)
 
     async def menu(self, kind, options, labels, prompt, oops):

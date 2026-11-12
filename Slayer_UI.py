@@ -162,11 +162,11 @@ class TerminalUI:
         if party:
             print('\nParty Members:')
             for number, heroine in enumerate(party, start=1):
-                print(f'{number}: {heroine.name}')
+                print(f'{number}: {heroine.name}  ({self.health_text(heroine)} hp)')
         if mobs:
             print('\nMobs:')
             for number, mob in enumerate(mobs, start=len(party) + 1):
-                print(f'{number}: {mob.name}')
+                print(f'{number}: {mob.name}  ({self.health_text(mob)} hp)')
         return targets[await self._read_number(prompt, len(targets), oops) - 1]
 
     async def _read_number(self, prompt, count, oops) -> int:
