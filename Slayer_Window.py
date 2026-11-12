@@ -100,6 +100,12 @@ class NarrationFont:
         return getattr(self.words, name)
 
 
+def hp_color(entity) -> tuple:
+    """Her HP bar's colour, also used for the HP in the target menu: green, magenta at half or less, red at 10% or less."""
+    share = max(0.0, entity.health / entity.starting_health)
+    return HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
+
+
 def rich_runs(text: str) -> list:
     """'You\'re on [red]The List[/].' -> [("You're on ", TEXT), ('The List', red), ('.', TEXT)]"""
     runs, color, pos = [], TEXT, 0
@@ -857,7 +863,8 @@ class WindowUI:
             rect = pygame.Rect(area.x + 10 + col * (col_w + 8), area.y + 44 + row * row_h, col_w, row_h - 4)
             hover = rect.collidepoint(mouse)
             pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
-            self.draw_menu_label(rect, str(i + 1), label, font_name)
+            side_color = hp_color(extra['options'][i]) if kind == 'choose_target' else None  # target HP, coloured like her bar
+            self.draw_menu_label(rect, str(i + 1), label, font_name, side_color)
             self.buttons.append(Button(rect, label, extra['options'][i]))
             if hover:
                 self.frame_who(label, extra['options'][i])
@@ -876,7 +883,7 @@ class WindowUI:
             if entity is who and not rect.colliderect(self.menu_area()):
                 pygame.draw.rect(self.screen, GOLD, rect.inflate(16, 16), 4, border_radius=12)
 
-    def draw_menu_label(self, rect, key, label, font_name=None):
+    def draw_menu_label(self, rect, key, label, font_name=None, side_color=None):
         """One menu row: its number, then the label in the biggest size that fits. A special weapon
         that's recharging is red and crossed out, with 'Recharging' after it. A label with a tab in it
         ('Xena  (Warrior)\tbag 4/6') keeps the part after the tab on the right edge, always whole:
@@ -889,7 +896,7 @@ class WindowUI:
             fnt = self.fonts[name]
             tail = [('   Recharging', GOLD)] if recharging else []
             if side:
-                tail.append(('   ' + side, (200, 186, 150)))
+                tail.append(('   ' + side, side_color or (200, 186, 150)))
             needed = fnt.size(f'{key}   ' + base)[0] + sum(fnt.size(t)[0] for t, _ in tail)
             if needed <= room:
                 break
@@ -1149,7 +1156,7 @@ class WindowUI:
         bar.midtop = (rect.centerx, rect.bottom + 12)
         pygame.draw.rect(self.screen, (55, 50, 45), bar, border_radius=4)
         share = max(0.0, entity.health / entity.starting_health)
-        color = HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
+        color = hp_color(entity)
         if share > 0:
             pygame.draw.rect(self.screen, color, (bar.x, bar.y, max(4, int(bar.width * share)), bar.height), border_radius=4)
         sick = poisoned(entity)
