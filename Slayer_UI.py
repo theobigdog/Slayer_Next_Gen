@@ -74,7 +74,8 @@ async def ask_text(prompt: str) -> str:
     return await _backend.ask_text(prompt)
 
 async def show_battle(party: list, mobs: list, round_num: int, active=None):
-    """active: whoever's turn it is (a heroine or a mob), so the screen can point her out. None = nobody."""
+    """active: whoever's turn it is (a heroine or a mob), so the screen can point her out. None = nobody.
+    round_num 0 = the fight is over but its mobs are still in the scene: no round counter."""
     await _backend.show_battle(party, mobs, round_num, active)
 
 async def show_party(party: list):
@@ -161,11 +162,11 @@ class TerminalUI:
         if party:
             print('\nParty Members:')
             for number, heroine in enumerate(party, start=1):
-                print(f'{number}: {heroine.name}')
+                print(f'{number}: {heroine.name}  ({self.health_text(heroine)} hp)')
         if mobs:
             print('\nMobs:')
             for number, mob in enumerate(mobs, start=len(party) + 1):
-                print(f'{number}: {mob.name}')
+                print(f'{number}: {mob.name}  ({self.health_text(mob)} hp)')
         return targets[await self._read_number(prompt, len(targets), oops) - 1]
 
     async def _read_number(self, prompt, count, oops) -> int:
@@ -201,9 +202,12 @@ class TerminalUI:
         print()
         for heroine in party:
             turn = '   <-- her turn' if heroine is active else ''
-            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{turn}")
+            sick = f'  {self.Fore.GREEN}(poisoned){self.Style.RESET_ALL}' if getattr(heroine, 'status', None) and heroine.status.get('poisoned') and not heroine.is_dead else ''
+            print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{sick}{turn}")
 
     async def show_battle(self, party, mobs, round_num, active=None):
+        if not round_num:
+            return  # round 0 = the fight's over; the window drops its round counter, and there's nothing to redraw here
         await self.clear()
         print(f'Round:{round_num}\n\n')
         print('Enemy')

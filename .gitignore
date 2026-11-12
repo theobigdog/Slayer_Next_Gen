@@ -3,3 +3,5 @@ saved_parties/*.pkl
 saved_parties/*.sav
 saved_parties/*.json
 build/
+dist/
+crash_log.txt

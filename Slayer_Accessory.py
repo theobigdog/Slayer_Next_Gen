@@ -14,7 +14,13 @@ whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good
 
 game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where it's launched from
 docs_dir = game_dir / 'supporting_docs'
-save_dir = game_dir / 'saved_parties'
+
+# FROZEN: running as the Slayer.exe that build_exe.bat makes. The game's own files are unpacked
+# inside the exe's _internal folder, so saves (and crash logs) go in the folder the player can see,
+# right next to Slayer.exe, instead.
+FROZEN = getattr(sys, 'frozen', False)
+player_dir = Path(sys.executable).parent if FROZEN else game_dir
+save_dir = player_dir / 'saved_parties'
 
 # In the browser (pygbag), files vanish when the page closes, so every save is also kept in the browser's
 # localStorage, and copied back into saved_parties when the game starts. (Untested until the first web build.)
@@ -85,8 +91,10 @@ mobs_table = read_table('mobs.csv')
 mob_equipment_table = read_table('mob_equipment.csv')
 stat_growth_table = read_table('stat_growth.csv')
 
+DEV_MODE = True # flip to False to play like a real player; Slayer.exe is always a player build either way
+
 def dev_mode() -> bool:
-    return True
+    return DEV_MODE and not FROZEN
 
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
@@ -295,6 +303,7 @@ def item_specific_wipe_taunts() -> list:
 # Its bonus column works like a trinket's: the norovirus is dodge-5 (she doesn't want to move much).
 AFFLICTIONS = {
     'happys_norovirus_regurgitation': {
+        'before': '"Oh, an\' one last thing...."', # Happy, right before he leans in (Ted, Nov 10)
         'caught': "{mob} leans in close and coughs right in {who}'s face.  [narr]Aaaand {who} has caught Happy's norovirus.  She's stuck with it for the rest of this run, but hey, now she can puke on people too.[/]",
         'cured': "[narr]Good news: {who}'s norovirus finally cleared up.[/]",
     },
@@ -312,7 +321,8 @@ AFFLICTIONS = {
 # stash; in the dungeon there's no stash, so a full slot means dropping something, and dropped is gone for good.
 # Starting gear can be stashed or dropped too; it doesn't come back next run unless it was only used up.
 GEAR_SLOTS, POTION_SLOTS = 6, 1
-MAX_STACK = 2 # a consumable tops up to at most twice its uses
+MAX_USES = 4 # a bottle (or a pouch of bombs) holds this many uses at most, whatever it came with (Ted, Nov 10).
+              # The uses column in items.csv is how many a found one has in it: 1 to 3, so there's room to top it up.
 SLOT_NAMES = {'gear': 'bag', 'trinket': 'trinkets', 'potion': 'potion'}
 
 def slot_kind(item : dict) -> str:
@@ -348,8 +358,8 @@ def slot_label(heroine : object, kind : str, item : dict = None) -> str:
         left = uses_left(heroine, hers[0])
         if item and item['item'] == hers[0]:
             if stack_full(heroine, item):
-                return f"has {left}, full"
-            return f"has {left}, stacks to {min(item['uses'] * MAX_STACK, left + item['uses'])}"
+                return f"has {left}/{MAX_USES}, full"
+            return f"has {left}/{MAX_USES}, tops up to {min(MAX_USES, left + item['uses'])}"
         return f"swap out {mine['item_desc']} ({left})"
     return f"{SLOT_NAMES[kind]} {len(carried(heroine, kind))}/{slots(heroine, kind)}"
 
@@ -376,8 +386,9 @@ def bonus_hint(item : dict) -> str:
 
 def describe_item(item : dict, left : int = None) -> str:
     """A menu label: 'Bastard Sword (7 - 11 damage)', 'Lucky Rabbit's Foot (trinket: luckier)',
-    'Fire Bomb (15 - 25 damage, 2 uses)'. Stat bonuses show as a hint, not numbers (the stats themselves stay
-    behind the scenes); dev mode adds the numbers."""
+    'Fire Bomb (15 - 25 damage, 2 uses)'. left: for one she's carrying (or in The Stash), what's left out of the
+    most it can hold: 'Happy's Hangover Cure (12 - 22 healing, 2/4 doses)'. Stat bonuses show as a hint, not
+    numbers (the stats themselves stay behind the scenes); dev mode adds the numbers."""
     desc, low, high = item['item_desc'], item['damage_low'], item['damage_high']
     hint = bonus_hint(item)
     if dev_mode() and item['bonus']:
@@ -391,8 +402,9 @@ def describe_item(item : dict, left : int = None) -> str:
         what += ', hits them all'
     elif item['attack_type'] == 'aoe_heal':
         what += ', heals everyone'
-    if item['uses']:
-        what += f", {item['uses']} uses" if left is None else f", {left} left"
+    if item['uses']: # 'doses' for something she drinks, 'uses' for a bomb. Carried: what's left / the most it holds
+        unit = 'dose' if low < 0 else 'use'
+        what += f", {item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f", {left}/{MAX_USES} {unit}s"
     if hint:
         what += f', {hint}'
     return f'{desc} ({what})'
@@ -420,8 +432,8 @@ def add_item(heroine : object, item : dict, uses : int = None) -> str:
     uses = item['uses'] if uses is None else uses
     if item['uses'] and item['item'] in heroine.inv:
         before = heroine.uses.get(item['item'], 0)
-        heroine.uses[item['item']] = min(item['uses'] * MAX_STACK, before + uses)
-        return f"[narr]{heroine.name} stacks it with the {item['item_desc']} she already had: {before} uses, now {heroine.uses[item['item']]}.[/]"
+        heroine.uses[item['item']] = min(MAX_USES, before + uses)
+        return f"[narr]{heroine.name} tops up the {item['item_desc']} she already had: {before}/{MAX_USES}, now {heroine.uses[item['item']]}/{MAX_USES}.[/]"
     heroine.inv.append(item['item'])
     if item['uses']:
         heroine.uses[item['item']] = uses
@@ -458,12 +470,11 @@ def capacity_facts(party_dict : dict) -> dict:
     for cls, n in by_class.items():
         groups.setdefault(n, []).append(plural(cls))
     if len(party_dict['party']) == 1:
-        trinkets = f"you can carry {next(iter(by_class.values()))}"
+        trinkets = f"ye can carry {next(iter(by_class.values()))}"
     else:
         parts = [f"{and_list(sorted(names))} {'can carry ' if spot == 0 else ''}{n}" for spot, (n, names) in enumerate(sorted(groups.items()))]
         trinkets = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ', and ' + parts[-1]
-    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'stack': {2: 'twice', 3: 'three times'}.get(MAX_STACK, f'{MAX_STACK} times'),
-            'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
+    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'doses': MAX_USES, 'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
 
 def stash_has_room(party_dict : dict) -> bool:
     return len(party_dict.setdefault('stash', [])) < stash_capacity(party_dict)
@@ -493,8 +504,8 @@ def can_use(heroine : object, item : dict) -> bool:
     return heroine.hero_class in literal_eval(item['classes'])
 
 def stack_full(heroine : object, item : dict) -> bool:
-    """She already carries this consumable at its stacking limit (MAX_STACK times its uses)."""
-    return bool(item['uses']) and item['item'] in heroine.inv and (uses_left(heroine, item['item']) or 0) >= item['uses'] * MAX_STACK
+    """She already carries this consumable, and it's full (MAX_USES)."""
+    return bool(item['uses']) and item['item'] in heroine.inv and (uses_left(heroine, item['item']) or 0) >= MAX_USES
 
 def has_room(heroine : object, item : dict) -> bool:
     kind = slot_kind(item)
@@ -511,18 +522,18 @@ async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern 
     hers = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
     to_stash = at_tavern and stash_has_room(party_dict)
     verb = 'Stash' if to_stash else 'Drop'
-    labels = ([f"{verb} her {describe_item(get_item(x), uses_left(heroine, x))}, take {item['item_desc']}" for x in hers] if kind == 'potion'
+    labels = ([f"{verb} her {get_item(x)['item_desc']}" for x in hers] if kind == 'potion' # short rows: the question above already names both
               else [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers])
-    extra = [f"Put {item['item_desc']} in the stash instead"] if to_stash and new_can_stash else []
-    full = '' if to_stash or not at_tavern else f"  (The stash is full too: {stash_label(party_dict)}.)"
+    extra = [f"Put {item['item_desc']} in The Stash instead"] if to_stash and new_can_stash else []
+    full = '' if to_stash or not at_tavern else f"  (The Stash is full too: {stash_label(party_dict)}.)"
     prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?{full}  " if kind != 'potion'
-              else f"{heroine.name} can only carry one potion, and she already has {get_item(hers[0])['item_desc']} ({uses_left(heroine, hers[0])} left).  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
+              else f"{heroine.name} can only carry one potion, and she already has {describe_item(get_item(hers[0]), uses_left(heroine, hers[0]))}.  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
     out = await choose(prompt, labels + extra + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
     if out < len(hers):
         old = get_item(hers[out])
         if to_stash:
             stash_item(party_dict, heroine, hers[out])
-            await say(f"[narr]Into the stash: {old['item_desc']}.[/]")
+            await say(f"[narr]Into The Stash: {old['item_desc']}.[/]")
         else:
             drop_item(heroine, hers[out])
             await say(f"[narr]{heroine.name} tosses her {old['item_desc']}.  Gone for good.[/]")
@@ -541,19 +552,19 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
     if not able:
         if at_tavern and stash_has_room(party_dict):
             stash_new(party_dict, item)
-            await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it goes in the stash for later.[/]")
+            await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it goes in The Stash for later.[/]")
         else:
             await say(f"From {source}: {label}.  [narr]Nobody here can use it, so it stays on the floor.[/]")
         return
     await say(f"From {source}: {label}.")
     while True:
         names = [f"{x.name}  ({class_label(x.hero_class)})\t{slot_label(x, kind, item)}" for x in able]
-        extra = [f"Put it in the stash\tstash {stash_label(party_dict)}"] if at_tavern and stash_has_room(party_dict) else []
+        extra = [f"Put it in The Stash\tStash {stash_label(party_dict)}"] if at_tavern and stash_has_room(party_dict) else []
         pick = await choose(f"Who gets {item['item_desc']}?  ", names + extra + ['Leave it behind'], "One of THOSE numbers, please:  ")
         if pick >= len(able):
             if extra and pick == len(able):
                 stash_new(party_dict, item)
-                await say(f"[narr]{item['item_desc']} goes in the stash.[/]")
+                await say(f"[narr]{item['item_desc']} goes in The Stash.[/]")
             else:
                 await say(f"[narr]Fine.  {item['item_desc']} stays on the floor.  Somebody's gonna trip on that.[/]")
             return
@@ -567,7 +578,7 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
                 continue
             if result == 'stashed':
                 stash_new(party_dict, item)
-                await say(f"[narr]{item['item_desc']} goes in the stash.[/]")
+                await say(f"[narr]{item['item_desc']} goes in The Stash.[/]")
                 return
         await say(add_item(who, item))
         return
@@ -588,6 +599,8 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
                 if able:
                     who = random.choice(able)
                     who.inv.append(item['item'])
+                    await say('') # a blank line first: this is a new subject (Ted, Nov 10)
+                    await say(AFFLICTIONS[item['item']]['before'])
                     await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))
@@ -604,6 +617,15 @@ def who_can_use(item : dict) -> str:
     classes = literal_eval(item['classes'])
     return 'anyone' if all(c in classes for c in get_hero_classes()) else ', '.join(class_label(c) for c in classes)
 
+def carrying_line(heroine : object) -> str:
+    """What she has on her right now, for The Stash menus (Ted, Nov 10): 'Thea is carrying:  Bag 4/6: Bastard
+    Sword, Battle-Axe.  Potion: Half-Finished Ale (1/4).  Trinkets 1/2: Lucky Bottle Cap.'"""
+    def names(kind):
+        mine = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
+        return ', '.join(get_item(x)['item_desc'] + (f' ({uses_left(heroine, x)}/{MAX_USES})' if get_item(x)['uses'] else '') for x in mine) or 'nothing'
+    return (f"{heroine.name} is carrying:  Bag {len(carried(heroine, 'gear'))}/{slots(heroine, 'gear')}: {names('gear')}.  "
+            f"Potion: {names('potion')}.  Trinkets {len(carried(heroine, 'trinket'))}/{slots(heroine, 'trinket')}: {names('trinket')}.")
+
 async def visit_stash(party_dict : dict) -> dict:
     """Happy's back room, before the dungeon: gear up a heroine from the stash (only what she can use is
     shown), put things in, or look through the whole thing."""
@@ -612,8 +634,8 @@ async def visit_stash(party_dict : dict) -> dict:
     party_dict.setdefault('stash', [])
     while True:
         stash = party_dict['stash']
-        what = await choose(f"The stash: {stash_label(party_dict)}.  What'll it be?  ",
-                            ['Gear up a heroine', 'Put something in the stash', 'Look through the whole stash', "Done, let's go"],
+        what = await choose(f"The Stash: {stash_label(party_dict)}.  What'll it be?  ",
+                            ['Gear up a heroine', 'Put something in The Stash', 'Look through The Stash', "Done, let's go"],
                             "One of THOSE numbers, please:  ")
         if what == 3:
             return party_dict
@@ -629,12 +651,14 @@ async def visit_stash(party_dict : dict) -> dict:
         if who_pick == len(party):
             continue
         who = party[who_pick]
+        await say('')
+        await say(carrying_line(who)) # what she already has, before anything goes in or out
         if what == 0:
             hers = [entry for entry in stash if can_use(who, get_item(entry['item']))]
             if not hers:
                 await say(f"[narr]Nothing in there {who.name} can use.[/]")
                 continue
-            labels = [f"{describe_item(get_item(e['item']), e['uses'])}\t{slot_label(who, slot_kind(get_item(e['item'])))}" for e in hers]
+            labels = [describe_item(get_item(e['item']), e['uses']) for e in hers] # the whole item, never cut off; her slots are in the line above
             pick = await choose(f"What does {who.name} take?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
             if pick == len(hers):
                 continue
@@ -649,7 +673,7 @@ async def visit_stash(party_dict : dict) -> dict:
             await say(add_item(who, item, entry['uses']))
         else:
             if not stash_has_room(party_dict):
-                await say(f"[narr]The stash is stuffed ({stash_label(party_dict)}).  Take something out first.[/]")
+                await say(f"[narr]The Stash is stuffed ({stash_label(party_dict)}).  Take something out first.[/]")
                 continue
             hers = [x for x in who.inv if slot_kind(get_item(x)) != 'none']
             if not hers:
@@ -660,7 +684,7 @@ async def visit_stash(party_dict : dict) -> dict:
             if pick == len(hers):
                 continue
             stash_item(party_dict, who, hers[pick])
-            await say(f"[narr]Into the stash: {get_item(hers[pick])['item_desc']}.[/]")
+            await say(f"[narr]Into The Stash: {get_item(hers[pick])['item_desc']}.[/]")
 
 # ---------- stat bonuses after a fight ------------------------------------------
 # Every heroine (dead, alive or blown to bits) improves 1-4 stats by 1-3 points each, plus some max HP
@@ -728,7 +752,8 @@ def improve_heroine(heroine : object) -> dict:
     heroine.fight_tally = {}
     return changes
 
-async def get_stat_increases(party_dict : dict) -> dict:
+async def get_stat_increases(party_dict : dict, hint_chance : float = HINT_CHANCE) -> dict:
+    """Every heroine improves; some get a STAT_HINTS line. hint_chance=1 (Happy's speech) gives everyone one."""
     import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
     lines = []
     for heroine in party_dict['party']:
@@ -737,7 +762,7 @@ async def get_stat_increases(party_dict : dict) -> dict:
             shown = ', '.join(f"{stat} {'-' if stat == 'fear' else '+'}{abs(change)} ({heroine.stats[stat] if stat != 'max_hp' else heroine.starting_health})"
                               for stat, change in changes.items())
             lines.append(f"[dev] {heroine.name}: {shown}")
-        if random.random() < HINT_CHANCE:
+        if random.random() < hint_chance:
             biggest = max(changes, key=lambda stat: abs(changes[stat]) * (30 if stat == 'crit_mult' else 1))
             lines.append(f"[narr]{nar.STAT_HINTS[biggest].format(name=heroine.name)}[/]")
     for line in lines:
@@ -755,7 +780,12 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
         party_dict['times_run_dungeon'] += 1
     party_dict['token_used'] = False
     party_dict['wiped'] = False
+    for entry in party_dict.get('stash', []):
+        if entry.get('uses'):
+            entry['uses'] = min(MAX_USES, entry['uses']) # a save from before Nov 10 could hold more than a bottle does now
     for heroine in party_dict['party']:
+        for item_name, left in getattr(heroine, 'uses', {}).items():
+            heroine.uses[item_name] = min(MAX_USES, left)
         restore_starting_items(heroine)
         heroine.is_dead = False
         heroine.blown_up = False
@@ -765,16 +795,15 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
 async def start_new_run(party_dict : dict) -> dict:
     """The start of a new dungeon run: refresh_party, and any affliction from last run (the norovirus)
     clears up. Happy hands out a fresh one after the tavern fight."""
+    from Slayer_UI import show_party
     party_dict = refresh_party(party_dict, True)
-    cured = False
+    await show_party(party_dict['party']) # the party's on screen first, so any news sits under it (Ted, Nov 10: the message used to show alone, then jump)
     for heroine in party_dict['party']:
         for item_name, lines in AFFLICTIONS.items():
             if item_name in heroine.inv:
                 heroine.inv.remove(item_name)
                 await say(lines['cured'].format(who=heroine.name))
-                cured = True
-    if cured:
-        await pause() # read it before the party screen replaces it (Ted, Nov 8: it flashed past)
+    await pause()
     return party_dict
 
 def restore_starting_items(heroine : object):

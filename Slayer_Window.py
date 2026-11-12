@@ -38,6 +38,8 @@ GOLD = (212, 166, 64)
 HERO_BOX = (38, 84, 76)
 MOB_BOX = (106, 46, 36)
 ENRAGED_BOX = (160, 24, 24)
+POISON_BOX = (92, 112, 28)     # a poisoned heroine's box: a sickly yellow-green instead of her healthy teal
+POISON_EDGE = (184, 226, 62)   # the ring round her HP bar, her HP numbers, and the bubbles coming off her
 HP_GOOD = (80, 176, 80)
 HP_LOW = (192, 96, 192)    # the terminal's magenta, at 50% and below
 HP_CRIT = (224, 64, 64)    # the terminal's red, at 10% and below
@@ -54,11 +56,54 @@ DIM_OLDER_TEXT = True  # text from before your last click is drawn a little dimm
 # Fonts: New Rocker for everything that isn't narration (names, headings, menus, boxes, numbers);
 # a calmer, still-stylized font for the narration so long lines stay easy to read.
 NARRATION_FONT, NARRATION_SIZE = 'Fondamento-Regular.ttf', 24  # swap the file name to try another font
+# Fondamento's numbers are old-fashioned 'lowercase' ones (its 1 looks like a dotless i, its 0 like an o), so
+# numbers in the narration are drawn in this font instead (Ted, Nov 12: 'Slayer 1' didn't look like a 1).
+# New Rocker matches the numbers on the heroine boxes; ('DejaVuSans.ttf', 20) is a quieter choice.
+NARRATION_DIGITS_FONT, NARRATION_DIGITS_SIZE = 'NewRocker-Regular.ttf', 22
 
 def font(size: int, kind: str = 'regular') -> pygame.font.Font:
     files = {'regular': 'DejaVuSans.ttf', 'bold': 'DejaVuSans-Bold.ttf', 'mono': 'DejaVuSansMono-Bold.ttf',
              'fancy': 'NewRocker-Regular.ttf', 'narration': NARRATION_FONT}
     return pygame.font.Font(ASSETS / 'fonts' / files[kind], size)
+
+
+class NarrationFont:
+    """The narration font, except that every run of digits ('11', '2026') is drawn in NARRATION_DIGITS_FONT,
+    sitting on the same baseline. Works anywhere a pygame Font does here (size, render, get_height...)."""
+    DIGITS = re.compile(r'(\d+)')
+
+    def __init__(self):
+        self.words = font(NARRATION_SIZE, 'narration')
+        self.digits = pygame.font.Font(ASSETS / 'fonts' / NARRATION_DIGITS_FONT, NARRATION_DIGITS_SIZE)
+        self.digit_y = self.words.get_ascent() - self.digits.get_ascent()  # lines the two fonts' baselines up
+
+    def pieces(self, text):
+        """'takes 11 hp' -> [(words, 'takes '), (digits, '11'), (words, ' hp')]"""
+        return [(self.digits if i % 2 else self.words, part) for i, part in enumerate(self.DIGITS.split(text)) if part]
+
+    def size(self, text):
+        return (sum(fnt.size(part)[0] for fnt, part in self.pieces(text)), self.words.get_height())
+
+    def render(self, text, antialias, color, background=None):
+        if background is not None or not self.DIGITS.search(text):
+            return self.words.render(text, antialias, color, background)
+        pieces = [(fnt, fnt.render(part, antialias, color)) for fnt, part in self.pieces(text)]
+        surf = pygame.Surface((sum(s.get_width() for _, s in pieces), self.words.get_height()), pygame.SRCALPHA)
+        surf.fill((*color[:3], 0))  # see-through, but already the text's color, so the letters' soft edges don't go dark
+        x = 0
+        for fnt, piece in pieces:
+            surf.blit(piece, (x, self.digit_y if fnt is self.digits else 0))
+            x += piece.get_width()
+        return surf
+
+    def __getattr__(self, name):  # get_height, get_linesize, get_ascent...: the narration font's own
+        return getattr(self.words, name)
+
+
+def hp_color(entity) -> tuple:
+    """Her HP bar's colour, also used for the HP in the target menu: green, magenta at half or less, red at 10% or less."""
+    share = max(0.0, entity.health / entity.starting_health)
+    return HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
 
 
 def rich_runs(text: str) -> list:
@@ -112,7 +157,7 @@ class WindowUI:
         self.clock = pygame.time.Clock()
         self.fps = headless_fps
         self.fonts = {
-            'text': font(NARRATION_SIZE, 'narration'),
+            'text': NarrationFont(),
             'menu': font(22, 'fancy'), 'menu_s': font(19, 'fancy'), 'menu_xs': font(16, 'fancy'), 'name': font(20, 'fancy'), 'name_small': font(16, 'fancy'),
             'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'), 'keg': font(96, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
@@ -121,6 +166,7 @@ class WindowUI:
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
+        self.menu_width_cache = (None, 0)  # (the labels it was worked out for, the width)
         self.active = None  # whoever's turn it is: her box gets a gold frame
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
@@ -142,6 +188,9 @@ class WindowUI:
         self.typed = ''             # ask_text's input so far
         self.targets = []           # (rect, entity) for clickable sprites during choose_target
         self.sprite_cache = {}
+        self.ink_cache = {}         # (font, text, colour) -> that text already drawn (see ink)
+        self.whole_boxes = {}       # a combatant's box with her name already on it (see draw_sprite)
+        self.frame_rate = 0.0       # frames a second, smoothed (shown in the corner in dev mode)
         self.overlay = None         # title / loser animation frame (a function that draws it)
         self.effect_overlay = None  # a quick effect drawn on top of everything (the Big Badda Boom keg)
         self.title_draw = None      # the finished title screen, shown until the next clear
@@ -170,6 +219,8 @@ class WindowUI:
             if self.fps and not IN_BROWSER:
                 self.clock.tick(self.fps)
             now = pygame.time.get_ticks() / 1000
+            if now > self.now:
+                self.frame_rate += (1 / (now - self.now) - self.frame_rate) * 0.05  # smoothed, so the number is readable
             dt, self.now = min(0.1, now - self.now), now
             self.dt = dt
             for event in pygame.event.get():
@@ -186,6 +237,8 @@ class WindowUI:
             if task.done() and self.mode != 'end':
                 self.finish(task)
             self.draw()
+            if acc.dev_mode():  # frames a second, top right: how smoothly this device is running the game
+                self.blit_text(f'{self.frame_rate:.0f} fps', (SCREEN_W - 58, 4), 'small', DIM)
             pygame.display.flip()
             await asyncio.sleep(0)
 
@@ -204,6 +257,11 @@ class WindowUI:
             self.error = ''.join(traceback.format_exception(error))
             print(self.error, file=sys.stderr)
             self.lines = ['[red]The game crashed:[/]'] + self.error.strip().splitlines()[-6:]
+            try:  # the whole error, in a file a player can send you (the window only has room for the last few lines)
+                (acc.player_dir / 'crash_log.txt').write_text(self.error, encoding='utf-8')
+                self.lines += ['', 'The whole error is in crash_log.txt, in the game folder.']
+            except Exception:
+                pass  # can't write it (read-only folder, or the browser): the window still shows the error
             self.revealed = self.total_chars()
         self.mode = 'end'
         self.waiting = ('close', None, None)
@@ -427,8 +485,12 @@ class WindowUI:
         return sum(n for _, n, _ in self.visual_lines()[:self.page_end()])
 
     def wrap_width(self):
-        """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines."""
-        return (780 if self.mode in ('battle', 'party') else 740) - 40
+        """Always wrap to the narrower box (the one with a menu beside it), so a menu opening never re-splits lines.
+        The one exception: an item menu that had to widen for a long label (menu_width) narrows the box a bit more
+        while it's open."""
+        if self.mode in ('battle', 'party'):
+            return 780 - (self.menu_width() - self.MENU_W) - 40
+        return 740 - 40
 
     def visual_lines(self):
         """Every narration line wrapped to the box: [(runs, chars_in_line, line_number)]."""
@@ -533,7 +595,9 @@ class WindowUI:
 
     async def choose_target(self, prompt, party, mobs, oops):
         self.add_prompt(pick_line(prompt))
-        labels = [f'{t.name}' for t in party + mobs]
+        # HP on the right edge of each row, since a long menu grows up over the enemies' boxes and hides
+        # theirs (Ted, Nov 12: a Cleric healing in the Kobold fight couldn't see the Kobolds' HP)
+        labels = [f'{t.name}\t{int(round(t.health))}/{t.starting_health} hp' for t in party + mobs]
         return await self.menu('choose_target', party + mobs, labels, prompt, oops)
 
     async def menu(self, kind, options, labels, prompt, oops):
@@ -584,7 +648,7 @@ class WindowUI:
 
     def text_box(self):
         if self.mode in ('battle', 'party'):
-            return pygame.Rect(16, 444, 780 if self.menu_open() else 1248, 264)
+            return pygame.Rect(16, 444, self.menu_area().x - 28 if self.menu_open() else 1248, 264)
         return pygame.Rect(60, 60, 1160 if not self.menu_open() else 740, 600)
 
     MENU_ROW = 30  # pixels per menu row
@@ -596,8 +660,25 @@ class WindowUI:
         if self.mode in ('battle', 'party'):
             rows = len(self.menu_labels) if self.menu_open() and not self.short_labels() else 0
             height = min(708 - 64, max(264, 50 + rows * self.MENU_ROW + 6))
-            return pygame.Rect(808, 708 - height, 456, height)
+            width = self.menu_width()
+            return pygame.Rect(1264 - width, 708 - height, width, height)
         return pygame.Rect(812, 60, 408, 600)
+
+    MENU_W, MENU_W_MAX = 456, 600
+
+    def menu_width(self):
+        """The menu is MENU_W wide, and widens (up to MENU_W_MAX, taking the room from the text box) when an item
+        label is too long for it, so the end of a row is never cut off: that's where a potion's doses are
+        (Ted, Nov 10: 'Happy's Hangover Cure (12 - 22 healing, 2/6 doses)'). Rows with a right-hand side
+        ('Thea  (Warrior)\tbag 4/6') already keep that side whole, so they don't widen it."""
+        if not self.menu_open():
+            return self.MENU_W
+        key = tuple(self.menu_labels)
+        if self.menu_width_cache[0] != key:
+            fnt = self.fonts['menu_s']
+            longest = max([fnt.size(f'00   {label}')[0] for label in self.menu_labels if '\t' not in label], default=0)
+            self.menu_width_cache = (key, max(self.MENU_W, min(self.MENU_W_MAX, longest + 36)))
+        return self.menu_width_cache[1]
 
     def short_labels(self):
         """Every label fits half a menu (target names do): two columns are fine, no need to grow."""
@@ -608,7 +689,9 @@ class WindowUI:
         """The biggest menu font every row fits in, so the rows all match (the smallest if none fits)."""
         def short(label): # a long name may lose a few letters ('Brumhilda (Battl...'), rather than every row shrinking
             name, tab, side = label.replace('  (recharging)', '   Recharging').partition('\t')
-            return (name if len(name) <= 18 else name[:15] + '...') + ('   ' + side if tab else '')
+            if not tab:
+                return name # an item row: measured whole, so its end (damage, doses left) stays readable
+            return (name if len(name) <= 18 else name[:15] + '...') + '   ' + side
         for name in ('menu', 'menu_s', 'menu_xs'):
             fnt = self.fonts[name]
             if all(fnt.size(f'00   ' + short(label))[0] <= width - 16 for label in labels):
@@ -628,7 +711,11 @@ class WindowUI:
         if self.mode == 'title':
             self.title_draw()
             if self.waiting and self.waiting[0] == 'pause':
-                self.blit_text('click or Enter  \u25bc', (SCREEN_W // 2, SCREEN_H - 60), 'menu', GOLD, center=True)
+                # Just a hint, not a button: a click anywhere (or Enter) moves on. The arrow is drawn, not typed,
+                # because New Rocker has no \u25bc and drew a boxed '?' in its place (Ted, Nov 12).
+                hint = self.blit_text('click or Enter', (SCREEN_W // 2 - 10, SCREEN_H - 60), 'menu', GOLD, center=True)
+                x, y = hint.right + 10, hint.centery + 2
+                pygame.draw.polygon(self.screen, GOLD, [(x, y - 5), (x + 12, y - 5), (x + 6, y + 5)])
             return
         if self.mode == 'battle':
             self.draw_battle()
@@ -649,8 +736,20 @@ class WindowUI:
         pygame.draw.rect(self.screen, PANEL, rect, border_radius=10)
         pygame.draw.rect(self.screen, edge, rect, 2, border_radius=10)
 
+    def ink(self, fnt, text, color):
+        """A piece of text as a picture, drawn once and kept, since turning letters into pixels is slow and most
+        of what's on screen is the same from one frame to the next (Nov 11: the tablet was stuttering).
+        fnt: a name in self.fonts, or a Font. The cache empties itself when it gets big."""
+        key = (fnt, text, tuple(color))
+        surf = self.ink_cache.get(key)
+        if surf is None:
+            if len(self.ink_cache) > 500:
+                self.ink_cache.clear()
+            surf = self.ink_cache[key] = (self.fonts[fnt] if isinstance(fnt, str) else fnt).render(text, True, color)
+        return surf
+
     def blit_text(self, text, pos, fnt='text', color=TEXT, center=False):
-        surf = self.fonts[fnt].render(text, True, color)
+        surf = self.ink(fnt, text, color)
         rect = surf.get_rect(center=pos) if center else surf.get_rect(topleft=pos)
         self.screen.blit(surf, rect)
         return rect
@@ -679,7 +778,8 @@ class WindowUI:
                     link = color == LIST_RED
                     if older:
                         color = tuple(int(c * 0.62 + b * 0.38) for c, b in zip(color, BG))
-                    surf = self.fonts['text'].render(shown, True, color)
+                    # a finished piece of a line is kept (ink); the piece still typing out changes every frame
+                    surf = self.ink('text', shown, color) if shown == chunk else self.fonts['text'].render(shown, True, color)
                     self.screen.blit(surf, (x, y))
                     if link:
                         rect = surf.get_rect(topleft=(x, y))
@@ -763,7 +863,8 @@ class WindowUI:
             rect = pygame.Rect(area.x + 10 + col * (col_w + 8), area.y + 44 + row * row_h, col_w, row_h - 4)
             hover = rect.collidepoint(mouse)
             pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
-            self.draw_menu_label(rect, str(i + 1), label, font_name)
+            side_color = hp_color(extra['options'][i]) if kind == 'choose_target' else None  # target HP, coloured like her bar
+            self.draw_menu_label(rect, str(i + 1), label, font_name, side_color)
             self.buttons.append(Button(rect, label, extra['options'][i]))
             if hover:
                 self.frame_who(label, extra['options'][i])
@@ -782,7 +883,7 @@ class WindowUI:
             if entity is who and not rect.colliderect(self.menu_area()):
                 pygame.draw.rect(self.screen, GOLD, rect.inflate(16, 16), 4, border_radius=12)
 
-    def draw_menu_label(self, rect, key, label, font_name=None):
+    def draw_menu_label(self, rect, key, label, font_name=None, side_color=None):
         """One menu row: its number, then the label in the biggest size that fits. A special weapon
         that's recharging is red and crossed out, with 'Recharging' after it. A label with a tab in it
         ('Xena  (Warrior)\tbag 4/6') keeps the part after the tab on the right edge, always whole:
@@ -795,13 +896,13 @@ class WindowUI:
             fnt = self.fonts[name]
             tail = [('   Recharging', GOLD)] if recharging else []
             if side:
-                tail.append(('   ' + side, (200, 186, 150)))
+                tail.append(('   ' + side, side_color or (200, 186, 150)))
             needed = fnt.size(f'{key}   ' + base)[0] + sum(fnt.size(t)[0] for t, _ in tail)
             if needed <= room:
                 break
         x, y = rect.x + 8, rect.centery - fnt.get_height() // 2
         tail_w = sum(fnt.size(t)[0] for t, _ in tail)
-        number = fnt.render(f'{key}   ', True, TEXT)
+        number = self.ink(fnt, f'{key}   ', TEXT)
         self.screen.blit(number, (x, y))
         x += number.get_width()
         if side and x + fnt.size(base[:8])[0] + tail_w > rect.right - 8: # the tail would run over the name: trim the tail too
@@ -814,22 +915,23 @@ class WindowUI:
         while fnt.size(text)[0] > rect.right - 8 - tail_w - x and len(text) > 4:
             text = text[:-4].rstrip() + '...'  # trim the name before the tail
         color = (220, 80, 70) if recharging else TEXT
-        surf = fnt.render(text, True, color)
+        surf = self.ink(fnt, text, color)
         self.screen.blit(surf, (x, y))
         if recharging:
             pygame.draw.line(self.screen, color, (x, rect.centery + 1), (x + surf.get_width(), rect.centery + 1), 2)
         x += surf.get_width()
         if recharging:
-            surf = fnt.render(tail[0][0], True, tail[0][1])
+            surf = self.ink(fnt, tail[0][0], tail[0][1])
             self.screen.blit(surf, (x, y))
         if side:
-            surf = fnt.render(tail[-1][0], True, tail[-1][1])
+            surf = self.ink(fnt, tail[-1][0], tail[-1][1])
             self.screen.blit(surf, (rect.right - 8 - surf.get_width(), y))  # right edge
 
     # battle scene
 
     def draw_battle(self):
-        self.blit_text(f'Round {self.round_num}', (24, 16), 'round', GOLD)
+        if self.round_num:  # round 0 = the fight's over (Happy's scenes after the tavern fight): no round counter
+            self.blit_text(f'Round {self.round_num}', (24, 16), 'round', GOLD)
         self.sprite_rects = []
         self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.draw_mobs()
@@ -843,7 +945,7 @@ class WindowUI:
             x = 24 + col * slot_w
             y = top + row * 190
             rect = pygame.Rect(x + (slot_w - sprite) // 2 - 6, y, sprite, sprite)
-            self.draw_sprite(heroine, rect, heroine.hero_class, HERO_BOX)
+            self.draw_sprite(heroine, rect, heroine.hero_class, POISON_BOX if poisoned(heroine) else HERO_BOX)
             self.draw_health_bar(heroine, rect, slot_w - 12)
             self.sprite_rects.append((rect, heroine))
 
@@ -883,6 +985,11 @@ class WindowUI:
             x = 660 + (600 - total) // 2
             for mob in group:
                 rect = pygame.Rect(x, 52 + row * 188, w, h)
+                if getattr(mob, 'mini_boss', False):  # the pack's mini-boss: a bigger box (same feet on the floor) with a gold edge
+                    rect = rect.inflate(22, 0)
+                    rect.height, rect.bottom = h + 24, 52 + row * 188 + h
+                    if not mob.is_dead:
+                        pygame.draw.rect(self.screen, GOLD, rect.inflate(8, 8), 2, border_radius=11)
                 self.draw_sprite(mob, rect, self.mob_label(mob), ENRAGED_BOX if mob.enraged else MOB_BOX)
                 self.draw_health_bar(mob, rect, 130)
                 self.sprite_rects.append((rect, mob))
@@ -890,23 +997,31 @@ class WindowUI:
 
     def draw_sprite(self, entity, rect, label, box_color):
         dead = entity.is_dead
-        image = self.sprite_for(entity, rect.size)
-        art = image is not None
+        art_image = self.sprite_for(entity, rect.size)
+        art = art_image is not None
         kind = class_key(entity)
-        if image is None:
-            share = max(0.0, min(1.0, entity.health / entity.starting_health))
-            if kind == 'shifter' and not dead:
-                image = self.motion.shifter_box(rect.size, box_color, share)
-            else:
-                image = self.placeholder(rect.size, box_color, dead, share)
-        else:
-            image = image.copy()
-            if dead:
-                image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
-        image = image.copy()
+        share = max(0.0, min(1.0, entity.health / entity.starting_health))
         status = ('in pieces' if getattr(entity, 'blown_up', False) else 'dead') if dead else None
         labels = self.box_labels(rect.size, entity.name, label, status, art)
-        image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))  # her name inside the box, her class under it
+        if not art and kind == 'shifter' and not dead:
+            image = self.motion.shifter_box(rect.size, box_color, share)  # a new picture every frame (she never holds still)
+            image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))
+        else:
+            # The box with her name on it only changes when her HP, colour or status does, so it's put together
+            # once and kept, not rebuilt every frame.
+            key = (id(art_image) if art else None, rect.size, box_color, dead, round(share * 100), entity.name, label, status)
+            image = self.whole_boxes.get(key)
+            if image is None:
+                if len(self.whole_boxes) > 250:
+                    self.whole_boxes.clear()
+                if art:
+                    image = art_image.copy()
+                    if dead:
+                        image.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                else:
+                    image = self.placeholder(rect.size, box_color, dead, share).copy()
+                image.blit(labels, labels.get_rect(midbottom=(image.get_width() // 2, image.get_height())))  # her name inside the box, her class under it
+                self.whole_boxes[key] = image
         pose = Pose() if dead else self.motion.pose(entity, kind, rect)
         if pose.sx != 1 or pose.sy != 1:
             image = pygame.transform.smoothscale(image, (max(1, round(image.get_width() * pose.sx)), max(1, round(image.get_height() * pose.sy))))
@@ -987,13 +1102,15 @@ class WindowUI:
             age = self.now - f['born']
             rise = 50 * (1 - (1 - age / life) ** 2)  # fast at first, then easing off
             alpha = 255 if age < life / 2 else int(255 * (1 - (age - life / 2) / (life / 2)))
-            fnt = self.fonts['float']
-            text = fnt.render(f['text'], True, f['color'])
-            edge = fnt.render(f['text'], True, (0, 0, 0))
-            surf = pygame.Surface((text.get_width() + 4, text.get_height() + 4), pygame.SRCALPHA)
-            for ox, oy in ((0, 2), (4, 2), (2, 0), (2, 4)):
-                surf.blit(edge, (ox, oy))
-            surf.blit(text, (2, 2))
+            surf = f.get('picture')
+            if surf is None:  # the number with its black edge, built once per floater
+                fnt = self.fonts['float']
+                text = fnt.render(f['text'], True, f['color'])
+                edge = fnt.render(f['text'], True, (0, 0, 0))
+                surf = f['picture'] = pygame.Surface((text.get_width() + 4, text.get_height() + 4), pygame.SRCALPHA)
+                for ox, oy in ((0, 2), (4, 2), (2, 0), (2, 4)):
+                    surf.blit(edge, (ox, oy))
+                surf.blit(text, (2, 2))
             surf.set_alpha(alpha)
             self.screen.blit(surf, surf.get_rect(center=(f['x'], f['y'] - rise)))
 
@@ -1039,10 +1156,13 @@ class WindowUI:
         bar.midtop = (rect.centerx, rect.bottom + 12)
         pygame.draw.rect(self.screen, (55, 50, 45), bar, border_radius=4)
         share = max(0.0, entity.health / entity.starting_health)
-        color = HP_CRIT if share <= 0.1 else HP_LOW if share <= 0.5 else HP_GOOD
+        color = hp_color(entity)
         if share > 0:
             pygame.draw.rect(self.screen, color, (bar.x, bar.y, max(4, int(bar.width * share)), bar.height), border_radius=4)
-        self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', DIM, center=True)
+        sick = poisoned(entity)
+        if sick:  # the bar keeps its colour (it still says how hurt she is); a poison-green ring goes round it
+            pygame.draw.rect(self.screen, POISON_EDGE, bar.inflate(8, 8), 2, border_radius=7)
+        self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', POISON_EDGE if sick else DIM, center=True)
 
     def draw_party_lineup(self):
         self.sprite_rects = []
@@ -1050,6 +1170,11 @@ class WindowUI:
         self.draw_party_row(self.party, top=78)  # room for a Cleric halo under the Round heading
         self.motion.draw_effects()
         self.motion.draw_particles()
+
+
+def poisoned(entity) -> bool:
+    """She's carrying Kobold poison right now (Slayer_Combat keeps it in her status until it wears off or is healed)."""
+    return bool(getattr(entity, 'status', None)) and bool(entity.status.get('poisoned')) and not entity.is_dead
 
 
 def class_key(entity) -> str:
@@ -1122,6 +1247,7 @@ class Motion:
         self.next_play = {}  # (id(entity), effect) -> when that effect next starts
         self.later = []      # effects to draw after every sprite and nameplate (so they land on top)
         self.popped = {}     # id(sapper) -> which fuse burn already went pop
+        self.patches = {}    # size -> a reusable see-through scrap for the dagger, staff and arrow (see patch)
         self.radii = {name: [1.0] * RAYS if poly is None else [ray_radius(poly, self.ray_angle(i)) for i in range(RAYS)]
                       for name, poly in SHAPES.items()}
 
@@ -1158,6 +1284,8 @@ class Motion:
             if entity.enraged:    # shaking with rage
                 return Pose(random.uniform(-2.5, 2.5), random.uniform(-1.5, 1.5))
             return Pose(dy=2 * math.sin(t * 1.4))
+        if kind == 'krazy_kobolds' and entity.enraged:  # hopping mad: fast, high bounces with a jitter, and a size bigger
+            return Pose(random.uniform(-1.5, 1.5), -abs(9 * math.sin(t * 9)), sx=1.08, sy=1.08)
         if kind == 'battle_mage' and self.smacked(entity):  # her staff just smacked her name: the box jolts
             return Pose(random.uniform(-3, 3), 3)
         return Pose(dy=1.5 * math.sin(t * 1.6))  # battle mage, hunter, sapper, anything new
@@ -1196,6 +1324,9 @@ class Motion:
 
     def effects(self, entity, kind, rect):
         now, dt = self.window.now, self.window.dt
+        if poisoned(entity) and random.random() < dt * 5:  # sickly green bubbles drifting up off a poisoned heroine
+            x = rect.x + random.uniform(0.1, 0.9) * rect.width
+            self.particles.append([x, rect.bottom - 6, random.uniform(-6, 6), random.uniform(-34, -18), 0, 1.3, 3, 2, POISON_EDGE])
         if kind == 'warrior':     # a dagger thunks into her box and sticks for a bit
             stab = self.playing(entity, 'stab', 5.0, 1.8)
             if stab is not None:
@@ -1222,6 +1353,11 @@ class Motion:
                 x = rect.x + random.uniform(0.15, 0.85) * rect.width
                 self.particles.append([x, rect.y + 10, random.uniform(-8, 8), random.uniform(-40, -20), 0, 1.0, 3, 0,
                                        random.choice([(200, 120, 255), (255, 170, 60)])])
+        elif kind == 'krazy_kobolds' and entity.enraged:  # little puffs of steam off an enraged Kobold
+            for side in (-1, 1):
+                if random.random() < dt * 2.5:
+                    x = rect.centerx + side * rect.width * 0.36
+                    self.particles.append([x, rect.y + 12, side * random.uniform(10, 26), random.uniform(-42, -24), 0, 1.0, 4, 8, (210, 210, 210)])
         elif kind == 'disgruntled_dwarf' and entity.enraged:  # steam venting off the top
             for side in (-1, 1):
                 if random.random() < dt * 3:
@@ -1232,6 +1368,19 @@ class Motion:
         for draw in self.later:
             draw()
         self.later = []
+
+    def patch(self, area):
+        """A see-through scrap just big enough for one little animation (area: where it goes on the screen), wiped
+        and reused. These used to be drawn on a brand-new see-through layer the size of the whole screen, every
+        frame, which is a lot of work for a tablet (Ted, Nov 11: jittery animations). Returns the scrap and where
+        its top-left corner sits on the screen: take that off every point drawn on it."""
+        area = pygame.Rect(area).clip(pygame.Rect(0, 0, SCREEN_W, SCREEN_H))
+        size = (max(1, area.width), max(1, area.height))
+        if size not in self.patches:
+            self.patches[size] = pygame.Surface(size, pygame.SRCALPHA)
+        surf = self.patches[size]
+        surf.fill((0, 0, 0, 0))
+        return surf, area.x, area.y
 
     def fade(self, progress, fade_at=0.85):
         return 255 if progress < fade_at else max(0, int(255 * (1 - (progress - fade_at) / (1 - fade_at))))
@@ -1246,9 +1395,10 @@ class Motion:
             shift = (1 - p / fly) * 90  # still flying in
         else:
             wobble = math.sin(self.window.now * 70) * 3 * max(0.0, 1 - (p - fly) / 0.15)  # quivers when it lands
+        surf, ox, oy = self.patch((tip[0] - 20, tip[1] - 125, 170, 150))  # it flies in from up and to the right of the tip
+        tip = (tip[0] - ox, tip[1] - oy)
         at = lambda s, side=0.0: (tip[0] + back[0] * (s + shift) + perp[0] * (side + wobble),
                                   tip[1] + back[1] * (s + shift) + perp[1] * (side + wobble))
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         if p >= fly:  # the slit where it went in
             pygame.draw.line(surf, (0, 0, 0, 170), at(8, -5), at(8, 5), 3)
         pygame.draw.polygon(surf, (205, 210, 222), [at(8, -2.5), at(8, 2.5), at(32, 4.5), at(32, -4.5)])  # blade (tip buried)
@@ -1257,7 +1407,7 @@ class Motion:
         pygame.draw.line(surf, (110, 70, 40), at(33), at(48), 7)             # grip
         pygame.draw.circle(surf, (190, 150, 60), [round(v) for v in at(51)], 5)  # pommel
         surf.set_alpha(self.fade(p))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_staff(self, rect, p):
         pivot = (rect.right + 26, rect.y - 6)       # where the Battle Mage would be holding it
@@ -1271,8 +1421,11 @@ class Motion:
             angle = hit
         else:
             angle = hit + (raised - hit) * smooth(min(1.0, (p - 0.5) / 0.3))
+        reach = length + 12  # the staff swings round its pivot, and the smack bursts round her name
+        area = pygame.Rect(pivot[0] - reach, pivot[1] - reach, 2 * reach, 2 * reach).union(pygame.Rect(target[0] - 42, target[1] - 42, 84, 84))
+        surf, ox, oy = self.patch(area)
+        pivot, target = (pivot[0] - ox, pivot[1] - oy), (target[0] - ox, target[1] - oy)
         end = (pivot[0] + math.cos(angle) * length, pivot[1] + math.sin(angle) * length)
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
         pygame.draw.line(surf, (120, 80, 45), pivot, end, 6)
         pygame.draw.line(surf, (160, 115, 70), pivot, end, 2)
         pygame.draw.circle(surf, (150, 80, 240), [round(v) for v in end], 8)
@@ -1286,16 +1439,17 @@ class Motion:
                                  (target[0] + math.cos(a) * r1, target[1] + math.sin(a) * r1),
                                  (target[0] + math.cos(a) * r2, target[1] + math.sin(a) * r2), 3)
         surf.set_alpha(self.fade(p, 0.7))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_stuck_arrow(self, rect, p):
         fly = 0.12
         bull = (rect.x + rect.width * 0.62, rect.y + rect.height * 0.84)  # low in the box, under her name and class
-        surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        start = rect.x - 90  # where the arrow flies in from
+        surf, ox, oy = self.patch((start - 70, bull[1] - 24, bull[0] - start + 100, 48))
+        bull, start = (bull[0] - ox, bull[1] - oy), start - ox
         for radius, color in ((15, (240, 235, 225)), (11, (200, 50, 50)), (7, (240, 235, 225)), (3, (200, 50, 50))):
             pygame.draw.circle(surf, color, [round(v) for v in bull], radius)
         if p < fly:
-            start = rect.x - 90
             tip = (start + (bull[0] - start) * (p / fly), bull[1])
             tilt, buried = 0.0, 0
         else:
@@ -1313,7 +1467,7 @@ class Motion:
             pygame.draw.line(surf, (210, 60, 60), (fx, fy), (fx + back[0] * 7 - back[1] * 6, fy + back[1] * 7 + back[0] * 6), 2)
             pygame.draw.line(surf, (210, 60, 60), (fx, fy), (fx + back[0] * 7 + back[1] * 6, fy + back[1] * 7 - back[0] * 6), 2)
         surf.set_alpha(self.fade(p))
-        self.window.screen.blit(surf, (0, 0))
+        self.window.screen.blit(surf, (ox, oy))
 
     def draw_fuse(self, entity, rect):
         screen, now, dt = self.window.screen, self.window.now, self.window.dt
@@ -1373,11 +1527,27 @@ class AsciiArt:
             rows = letters[letter]
             color = self.palette.get(colors[letter], TEXT)
             for i, row in enumerate(rows):
-                self.window.screen.blit(self.font.render(row, True, color), (x, y + i * self.cell_h))
+                self.window.screen.blit(self.window.ink(self.font, row, color), (x, y + i * self.cell_h))
             x += len(rows[0]) * self.cell_w
 
     def word_width(self, word, letters):
         return sum(len(letters[ch][0]) for ch in word) * self.cell_w
+
+    def start_beats(self):
+        self.due = pygame.time.get_ticks() / 1000
+
+    async def beat(self, gap):
+        """Wait for the next step of the animation. Each step is due a set time after the one before was DUE,
+        not after it was drawn, so a device that draws slowly skips a flicker here and there but the whole
+        animation lasts as long as it does on a fast PC (Nov 11: on the tablet the title took about twice as
+        long). PC_LAG is what a 60-frames-a-second PC has always added to every step (about two and a half
+        frames; measured Nov 11), kept so the timing on the PC stays what it was."""
+        self.due += gap + self.PC_LAG
+        wait = self.due - pygame.time.get_ticks() / 1000
+        if wait > 0:
+            await asyncio.sleep(wait)
+
+    PC_LAG = 0.042
 
 
 class TitleAnimation(AsciiArt):
@@ -1401,10 +1571,11 @@ class TitleAnimation(AsciiArt):
                 window.blit_text(dare, (SCREEN_W // 2, y + 14 * self.cell_h + 90), 'menu', (230, 30, 30), center=True)
 
         window.overlay = draw
+        self.start_beats()
         for top_end, colors_list in ((40, gr.colors_), (25, gr.colors_s), (27, gr.colors_sl), (31, gr.colors_sla), (27, gr.colors_slay), (25, gr.colors_slaye)):
             for _ in range(1, top_end):
                 state['colors'] = random.choice(colors_list)
-                await asyncio.sleep(gap)
+                await self.beat(gap)
                 gap = gap / (0.0125 + divisor)
                 divisor = divisor + 0.0005
         state['colors'] = gr.colors_slayer[0]
@@ -1432,13 +1603,14 @@ class LoserAnimation(AsciiArt):
         def jump():
             state['pos'] = (random.randint(0, SCREEN_W - width), random.randint(0, SCREEN_H - height))
 
+        self.start_beats()
         for _ in range(1, 10):
             for version in range(6):
                 jump()
                 state['colors'] = gr.letter_colors_loser[version]
-                await asyncio.sleep(gap)
+                await self.beat(gap)
                 gap = gap / divisor
-            await asyncio.sleep(gap)
+            await self.beat(gap)
             gap = gap / divisor
         jump()
         state['colors'] = gr.letter_colors_loser[6]
@@ -1457,6 +1629,8 @@ class KegFlash:
         self.window = window
         self.start = window.now
         self.sparks = []  # [x, y, vx, vy, age, life]
+        self.shade = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)  # one see-through colour over everything (the dark veil, the white flash)
+        self.ring = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)   # the blast ring; both made once and reused, not made new every frame
 
     async def play(self):
         self.start = self.window.now
@@ -1470,9 +1644,8 @@ class KegFlash:
         screen = w.screen
         p = min(1.0, (w.now - self.start) / self.length)
         blast = 0.78  # when the fuse reaches the keg
-        veil = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-        veil.fill((8, 4, 2, int(215 * min(1.0, p / 0.12))))
-        screen.blit(veil, (0, 0))
+        self.shade.fill((8, 4, 2, int(215 * min(1.0, p / 0.12))))
+        screen.blit(self.shade, (0, 0))
         if p < blast:
             slide = smooth(min(1.0, p / 0.18))
             scale = 1 + 0.14 * smooth(min(1.0, p / blast))
@@ -1484,13 +1657,12 @@ class KegFlash:
             self.draw_fuse(screen, cx, top, scale, burned)
         else:
             q = (p - blast) / (1 - blast)  # 0..1 through the blast
-            ring = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            self.ring.fill((0, 0, 0, 0))
             radius = int(60 + 900 * q)
-            pygame.draw.circle(ring, (255, 170, 40, int(230 * (1 - q))), (SCREEN_W // 2, SCREEN_H // 2), radius, max(4, int(70 * (1 - q))))
-            screen.blit(ring, (0, 0))
-            flash = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
-            flash.fill((255, 250, 235, int(255 * (1 - q) ** 1.5)))
-            screen.blit(flash, (0, 0))
+            pygame.draw.circle(self.ring, (255, 170, 40, int(230 * (1 - q))), (SCREEN_W // 2, SCREEN_H // 2), radius, max(4, int(70 * (1 - q))))
+            screen.blit(self.ring, (0, 0))
+            self.shade.fill((255, 250, 235, int(255 * (1 - q) ** 1.5)))
+            screen.blit(self.shade, (0, 0))
         self.draw_sparks(screen)
 
     def draw_keg(self, screen, cx, cy, kw, kh):

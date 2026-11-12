@@ -14,12 +14,14 @@ AOE_RULES = {
         'blows_up_user': True,                      # she's out for the rest of the run
         'once_per_run': True,                       # gone from her kit until the next dungeon run
         'full_targets': None,                       # full damage to every mob, however many
+        'link_shields': True,                       # a linked pack (the Krazy Kobolds) lives through it: see Pack.shield
+        'full_strength': True,                      # a Junk Attack doesn't halve it (Ted, Nov 10)
     },
 }
 # Every other area attack (Fire Bomb, Fire Rain, Stink Pouch) does full damage to up to full_targets mobs; with
 # more of them, the blast spreads thinner: each takes full_targets / (how many) of it (Ted, Nov 8: a Fire Bomb
 # flattened the whole Kobold pack). 3 = a pack of 6 takes half each, 8 take 3/8.
-DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3}
+DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3, 'link_shields': False, 'full_strength': False}
 
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
@@ -151,14 +153,14 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         target = update_health(target, -healing) # a heal on a mob never fails: picking the target was the mistake
         if heroine.hero_class == 'Cleric': # she's a professional, she should know better
             await say([
-                f"{heroine.name} successfully heals {target.name} for {healing} hp.  [narr]What in the flying-fuck were you thinking?  Are you trying to give me gas?[/]",
-                f"{heroine.name} swells with pride as she successfully heals {target.name} for {healing} hp.  [narr]Pride eh?  Well.... Good Job??[/]",
+                f"{heroine.name} successfully heals {target.name} for +{healing} hp.  [narr]What in the flying-fuck were you thinking?  Are you trying to give me gas?[/]",
+                f"{heroine.name} swells with pride as she successfully heals {target.name} for +{healing} hp.  [narr]Pride eh?  Well.... Good Job??[/]",
                 f"{target.name} grins wickedly at {heroine.name} as their wounds begin to bind.  \"Thank you!\" {target.name} screams in your face, spraying you with spittle.  [narr]Did you expect that to go a different way or something?[/]",
-                f"{heroine.name} lays her holy hands on {target.name} for {healing} hp.  [narr]Somewhere up there, a god just facepalmed so hard it echoed.[/]",
-                f"[narr]Ah yes, the classic \"heal the guy who's trying to murder us\" strategy.[/]  {heroine.name} patches up {target.name} for {healing} hp.  [narr]Bold.  Stupid, but bold.[/]",
+                f"{heroine.name} lays her holy hands on {target.name} for +{healing} hp.  [narr]Somewhere up there, a god just facepalmed so hard it echoed.[/]",
+                f"[narr]Ah yes, the classic \"heal the guy who's trying to murder us\" strategy.[/]  {heroine.name} patches up {target.name} for +{healing} hp.  [narr]Bold.  Stupid, but bold.[/]",
             ])
         else:
-            await say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for {healing} hp")
+            await say(f"{heroine.name} takes it upon herself to use her {item['item_desc']} to heal {target.name} for +{healing} hp")
             await say("[narr]I swear I'm on your side here, but what was she thinking?  I guess she wanted more of a challenge?[/]")
         await pause()
         if hasattr(target, 'healed_by'): # some mobs have something to say about it (Happy does)
@@ -170,7 +172,10 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         await pause()
         return (party_dict, mobs, False)
     if target.health == target.starting_health:
-        await say(f"[narr]That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?[/]")
+        if acc.slot_kind(item) == 'potion': # she drank it herself, so there was no target to get wrong (DRAFT line)
+            await say(f"[narr]That was weird.  {target.name} is at full health, goof.  That's a perfectly good dose down the hatch for nothing.[/]")
+        else:
+            await say(f"[narr]That was weird.  {target.name} is at full health, goof.  Oh well, better luck choosing a target next time?[/]")
         await pause()
         return (party_dict, mobs, heroine_rolls['luck'])
     if status(heroine).pop('junked', False): # a Junk Attack halves her next heal too (Ted, Nov 8)
@@ -178,7 +183,10 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
         await say(f"[narr]{heroine.name}'s junk still hurts, so it's a half-strength heal.[/]")
     target = update_health(target, -healing)
     await cleanse(target, item)
-    await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for {healing} hp")
+    if acc.slot_kind(item) == 'potion':
+        await say(f"{heroine.name} knocks back her {item['item_desc']} and heals herself for +{healing} hp")
+    else:
+        await say(f"{heroine.name} quickly uses {item['item_desc']} to heal {'herself' if heroine == target else target.name} for +{healing} hp")
     await say("[narr]I'm so proud of you![/]")
     await pause()
     return (party_dict, mobs, heroine_rolls['luck'])
@@ -214,7 +222,7 @@ async def token_roll(heroine : object, item : dict, chosen : object, party_dict 
             chosen.is_dead = False
             chosen.blown_up = False # even a Sapper in a billion pieces.  Because magic.
             chosen.health = max(1, round(chosen.starting_health * 0.5))
-            await say(f"{heroine.name} raises the {item['item_desc']} and mutters something she definitely made up on the spot.  It WORKS.  {chosen.name} gasps back to life with {chosen.health} hp.  [narr]Holy shit![/]")
+            await say(f"{heroine.name} raises the {item['item_desc']} and mutters something she definitely made up on the spot.  It WORKS.  {chosen.name} gasps back to life (+{chosen.health} hp).  [narr]Holy shit![/]")
             if was_in_pieces or random.random() < MAGIC_CHANCE:
                 await magic_motherfucker(chosen, party_dict['party'])
         elif blown_up_waiting:
@@ -274,7 +282,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     rules = {**DEFAULT_AOE, **AOE_RULES.get(item['item'], {})}
     party = party_dict['party']
     crit = heroine_rolls['crit_mult'] # one crit for the whole blast; the damage itself is rolled for each target
-    junked = status(heroine).get('junked', False) # a Junk Attack halves this whole blast (used up once it lands)
+    junked = status(heroine).get('junked', False) and not rules['full_strength'] # a Junk Attack halves this whole blast (used up once it lands)
     standing = len([m for m in mobs if not m.is_dead])
     spread = min(1, rules['full_targets'] / standing) if rules['full_targets'] and standing else 1
     roll = lambda: acc.multi_roll(item['damage_low'], item['damage_high']) * crit * (0.5 if junked else 1)
@@ -299,7 +307,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         await say(f"[narr]Her junk still hurts, so it's a half-strength blast.[/]")
     if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
         await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
-    killed = []
+    killed, shielded = [], []
     for mob in [m for m in mobs if not m.is_dead]:
         mob_rolls = get_mob_rolls(mob)
         if not rules['unavoidable'] and mob_rolls['dodge'] and not heroine_rolls['expertise']:
@@ -308,13 +316,19 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         power = mob_roll()
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
         damage = int(min(damage, mob.health))
+        pack = getattr(mob, 'pack', None)
+        if rules['link_shields'] and pack and pack.linked and damage >= mob.health:
+            damage = mob.health - 1 # the Kobolds' life-link won't let the blast kill anyone still standing (Ted, Nov 10)
+            shielded.append(mob)
         update_health(mob, damage)
         if mob.is_dead:
             killed.append(mob)
-        if mob.is_dead and not getattr(mob, 'is_boss', False):
-            await say(f"  {mob.name} takes {damage} hp and is {'blown to bits' if rules['blows_up_user'] else 'done for'}!")
+        if mob in shielded:
+            await say(f"  {mob.name} gets hit for -{damage} hp and is...  still standing?!")
+        elif mob.is_dead and not getattr(mob, 'is_boss', False):
+            await say(f"  {mob.name} gets hit for -{damage} hp and is {'blown to bits' if rules['blows_up_user'] else 'done for'}!")
         else:
-            await say(f"  {mob.name} takes {damage} hp.")
+            await say(f"  {mob.name} gets hit for -{damage} hp.")
     fallen = []
     for member in [x for x in party if not x.is_dead and x is not heroine]:
         share = rules['party_share'].get(position(member), 0)
@@ -327,14 +341,16 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         update_health(member, damage)
         if member.is_dead:
             fallen.append(member)
-            await say(f"  {member.name} catches {damage} hp of it.  [red]slain[/]")
+            await say(f"  {member.name} gets hit for -{damage} hp.  [red]slain[/]")
         else:
-            await say(f"  {member.name} catches {damage} hp of it.")
+            await say(f"  {member.name} gets hit for -{damage} hp.")
     if rules['blows_up_user']:
         heroine.health, heroine.is_dead, heroine.blown_up = 0, True, True # out for the rest of this dungeon run
         fallen.append(heroine)
         await say(f"And {heroine.name}?  Blown into a billion little pieces.  [narr]Even the Cleric can't help her without some serious smelling salts.[/]")
     await check_last_cleric(fallen, party)
+    if shielded:
+        await shielded[0].pack.shield(shielded) # the link took the blast for them, and it's burnt out for good
     for mob in killed:
         if hasattr(mob, 'on_death'): # the Krazy Kobolds' pack enrages
             await mob.on_death(mobs)
@@ -425,9 +441,9 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             del heroine.status['junked']
             await say(f"[narr]{heroine.name}'s junk still hurts, so that one only lands at half strength.[/]")
         if mob_rolls['dodge']: # it dodged, but her expertise beat it
-            await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} hp.")
+            await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for -{damage} hp.")
         else:
-            await say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for {damage} hp.")
+            await say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for -{damage} hp.")
         if target.mob_class == 'Disgruntled Dwarf' and target.enraged and target.is_dead:
             party_dict = acc.wipe_party(party_dict)
             return (party_dict, mobs, False)
@@ -460,11 +476,11 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
         if poison['turns'] <= 0 or heroine.is_dead:
             del heroine.status['poisoned']
         if heroine.is_dead:
-            await say(f"\n[green]The poison finishes what the Kobold started.[/]  {heroine.name} takes {sting} hp and drops.  [red]slain[/]")
+            await say(f"\n[green]The poison finishes what the Kobold started:[/]  it burns {heroine.name} for -{sting} hp, and she drops.  [red]slain[/]")
             await check_last_cleric([heroine], party_dict['party'])
             await pause()
             return (party_dict, mobs, False)
-        await say(f"\n[green]The poison burns:[/]  {heroine.name} takes {sting} hp." + ("  [narr]That's the last of it, at least.[/]" if 'poisoned' not in heroine.status else ""))
+        await say(f"\n[green]The poison burns[/] {heroine.name} for -{sting} hp." + ("  [narr]That's the last of it, at least.[/]" if 'poisoned' not in heroine.status else ""))
     if status(heroine).pop('gassed', False):
         await say(f"\n{heroine.name} is still doubled over, retching from the Kobold gas.  She loses her turn.  [narr]Breathe through your mouth, sweetie.[/]")
         await pause()
@@ -515,7 +531,9 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     if item_attack_type == 'hail_mary':
         return await use_hail_mary(heroine, item, party_dict, mobs)
 
-    if is_heal:
+    if is_heal and acc.slot_kind(item) == 'potion':
+        target = heroine # a potion is drunk by whoever's carrying it (Ted, Nov 10): no picking a target
+    elif is_heal:
         target = await get_target_choice(mobs, party_dict['party'], True) # anyone can heal anyone, a mob too if they insist
     else:
         target = await get_target_choice(mobs, [])
@@ -570,6 +588,15 @@ HEAL_TRY = {'easy': 0.10, 'medium': 0.25, 'hard': 0.6} # how often a mob with a 
 #   poison - a normal hit; if it lands, POISON_CHANCE of the time she's poisoned for her next POISON_TURNS turns
 MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison')
 POISON_CHANCE, POISON_TURNS, POISON_DAMAGE = 0.5, 3, (2, 3) # Kobold Bite (Ted, Nov 8); the damage ticks at the start of her turn
+GAS_MAX = 3 # one Gas Release reaches at most this many heroines, and never more than half the front line (rounded up)
+
+def gas_targets(item : dict, party : list) -> list:
+    """Who one Gas Release reaches: a few of the melee heroines, picked at random, not the whole front line
+    (Ted, Nov 10: one fart cost the whole party a round). 1 of 1 or 2, 2 of 3 or 4, 3 of 5 or more."""
+    front = standing_targets(item, party)
+    reach = min(GAS_MAX, -(-len(front) // 2))
+    hit = random.sample(front, reach)
+    return [heroine for heroine in front if heroine in hit] # in party order
 
 def ai_level(ai : str) -> str:
     return AI_LEVELS.get(str(ai).lower(), 'easy')
@@ -635,7 +662,7 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     party = party_dict['party']
     crit = mob_rolls['crit_mult'] # one crit for the whole spray; the damage itself is rolled for each heroine
     if item['item'] == 'vomit':
-        await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Ah, I feel so much better,\" he taunts.")
+        await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Och, I feel sae much better,\" he taunts.")
     else:
         await say(f"{mob.name} unleashes {item['item_desc']} on the whole party!")
     if not mob_rolls['hit']:
@@ -658,16 +685,16 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
         update_health(heroine, damage)
         if heroine.is_dead:
             fallen.append(heroine)
-            await say(f"  {heroine.name} takes {damage} hp.  [red]slain[/]")
+            await say(f"  {heroine.name} gets hit for -{damage} hp.  [red]slain[/]")
         else:
-            await say(f"  {heroine.name} takes {damage} hp.{'  [narr]Tough motherfucker: damage halved![/]' if rolls['toughness'] else ''}")
+            await say(f"  {heroine.name} gets hit for -{damage} hp.{'  [narr]Tough motherfucker: damage halved![/]' if rolls['toughness'] else ''}")
     await check_last_cleric(fallen, party)
     await pause()
     return (party_dict, mobs, mob_rolls['luck'])
 
 async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob_rolls : dict) -> tuple:
-    """Gas Release: only the melee heroines up front get a lungful. Each one can dodge it (if her dodge beats its
-    expertise); a hit does a little damage and costs her next turn."""
+    """Gas Release: a few of the melee heroines up front get a lungful (gas_targets). Each one can dodge it (if
+    her dodge beats its expertise); a hit does a little damage and costs her next turn."""
     party = party_dict['party']
     await say(f"{mob.name} turns around, squats, and lets rip a {item['item_desc']} right at the front line!  [narr]Oh god.  It's GREEN.[/]")
     if not mob_rolls['hit']:
@@ -675,7 +702,7 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
         await pause()
         return (party_dict, mobs, False)
     fallen = []
-    for heroine in standing_targets(item, party):
+    for heroine in gas_targets(item, party):
         rolls = get_heroine_rolls(heroine)
         if rolls['dodge'] and not mob_rolls['expertise']:
             tally(heroine, 'dodges')
@@ -686,10 +713,10 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
         update_health(heroine, damage)
         if heroine.is_dead:
             fallen.append(heroine)
-            await say(f"  {heroine.name} takes {damage} hp.  [red]slain[/]")
+            await say(f"  {heroine.name} gets hit for -{damage} hp.  [red]slain[/]")
         else:
             status(heroine)['gassed'] = True
-            await say(f"  {heroine.name} gets a lungful ({damage} hp) and doubles over, retching.  She'll lose her next turn.")
+            await say(f"  {heroine.name} gets a lungful (-{damage} hp) and doubles over, retching.  She'll lose her next turn.")
     await check_last_cleric(fallen, party)
     await pause()
     return (party_dict, mobs, mob_rolls['luck'])
@@ -724,12 +751,12 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 return (party_dict, mobs, False)
             if mob == target:
                 mob = update_health(mob, -healing)
-                await say(f"Using their {item['item_desc']}, {mob.name} heals for {healing} hp.  [narr]Oh dear.[/]")
+                await say(f"Using their {item['item_desc']}, {mob.name} heals for +{healing} hp.  [narr]Oh dear.[/]")
                 await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
             else:
                 target = update_health(target, -healing)
-                await say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} hp.  [narr]Ugh, teamwork.  Gross.[/]")
+                await say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for +{healing} hp.  [narr]Ugh, teamwork.  Gross.[/]")
                 await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
         else:
@@ -766,20 +793,20 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             if parry:
                 tally(target, 'parries')
             if item.get('effect') == 'blink':
-                await say(f"{mob.name} blinks out in a puff of purple smoke and pops up right behind {target.name}!  {item['item_desc']} for {damage} hp.  [narr]No dodging that one.[/]")
+                await say(f"{mob.name} blinks out in a puff of purple smoke and pops up right behind {target.name}!  {item['item_desc']} for -{damage} hp.  [narr]No dodging that one.[/]")
             elif item.get('effect') == 'junk':
                 status(target)['junked'] = True
-                await say(f"{mob.name} darts in low and lands a {item['item_desc']} on {target.name} for {damage} hp.  Her next hit will only do half damage.  [narr]Below the belt.  Literally.[/]")
+                await say(f"{mob.name} darts in low and lands a {item['item_desc']} on {target.name} for -{damage} hp.  Her next hit will only do half damage.  [narr]Below the belt.  Literally.[/]")
             elif target_rolls['dodge']: # she tried to dodge, but its expertise beat her
-                await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for {damage} hp.")
+                await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for -{damage} hp.")
             elif item['attack_type'] == 'range':
-                await say(f"{mob.name} lands their {item['item_desc']} on {target.name} for {damage} hp.")
+                await say(f"{mob.name} lands their {item['item_desc']} on {target.name} for -{damage} hp.")
             else:
-                await say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for {damage} hp.")
+                await say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for -{damage} hp.")
             if item.get('effect') == 'poison' and not target.is_dead and random.random() < POISON_CHANCE:
                 mult = getattr(mob, 'damage_mult', 1)
                 status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': max(1, round(POISON_DAMAGE[0] * mult)), 'high': max(1, round(POISON_DAMAGE[1] * mult))}
-                await say(f"[green]The bite was poisoned![/]  {target.name} will take a little damage at the start of each of her next {POISON_TURNS} turns.")
+                await say(f"[green]The bite was poisoned![/]  {target.name} will take a little damage at the start of her turns until it wears off.") # no turn count on screen (Ted, Nov 10)
             if target.is_dead:
                 await say([
                     f"[narr]NOOO![/]  {target.name} has been slain!  [narr]We'll remember you, bud.[/]",
