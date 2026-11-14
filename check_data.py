@@ -18,7 +18,15 @@ KIT_KINDS = ['melee', 'ranged', 'spell', 'bomb', 'heal']  # what an upgrade kit 
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
 MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
+ITEM_EFFECTS = {'poison', 'bleed', 'intoxicate', 'stun', 'confuse', 'hide', 'blessing', 'strength'}  # what a heroine's item can do (Slayer_Combat, 'item effects')
+LOOT_SOURCES = {'Kobold Shaman'}  # loot tables that aren't a mob class of their own: the Kobold mini-boss (Slayer_Kobolds.BOSS_LOOT)
+PLANNED_MOBS = {'Alpha Wolf', 'Pack Wolf'}  # written into the CSVs ahead of time; no row in mobs.csv until their fight is built
 problems = []
+notes = []  # heads-ups that aren't mistakes
+
+
+def note(file, row, text):
+    notes.append(f"{file}, row {row}: {text}")
 
 
 def problem(file, row, text):
@@ -101,7 +109,9 @@ _, gear = read('mob_equipment.csv')
 for i, row in enumerate(gear, start=2):
     if row is None:
         continue
-    if row['mob_class'] not in mob_classes:
+    if row['mob_class'] in PLANNED_MOBS and row['mob_class'] not in mob_classes:
+        note('mob_equipment.csv', i, f"'{row['item_desc']}' is for the {row['mob_class']}, which isn't in the game yet.")
+    elif row['mob_class'] not in mob_classes:
         problem('mob_equipment.csv', i, f"mob_class '{row['mob_class']}' isn't in mobs.csv.")
     if row['attack_type'] not in MOB_ATTACK_TYPES:
         problem('mob_equipment.csv', i, f"attack_type '{row['attack_type']}' should be one of {', '.join(sorted(MOB_ATTACK_TYPES))}.")
@@ -170,11 +180,19 @@ for i, row in enumerate(items, start=2):
         if cleric and kind in ('melee', 'range', 'both', 'aoe') and high > 0 and key not in AFFLICTIONS:
             problem('items.csv', i, "the Cleric can't hold anything that does damage (it'd burn her fingers): take 'Cleric' out of its classes.")
     source = row['source']
-    if source not in ('starting', 'mob') and source not in mob_classes:
-        problem('items.csv', i, f"source '{source}' should be starting, or a mob class from mobs.csv ({', '.join(mob_classes)}).")
+    if source == 'TBD':
+        note('items.csv', i, f"'{row['item_desc']}' has source TBD, so nothing drops it yet.")
+    elif source in PLANNED_MOBS and source not in mob_classes:
+        note('items.csv', i, f"'{row['item_desc']}' drops from the {source}, which isn't in the game yet.")
+    elif source not in ('starting', 'mob') and source not in mob_classes and source not in LOOT_SOURCES:
+        problem('items.csv', i, f"source '{source}' should be starting, TBD, a mob class from mobs.csv ({', '.join(mob_classes)}) or {', '.join(sorted(LOOT_SOURCES))}.")
+    if row.get('effect') and row['effect'] not in ITEM_EFFECTS:
+        problem('items.csv', i, f"effect '{row['effect']}' isn't one the game knows ({', '.join(sorted(ITEM_EFFECTS))}). Leave it blank and tell Claude what it should do.")
+    if 'recharge' in row:
+        number('items.csv', i, 'recharge', row['recharge'], int, 1, 50, blank_ok=True)
     if 'drop_chance' in row:
         number('items.csv', i, 'drop_chance', row['drop_chance'], int, 0, 100, blank_ok=True)
-        if source in mob_classes and not row['drop_chance']:
+        if (source in mob_classes or source in LOOT_SOURCES) and not row['drop_chance']:
             problem('items.csv', i, "is loot (its source is a mob) but has no drop_chance, so it always drops. Fine if that's on purpose.")
     if 'uses' in row:
         number('items.csv', i, 'uses', row['uses'], int, 1, 99, blank_ok=True)
@@ -225,9 +243,17 @@ for i, row in enumerate(kits, start=2):
         if source not in mob_classes:
             problem('upgrades.csv', i, f"source '{source}' isn't a mob class from mobs.csv ({', '.join(mob_classes)}); leave sources blank for any fight.")
 
+def print_notes():
+    if notes:
+        print(f"\nHeads-up (not mistakes, just not in the game yet):\n")
+        for line in notes:
+            print('  - ' + line)
+
 if problems:
     print(f"Found {len(problems)} thing{'s' if len(problems) != 1 else ''} to fix:\n")
     for line in problems:
         print('  - ' + line)
+    print_notes()
     sys.exit(1)
 print("All good!  The CSVs look fine.")
+print_notes()
