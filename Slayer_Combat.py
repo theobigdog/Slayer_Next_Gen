@@ -23,6 +23,54 @@ AOE_RULES = {
 # flattened the whole Kobold pack). 3 = a pack of 6 takes half each, 8 take 3/8.
 DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows_up_user': False, 'once_per_run': False, 'full_targets': 3, 'link_shields': False, 'full_strength': False}
 
+# ---------- item effects: the effect column in items.csv (Ted, Nov 14) ----------------
+# What a heroine's item does besides, or instead of, damage:
+#   poison     - Snake Bite: a hit poisons the mob POISON_CHANCE of the time, like the Kobold Bite does to her:
+#                POISON_DAMAGE at the start of each of its next POISON_TURNS turns
+#   bleed      - Tooth-Sharpened Dagger: a hit opens a wound that costs the mob BLEED_DAMAGE at the start of every
+#                one of its turns, for the rest of the fight
+#   intoxicate - Intoxication: no damage; a mob it lands on has its dodge halved for the rest of the fight. Rank 1
+#                picks one mob, rank 2 gets them all (bosses shrug both off), rank 3 gets the bosses too
+#   stun       - Fungal Infection: no damage; every mob it lands on loses its next turn (bosses and the pack's
+#                mini-boss shrug it off)
+#   confuse    - Confusion: no damage; for its next CONFUSE_TURNS turns the mob attacks or heals someone at random,
+#                friend or foe (bosses and mini-bosses shrug it off)
+#   hide       - Hide: no attack; her dodge is HIDE_DODGE until her next turn
+#   blessing   - Blessing: whoever it's cast on gets BLESSING added to their rolls for their next attack
+#   strength   - Strength: whoever it's cast on hits STRENGTH_DAMAGE harder on each of their next STRENGTH_ATTACKS attacks
+# Blessing and Strength are the Cleric's, so they work on her heal roll, and (like her heals) they can be put on a mob.
+HEXES = ('intoxicate', 'stun', 'confuse') # the no-damage ones aimed at mobs
+BUFFS = ('blessing', 'strength')
+BLEED_DAMAGE = (4, 6)      # Ted floated 5-8; it never stops, so over a 10-round fight 4-6 is already about 50 hp from one stab
+HIDE_DODGE = 95
+BLESSING = {'crit_chance': 40, 'hit': 25, 'expertise': 30} # "significant" (Ted): added to her stats for one attack
+STRENGTH_DAMAGE, STRENGTH_ATTACKS = (5, 10), 2
+CONFUSE_TURNS = 2
+
+def hex_immune(mob : object, which : str, rank : int = 1) -> bool:
+    """Who shrugs a hex off (see the list above)."""
+    if which == 'intoxicate':
+        return getattr(mob, 'is_boss', False) and rank < 3
+    return getattr(mob, 'is_boss', False) or getattr(mob, 'mini_boss', False)
+
+def strength_bonus(entity : object) -> int:
+    """The extra damage for this attack if the Cleric's Strength is on them; uses one of its attacks up."""
+    strong = status(entity).get('strong')
+    if not strong:
+        return 0
+    strong['attacks'] -= 1
+    if strong['attacks'] <= 0:
+        del entity.status['strong']
+    return acc.multi_roll(*STRENGTH_DAMAGE)
+
+def can_act(mob : object) -> bool:
+    """False while a mob is stunned (Fungal Infection): no bonus attacks either."""
+    return not status(mob).get('stunned')
+
+def ready_in(heroine : object, item_name : str) -> int:
+    """How many more of her turns until this item has recharged (0 = ready). See the recharge column."""
+    return getattr(heroine, 'cooldowns', {}).get(item_name, 0)
+
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
 ]
@@ -46,6 +94,7 @@ def start_battle(party : list):
         heroine.spent_specials = [] # special weapons she's already used this battle (a list, so saves can store it)
         heroine.status = {} # what the mobs did to her this fight: gassed, junked, hissed (see MOB_EFFECTS)
         heroine.wielding = None # no kit perk until she picks a forged weapon
+        heroine.cooldowns = {} # items with a recharge: how many more of her turns each needs (see ready_in)
         acc.sync_max_hp(heroine) # a max HP trinket counts (a safety net: picking one up already syncs)
 
 def status(heroine : object) -> dict:
@@ -57,31 +106,43 @@ def status(heroine : object) -> dict:
 async def show_current_status(party: list, mobs: list, round_num: int, active : object = None):
     await show_battle(party, mobs, round_num, active) # the round/enemy/party layout lives in Slayer_UI; active = whose turn it is
 
-def get_heroine_rolls(heroine: object) -> dict:
+def get_heroine_rolls(heroine: object, attacking : bool = False) -> dict:
+    """attacking=True for the rolls of her own attack: a Blessing on her counts for it and is used up
+    (roll_results['blessed'] says so)."""
     heroine_stats = heroine.stats
     roll_results = {}
-    if acc.roll_percent(heroine_stats['crit_chance'] + acc.stat_bonus(heroine, 'crit_chance')):
+    bless = status(heroine).pop('blessed', None) if attacking else None
+    bonus = lambda stat: acc.stat_bonus(heroine, stat) + (bless.get(stat, 0) if bless else 0) # trinkets, a forged weapon's perk, a Blessing
+    if acc.roll_percent(heroine_stats['crit_chance'] + bonus('crit_chance')):
         roll_results['crit_mult'] = round(heroine_stats['crit_mult'] + acc.stat_bonus(heroine, 'crit_mult'), 2)
     else:
         roll_results['crit_mult'] = 1 # if not a crit, multiplier is 1
     for stat in ['hit', 'luck', 'expertise', 'toughness', 'dodge', 'parry', 'fear']:
-        roll_results[stat] = acc.roll_percent(heroine_stats[stat] + acc.stat_bonus(heroine, stat)) # trinkets add their bonus
+        roll_results[stat] = acc.roll_percent(heroine_stats[stat] + bonus(stat))
     roll_results['heal'] = acc.roll_percent(heroine_stats['heal_chance'] + acc.stat_bonus(heroine, 'heal_chance'))
     roll_results['aoe_heal'] = acc.roll_percent(heroine_stats['aoe_heal_chance'] + acc.stat_bonus(heroine, 'aoe_heal_chance'))
+    roll_results['blessed'] = bool(bless)
     if status(heroine).get('hissed'):
         roll_results['dodge'] = False # the Terrifying Hiss: too rattled to dodge for the rest of the fight
+    if status(heroine).get('hidden'):
+        roll_results['dodge'] = acc.roll_percent(HIDE_DODGE) # Hide: you can't rattle what you can't find, so it beats the Hiss
     return roll_results
 
-def get_mob_rolls(mob: object) -> dict:
+def get_mob_rolls(mob: object, attacking : bool = False) -> dict:
+    """attacking=True for the rolls of its own attack: a Blessing some Cleric put on it counts, and is used up."""
     mob_stats = mob.stats
     prefix = 'enraged_' if mob.enraged else '' # an enraged mob rolls against the enraged_ columns from mobs.csv
     roll_results = {}
-    if acc.roll_percent(mob_stats[prefix + 'crit_chance']):
+    bless = status(mob).pop('blessed', None) if attacking else None
+    bonus = lambda stat: bless.get(stat, 0) if bless else 0
+    if acc.roll_percent(mob_stats[prefix + 'crit_chance'] + bonus('crit_chance')):
         roll_results['crit_mult'] = mob_stats[prefix + 'crit_mult']
     else:
         roll_results['crit_mult'] = 1
     for stat in ['hit', 'luck', 'expertise', 'toughness', 'dodge']:
-        roll_results[stat] = acc.roll_percent(mob_stats[prefix + stat])
+        roll_results[stat] = acc.roll_percent(mob_stats[prefix + stat] + bonus(stat))
+    if status(mob).get('intoxicated'):
+        roll_results['dodge'] = acc.roll_percent(mob_stats[prefix + 'dodge'] / 2) # Intoxication: half its dodge
     roll_results['heal'] = acc.roll_percent(mob_stats[prefix + 'heal_chance'])
     roll_results['scare'] = acc.roll_percent(mob_stats[prefix + 'scare'])
     return roll_results
@@ -114,12 +175,15 @@ async def check_last_cleric(fallen : list, party : list):
 def item_label(item_name : str, heroine : object = None) -> str: # one line of the item menu (forged gear by its forged name)
     return acc.describe_item(acc.held_item(heroine, item_name), acc.uses_left(heroine, item_name) if heroine else None)
 
-async def get_target_choice(mobs : list, party : list, healing : bool = False) -> object:
+async def get_target_choice(mobs : list, party : list, healing : bool = False, prompt : str = None) -> object:
+    """prompt: its own question instead of the usual ones (Blessing and Strength ask 'Who gets the ...?')."""
     living_party = [x for x in party if not x.is_dead]
     living_mobs = [x for x in mobs if not x.is_dead]
     living_targets = living_party + living_mobs
     if len(living_targets) == 1:
         return living_targets[0]
+    if prompt:
+        return await choose_target(prompt, living_party, living_mobs, "\nOne of THOSE numbers, please:  ")
     if healing:
         prompts = [
             "Choose whoever needs a little TLC.  ",
@@ -288,7 +352,8 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     standing = len([m for m in mobs if not m.is_dead])
     spread = min(1, rules['full_targets'] / standing) if rules['full_targets'] and standing else 1
     roll = lambda: acc.multi_roll(item['damage_low'], item['damage_high']) * crit * (0.5 if junked else 1)
-    mob_roll = lambda: roll() * spread
+    strong = strength_bonus(heroine) # the Cleric's Strength: one of its attacks, added to what each mob takes
+    mob_roll = lambda: (roll() + strong) * spread
     tally(heroine, 'attacks')
     if heroine_rolls['crit_mult'] > 1:
         tally(heroine, 'crits')
@@ -307,6 +372,8 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     if junked:
         del heroine.status['junked']
         await say(f"[narr]Her junk still hurts, so it's a half-strength blast.[/]")
+    if strong:
+        await say("[narr]The Cleric's Strength is behind this one.[/]")
     if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
         await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
     killed, shielded = [], []
@@ -402,9 +469,164 @@ async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mob
     await pause()
     return (party_dict, mobs, heroine_rolls['luck'])
 
+async def heroine_hide(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
+    """Hide (Ted, Nov 14): no attack this turn; her dodge is HIDE_DODGE until her next turn starts. DRAFT line."""
+    status(heroine)['hidden'] = True
+    await say(f"{heroine.name} drops out of sight.  She'll be nearly impossible to hit until her next turn.  [narr]Where'd she go?  No, seriously, where?[/]")
+    await pause()
+    return (party_dict, mobs, False)
+
+async def heroine_buff(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
+    """Blessing and Strength: no healing and no damage, just a boost for whoever she picks (see the effect list
+    at the top). They work on her heal roll; on a mob they never fail, like a heal on one. DRAFT lines."""
+    which = item['effect']
+    target = await get_target_choice(mobs, party_dict['party'], True, prompt=f"Who gets the {item['item_desc']}?  ")
+    rolls = get_heroine_rolls(heroine)
+    tally(heroine, 'heals')
+    who = 'herself' if target is heroine else target.name
+    if not target.is_mob and not rolls['heal']:
+        await say(f"{heroine.name} starts a {item['item_desc']} for {who}, loses her place halfway through, and it fizzles.  [narr]Doh![/]")
+        await pause()
+        return (party_dict, mobs, False)
+    if which == 'blessing':
+        status(target)['blessed'] = dict(BLESSING)
+        what = f"{'Its' if target.is_mob else 'Her'} next attack is going to be something special"
+    else:
+        status(target)['strong'] = {'attacks': STRENGTH_ATTACKS}
+        what = f"{'Its' if target.is_mob else 'Her'} next {STRENGTH_ATTACKS} attacks will hit harder"
+    if target.is_mob:
+        await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and it's coming for one of you.")
+        await pause()
+        return (party_dict, mobs, False) # helping a mob never earns the luck roll
+    await say(f"{heroine.name} lays her {item['item_desc']} on {who}.  {what}.  [narr]Don't waste it.[/]")
+    await pause()
+    return (party_dict, mobs, rolls['luck'])
+
+async def heroine_hex(heroine : object, item : dict, party_dict : dict, mobs : list, heroine_rolls : dict) -> tuple:
+    """Intoxication, Fungal Infection and Confusion: no damage, but every mob it lands on is worse off (see the
+    effect list at the top). attack_type aoe goes for every mob; anything else, the one she picks. One hit roll
+    for the cast; each mob can still dodge it (if its dodge beats her expertise). DRAFT lines."""
+    which, rank = item['effect'], acc.item_family(item['item'])[1]
+    everyone = item['attack_type'] == 'aoe'
+    targets = [m for m in mobs if not m.is_dead] if everyone else [await get_target_choice(mobs, [])]
+    aim = 'every enemy in sight' if everyone else targets[0].name
+    tally(heroine, 'attacks')
+    opening = {'intoxicate': f"{heroine.name} flicks her {item['item_desc']} at {aim}.",
+               'stun': f"{heroine.name} bursts her {item['item_desc']} over {aim}!  [narr]Spores.  Everywhere.[/]",
+               'confuse': f"{heroine.name} whispers her {item['item_desc']} at {aim}."}[which]
+    await say(opening)
+    if not heroine_rolls['hit']:
+        await say("[narr]...and it fizzles into a sad little puff.  Nothing happens.[/]")
+        await pause()
+        return (party_dict, mobs, False)
+    landed = 0
+    for mob in targets:
+        if hex_immune(mob, which, rank):
+            hint = "  [narr]It'd take a MUCH stronger brew to get that one tipsy.[/]" if which == 'intoxicate' else "  [narr]Too big and too mean for that.[/]"
+            await say(f"  {mob.name} shrugs it off.{hint}")
+            continue
+        if get_mob_rolls(mob)['dodge'] and not heroine_rolls['expertise']:
+            await say(f"  {mob.name} dives out of the way!")
+            continue
+        landed += 1
+        if which == 'intoxicate':
+            if status(mob).get('intoxicated'):
+                await say(f"  {mob.name} is already hammered.  [narr]You can't get drunker than drunk.[/]")
+                landed -= 1
+                continue
+            status(mob)['intoxicated'] = True
+            await say(f"  {mob.name} goes cross-eyed and starts swaying.  [narr]Good luck dodging anything now.[/]")
+        elif which == 'stun':
+            status(mob)['stunned'] = True
+            await say(f"  {mob.name} gets a faceful and will lose its next turn.")
+        else:
+            status(mob)['confused'] = CONFUSE_TURNS
+            await say(f"  {mob.name}'s eyes spin in two different directions.  [narr]It has no idea whose side it's on.[/]")
+    await pause()
+    return (party_dict, mobs, heroine_rolls['luck'] if landed else False)
+
+async def blessed_line(heroine : object, rolls : dict):
+    """Says so when a Blessing is riding on this attack (it's used up now, hit or miss). DRAFT line."""
+    if rolls.get('blessed'):
+        await say(f"{heroine.name}'s Blessing flares as she lines it up.  [narr]Here it comes.[/]")
+
+async def hit_effect(heroine : object, item : dict, target : object):
+    """Her hit just landed on a mob that's still standing: Snake Bite may poison it, the Tooth-Sharpened Dagger
+    leaves it bleeding. DRAFT lines."""
+    which = item.get('effect')
+    if which == 'poison' and random.random() < POISON_CHANCE:
+        status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': POISON_DAMAGE[0], 'high': POISON_DAMAGE[1]}
+        await say(f"[green]The venom takes![/]  {target.name} will take a little damage at the start of its turns until it wears off.") # no turn count on screen (Ted, Nov 10)
+    elif which == 'bleed':
+        status(target)['bleeding'] = {'low': BLEED_DAMAGE[0], 'high': BLEED_DAMAGE[1]}
+        await say(f"[red]That wound isn't closing.[/]  {target.name} will bleed at the start of every turn for the rest of the fight.")
+
+async def after_mob_damage(mob : object, party_dict : dict, mobs : list) -> dict:
+    """A mob just lost HP to something other than a heroine's own hit (poison, bleeding, a confused friend): the
+    same things happen as when she hits it. Happy enrages at half HP, killing enraged Happy wipes the party, and a
+    dead Kobold sets its pack off."""
+    if mob.mob_class == 'Disgruntled Dwarf' and mob.enraged and mob.is_dead:
+        return acc.wipe_party(party_dict)
+    if mob.mob_class == 'Disgruntled Dwarf' and mob.health < 0.5 * mob.starting_health and not mob.enraged:
+        await mob.enrage()
+        await pause()
+        return party_dict
+    if mob.is_dead:
+        await say(f"{mob.name} has been slain!!  [narr]Didn't even have to touch that one.[/]")
+        if hasattr(mob, 'on_death'): # the Krazy Kobolds' pack enrages
+            await mob.on_death(mobs)
+    return party_dict
+
+async def mob_start_of_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
+    """The start of a mob's own turn: poison and bleeding take their bite, and a stunned mob loses the turn.
+    Returns (party_dict, whether it still gets to act). DRAFT lines."""
+    for key in ('poisoned', 'bleeding'):
+        tick = status(mob).get(key)
+        if not tick:
+            continue
+        sting = min(mob.health, acc.multi_roll(tick['low'], tick['high']))
+        update_health(mob, sting)
+        last = False
+        if key == 'poisoned':
+            tick['turns'] -= 1
+            last = tick['turns'] <= 0
+            if last:
+                del mob.status['poisoned']
+            await say(f"[green]The poison burns[/] {mob.name} for -{sting} hp." + ("  [narr]That's the last of it.[/]" if last and not mob.is_dead else ""))
+        else:
+            await say(f"[red]{mob.name} is still bleeding:[/] -{sting} hp.")
+        party_dict = await after_mob_damage(mob, party_dict, mobs)
+        if mob.is_dead or party_dict['wiped']:
+            return (party_dict, False)
+    if status(mob).pop('stunned', False):
+        await say(f"{mob.name} is still digging fungus out of its eyes and loses its turn.  [narr]Gross.  Effective, but gross.[/]")
+        return (party_dict, False)
+    return (party_dict, True)
+
+async def confused_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
+    """Confusion (Ted, Nov 14): it attacks or heals somebody at random, friend or foe. Only its plain single-target
+    moves, so nothing with its own rules (gas, the hiss, an area attack) goes off sideways. DRAFT lines."""
+    gear = [dict(item) for item in acc.get_mob_equipment() if item['item'] in mob.inv]
+    simple = [item for item in gear if item['attack_type'] != 'aoe' and not item.get('effect')]
+    if not simple:
+        await say(f"{mob.name} stares at its own hands for a while.  [narr]Take your time, buddy.[/]")
+        await pause()
+        return (party_dict, mobs, False)
+    item = random.choice(simple)
+    everyone = [x for x in party_dict['party'] + mobs if not x.is_dead]
+    healing = item['damage_high'] < 0
+    target = random.choice(everyone if healing else [x for x in everyone if x is not mob])
+    await say(f"{mob.name} blinks, turns in a slow circle, and settles on {'itself' if target is mob else target.name}.  [narr]Eeny, meeny...[/]")
+    mob_rolls = get_mob_rolls(mob, attacking=not healing)
+    target_rolls = {} if target.is_mob else get_heroine_rolls(target)
+    party_dict, mobs, _ = await get_mob_turn_outcome(mob, target, item, party_dict, mobs, mob_rolls, target_rolls)
+    return (party_dict, mobs, False) # a confused mob never gets a lucky extra turn
+
 async def get_heroine_turn_outcome(heroine : object, item : dict,  target : object, party_dict : dict,  mobs : list, heroine_rolls : dict, mob_rolls : dict) -> tuple:
     base_damage = acc.multi_roll(item['damage_low'], item['damage_high'])
     attack_type = item['attack_type']
+    strong = strength_bonus(heroine) if attack_type != 'heal' and target.is_mob else 0 # the Cleric's Strength, if it's on her: used up hit or miss
+    base_damage += strong
     crit_mult = heroine_rolls['crit_mult']
     is_crit = crit_mult > 1 # will be used for auto commenting later
     damage_w_crit_mult = base_damage * crit_mult
@@ -446,6 +668,10 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for -{damage} hp.")
         else:
             await say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for -{damage} hp.")
+        if strong:
+            await say("[narr]The Cleric's Strength put some extra muscle behind that one.[/]")
+        if not target.is_dead:
+            await hit_effect(heroine, item, target) # Snake Bite's poison, the Dagger's bleeding
         if target.mob_class == 'Disgruntled Dwarf' and target.enraged and target.is_dead:
             party_dict = acc.wipe_party(party_dict)
             return (party_dict, mobs, False)
@@ -467,9 +693,13 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         await pause()
         return (party_dict, mobs, False)
 
-async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple:
+async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : bool = False) -> tuple:
+    """extra=True for her lucky second turn in a round: it doesn't count toward anything recharging."""
     if heroine.is_dead:
         return (party_dict, mobs, False)
+    status(heroine).pop('hidden', None) # Hide only lasts until her next turn
+    if not extra:
+        heroine.cooldowns = {name: left - 1 for name, left in getattr(heroine, 'cooldowns', {}).items() if left > 1}
     poison = status(heroine).get('poisoned')
     if poison: # ticks at the start of her turn
         sting = min(heroine.health, acc.multi_roll(poison['low'], poison['high']))
@@ -495,11 +725,17 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
         return (party_dict, mobs, False)
     await say(f"\n{heroine.name}'s turn:")
     spent = getattr(heroine, 'spent_specials', [])
-    if all(item in spent for item in inv): # nothing but used-up specials: no point asking (it would ask forever)
+    unready = lambda name: name in spent or ready_in(heroine, name) > 0
+    if all(unready(item) for item in inv): # nothing but used-up specials: no point asking (it would ask forever)
         await say(f"[narr]Everything {heroine.name} is carrying is still recharging, so she spends this turn catching her breath.[/]")
         await pause()
         return (party_dict, mobs, False)
-    item_labels = [item_label(item, heroine) + ('  (recharging)' if item in spent else '') for item in inv]
+    def recharging(name): # '' when it's ready
+        turns = ready_in(heroine, name)
+        if turns:
+            return f"  (recharging: ready in {turns} turn{'' if turns == 1 else 's'})"
+        return '  (recharging)' if name in spent else ''
+    item_labels = [item_label(item, heroine) + recharging(item) for item in inv]
     while True:
         if inv_len > 1:
             item_choice = await choose( # lists the items, keeps asking until the pick is valid
@@ -512,9 +748,12 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
             await say(f"[narr]Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?[/]")
             await pause()
             item_choice = 0
-        if inv[item_choice] not in spent:
+        if not unready(inv[item_choice]):
             break
-        await say(f"\n[narr]Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.[/]\n")
+        if ready_in(heroine, inv[item_choice]):
+            await say(f"\n[narr]Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Pick something else.[/]\n")
+        else:
+            await say(f"\n[narr]Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.[/]\n")
         if inv_len == 1:
             await pause()
             return (party_dict, mobs, False)
@@ -522,13 +761,24 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     item = acc.held_item(heroine, inv[item_choice]) # forged: boosted numbers and the kit's name
     heroine.wielding = item.get('upgrade') # the kit's perk counts for this turn's rolls (acc.stat_bonus)
     acc.use_up(heroine, item['item']) # one less use, for a consumable
-    if item['special']:
+    if item.get('recharge'): # back after that many of her turns (the recharge column), instead of once per battle
+        heroine.cooldowns = {**getattr(heroine, 'cooldowns', {}), item['item']: item['recharge'] + 1}
+    elif item['special']:
         heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss
     item_attack_type = item['attack_type']
     is_heal = item_attack_type == 'heal'
+    which = item.get('effect')
 
-    if item_attack_type == 'aoe':
-        return await heroine_aoe(heroine, item, party_dict, mobs, get_heroine_rolls(heroine))
+    if which == 'hide':
+        return await heroine_hide(heroine, item, party_dict, mobs)
+    if which in BUFFS:
+        return await heroine_buff(heroine, item, party_dict, mobs)
+    if which in HEXES or item_attack_type == 'aoe':
+        rolls = get_heroine_rolls(heroine, attacking=True)
+        await blessed_line(heroine, rolls)
+        if which in HEXES:
+            return await heroine_hex(heroine, item, party_dict, mobs, rolls)
+        return await heroine_aoe(heroine, item, party_dict, mobs, rolls)
     if item_attack_type == 'aoe_heal':
         return await heroine_aoe_heal(heroine, item, party_dict, mobs, get_heroine_rolls(heroine))
     if item_attack_type == 'hail_mary':
@@ -541,7 +791,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
     else:
         target = await get_target_choice(mobs, [])
 
-    heroine_rolls = get_heroine_rolls(heroine)
+    heroine_rolls = get_heroine_rolls(heroine, attacking=not is_heal)
+    await blessed_line(heroine, heroine_rolls)
     if target.is_mob:
         mob_rolls = get_mob_rolls(target)
         return await get_heroine_turn_outcome(heroine, item, target, party_dict, mobs, heroine_rolls, mob_rolls)
@@ -740,6 +991,8 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
     attack_type = item['attack_type'] # for future use to determine aoe outcomes
     crit_mult = mob_rolls['crit_mult']
     is_crit = crit_mult > 1 # intended to be used for autocommenting, for future work
+    if item['damage_high'] >= 0:
+        base_delta += strength_bonus(mob) # some Cleric put Strength on it: used up hit or miss
     delta_w_crit = base_delta * crit_mult
     if item['damage_high'] >= 0:
         delta_w_crit *= getattr(mob, 'damage_mult', 1) # a mob scaled to the party's size (the Kobolds) hits harder or softer
@@ -762,10 +1015,14 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 await say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for +{healing} hp.  [narr]Ugh, teamwork.  Gross.[/]")
                 await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
-        else:
-            await say('Need logic for mobs healing party members, in case we decide to do this.  I say no luck roll for it, though.')
+        else: # only a confused mob does this (Ted: no luck roll for it)
+            if healing <= 0:
+                await say(f"{mob.name} wanders over and dabs at {target.name} with their {item['item_desc']}.  She's fine already.  [narr]Sweet of it, though.[/]")
+            else:
+                target = update_health(target, -healing)
+                await say(f"{mob.name} wanders over and uses their {item['item_desc']} on {target.name} for +{healing} hp.  [narr]Uh...  thanks?[/]")
             await pause()
-            return (party_dict, mobs, False) # add logic for mob healing party members
+            return (party_dict, mobs, False)
     else:
         if not target.is_mob:
             tough = target_rolls['toughness']
@@ -826,10 +1083,23 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             await check_tough(tough, target)
             await pause()
             return (party_dict, mobs, mob_rolls['luck'])
-        else:
-            await say('Filler for mobs attacking each other, if I decide to have a berserker spell or perhaps a witch can cast confusion or something that makes mobs attack each other, or just randomly in general (party or other mobs can be attacked?).  Might be fun.')
+        else: # a mob hitting a mob: only a confused one does this today (a berserker spell could too, later)
+            victim_rolls = get_mob_rolls(target)
+            damage = int(delta_w_crit / 2) if victim_rolls['toughness'] else int(delta_w_crit)
+            damage = min(damage, target.health)
+            if not mob_rolls['hit']:
+                await say(f"{mob.name} takes a wild swing at {target.name} with their {item['item_desc']} and misses.  [narr]Damn.  So close to helping.[/]")
+                await pause()
+                return (party_dict, mobs, False)
+            if victim_rolls['dodge'] and not mob_rolls['expertise']:
+                await say(f"{mob.name} lunges at {target.name}, who hops out of the way and looks deeply offended.")
+                await pause()
+                return (party_dict, mobs, False)
+            target = update_health(target, damage)
+            await say(f"{mob.name} clobbers {target.name} with their {item['item_desc']} for -{damage} hp.  [narr]Friendly fire!  My favorite kind.[/]")
+            party_dict = await after_mob_damage(target, party_dict, mobs)
             await pause()
-            return (party_dict, mobs, mob_rolls['luck'])
+            return (party_dict, mobs, False)
 
 async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = False) -> tuple:
     """extra=True for a bonus attack: the line announcing it already said whose it is, so no "'s turn:" header."""
@@ -844,6 +1114,18 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
 
     if not extra:
         await say(f"\n\n{mob.name}'s turn:\n")
+        party_dict, acts = await mob_start_of_turn(mob, party_dict, mobs) # poison, bleeding, and a stun costs it the turn
+        if not acts:
+            await pause()
+            return (party_dict, mobs, False)
+    confused = status(mob).get('confused')
+    if confused:
+        if not extra: # a bonus attack is still a confused one, but doesn't use a turn of it up
+            if confused <= 1:
+                del mob.status['confused']
+            else:
+                mob.status['confused'] = confused - 1
+        return await confused_turn(mob, party_dict, mobs)
     inv = mob.inv
 
     ai = mob.starting_ai
@@ -853,9 +1135,9 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
     item = choose_mob_item(inv, ai, party_dict, mobs)
     effect = item.get('effect')
     if effect == 'gas':
-        return await mob_gas(mob, item, party_dict, mobs, get_mob_rolls(mob))
+        return await mob_gas(mob, item, party_dict, mobs, get_mob_rolls(mob, attacking=True))
     if item['attack_type'] == 'aoe' and item['damage_high'] >= 0:
-        return await mob_aoe(mob, item, party_dict, mobs, get_mob_rolls(mob))
+        return await mob_aoe(mob, item, party_dict, mobs, get_mob_rolls(mob, attacking=True))
     if item['damage_high'] < 0:
         living_mobs = [x for x in mobs if not x.is_dead]
         hurt = [x for x in living_mobs if x.health < x.starting_health] # nobody wastes a heal on a mob at full health
@@ -867,7 +1149,7 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
         living_heroines = standing_targets(item, party_dict['party']) or [x for x in party_dict['party'] if not x.is_dead]
         if len(living_heroines) > 0:
             target = choose_mob_target(living_heroines, ai, item)
-            mob_rolls = get_mob_rolls(mob)
+            mob_rolls = get_mob_rolls(mob, attacking=True)
             if effect == 'hiss':
                 return await mob_hiss(mob, target, item, party_dict, mobs, mob_rolls)
             target_rolls = get_heroine_rolls(target)

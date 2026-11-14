@@ -158,9 +158,9 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
                         await say(f"[narr]{attacker.name}'s lucky fuckin' day![/]  She gets an extra turn.  [narr]Make it count![/]")
                         await pause()
                         await combat.show_current_status(party_dict['party'], mobs, round_num, attacker)
-                        party_dict, mobs, _ = await combat.player_turn(attacker, party_dict, mobs)
+                        party_dict, mobs, _ = await combat.player_turn(attacker, party_dict, mobs, extra=True)
                     for mob in mobs:
-                        if not mob.is_dead and not check_wiped(party_dict['party']): # no bonus attacks on a party that's already down
+                        if not mob.is_dead and combat.can_act(mob) and not check_wiped(party_dict['party']): # no bonus attacks on a party that's already down, or from a stunned mob
                             turn_stat = 'enraged_turn_chance' if mob.enraged else 'turn_chance'
                             if acc.multi_roll(1,100) <= mob.stats[turn_stat]:
                                 party_dict['wiped'] = check_wiped(party_dict['party'])
