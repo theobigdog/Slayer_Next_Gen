@@ -45,6 +45,7 @@ def start_battle(party : list):
         heroine.fight_tally = {} # what she did this fight (see tally)
         heroine.spent_specials = [] # special weapons she's already used this battle (a list, so saves can store it)
         heroine.status = {} # what the mobs did to her this fight: gassed, junked, hissed (see MOB_EFFECTS)
+        heroine.wielding = None # no kit perk until she picks a forged weapon
         acc.sync_max_hp(heroine) # a max HP trinket counts (a safety net: picking one up already syncs)
 
 def status(heroine : object) -> dict:
@@ -110,8 +111,8 @@ async def check_last_cleric(fallen : list, party : list):
         await say('') # a blank line first, so it stands out (Ted, Nov 8)
         await say(LAST_CLERIC_LINES)
 
-def item_label(item_name : str, heroine : object = None) -> str: # one line of the item menu
-    return acc.describe_item(acc.get_item(item_name), acc.uses_left(heroine, item_name) if heroine else None)
+def item_label(item_name : str, heroine : object = None) -> str: # one line of the item menu (forged gear by its forged name)
+    return acc.describe_item(acc.held_item(heroine, item_name), acc.uses_left(heroine, item_name) if heroine else None)
 
 async def get_target_choice(mobs : list, party : list, healing : bool = False) -> object:
     living_party = [x for x in party if not x.is_dead]
@@ -518,7 +519,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list) -> tuple
             await pause()
             return (party_dict, mobs, False)
 
-    item = acc.get_item(inv[item_choice])
+    item = acc.held_item(heroine, inv[item_choice]) # forged: boosted numbers and the kit's name
+    heroine.wielding = item.get('upgrade') # the kit's perk counts for this turn's rolls (acc.stat_bonus)
     acc.use_up(heroine, item['item']) # one less use, for a consumable
     if item['special']:
         heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss

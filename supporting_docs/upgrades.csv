@@ -1,0 +1,6 @@
+kit,kit_desc,fits,prefix,boost,bonus,drop_chance,sources,hint
+whetstone_kit,Whetstone Kit,melee,Honed,20,crit_chance+3,3,,
+fletching_kit,Fletching Kit,ranged,True-Flight,20,hit+3,3,,
+arcane_primer,Arcane Primer,spell,Empowered,20,crit_mult+0.1,3,,
+powder_kit,Powder Kit,bomb,Overcharged,20,crit_chance+3,3,,
+blessing_kit,Blessing Kit,heal,Blessed,20,heal_chance+5,3,,

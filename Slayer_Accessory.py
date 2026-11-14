@@ -90,6 +90,7 @@ hero_stats_table = read_table('hero_stats.csv')
 mobs_table = read_table('mobs.csv')
 mob_equipment_table = read_table('mob_equipment.csv')
 stat_growth_table = read_table('stat_growth.csv')
+upgrades_table = read_table('upgrades.csv') # upgrade kits for the forge (see 'upgrade kits and the forge')
 
 DEV_MODE = True # flip to False to play like a real player; Slayer.exe is always a player build either way
 
@@ -394,6 +395,10 @@ def describe_item(item : dict, left : int = None) -> str:
     hint = bonus_hint(item)
     if dev_mode() and item['bonus']:
         hint += f" [{', '.join(f'{sign}{amount} {stat}' for stat, sign, amount in parse_bonus(item['bonus']))}]"
+    if item.get('upgrade'): # forged: the kit's perk reads like any other hint ('Honed Bastard Sword (8 - 13 damage, more crits)')
+        kit = get_kit(item['upgrade'])
+        perk = bonus_hint(kit) + (f" [+{kit['boost']}%, {kit['bonus'] or 'no perk'}]" if dev_mode() else '')
+        hint = ', '.join(words for words in (hint, perk) if words)
     if item['attack_type'] == 'hail_mary':
         return f'{desc} (hail mary)'
     if item['attack_type'] == 'trinket':
@@ -420,6 +425,11 @@ def stat_bonus(heroine : object, stat : str) -> int:
     total = 0
     for item_name in heroine.inv:
         for name, sign, amount in parse_bonus(get_item(item_name)['bonus']):
+            if name == stat:
+                total += amount if sign == '+' else -amount
+    wielding = getattr(heroine, 'wielding', None) # the kit on the weapon she picked this turn: its perk only counts while she uses it
+    if wielding:
+        for name, sign, amount in parse_bonus(get_kit(wielding)['bonus']):
             if name == stat:
                 total += amount if sign == '+' else -amount
     return total
@@ -466,6 +476,8 @@ def remove_item(heroine : object, item_name : str):
     if item_name in heroine.starting_inv:
         heroine.dropped = getattr(heroine, 'dropped', []) + [item_name]
     left = getattr(heroine, 'uses', {}).pop(item_name, None)
+    if item_name not in heroine.inv:
+        getattr(heroine, 'upgrades', {}).pop(item_name, None) # dropped: the upgrade's gone with it (stash_item saves it first)
     sync_max_hp(heroine)
     return left
 
@@ -503,8 +515,14 @@ def stash_label(party_dict : dict) -> str:
     return f"{len(party_dict.setdefault('stash', []))}/{stash_capacity(party_dict)}"
 
 def stash_item(party_dict : dict, heroine : object, item_name : str):
+    upgrade = getattr(heroine, 'upgrades', {}).get(item_name) # a forged weapon stays forged in The Stash
     uses = remove_item(heroine, item_name)
-    party_dict.setdefault('stash', []).append({'item': item_name, 'uses': uses})
+    party_dict.setdefault('stash', []).append({'item': item_name, 'uses': uses, 'upgrade': upgrade})
+
+def stash_entry_item(entry : dict) -> dict:
+    """The item a stash entry holds, forged if it was."""
+    item = get_item(entry['item'])
+    return upgraded(item, entry['upgrade']) if entry.get('upgrade') else item
 
 def stash_new(party_dict : dict, item : dict):
     party_dict.setdefault('stash', []).append({'item': item['item'], 'uses': item['uses']})
@@ -543,14 +561,14 @@ async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern 
     to_stash = at_tavern and stash_has_room(party_dict)
     verb = 'Stash' if to_stash else 'Drop'
     labels = ([f"{verb} her {get_item(x)['item_desc']}" for x in hers] if kind == 'potion' # short rows: the question above already names both
-              else [f"{verb}: {describe_item(get_item(x), uses_left(heroine, x))}" for x in hers])
+              else [f"{verb}: {describe_item(held_item(heroine, x), uses_left(heroine, x))}" for x in hers])
     extra = [f"Put {item['item_desc']} in The Stash instead"] if to_stash and new_can_stash else []
     full = '' if to_stash or not at_tavern else f"  (The Stash is full too: {stash_label(party_dict)}.)"
     prompt = (f"{heroine.name}'s {SLOT_NAMES[kind]} is full.  Swap something out for {item['item_desc']}?{full}  " if kind != 'potion'
               else f"{heroine.name} can only carry one potion, and she already has {describe_item(get_item(hers[0]), uses_left(heroine, hers[0]))}.  {'Stash' if to_stash else 'Toss'} it for {item['item_desc']}?{full}  ")
     out = await choose(prompt, labels + extra + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
     if out < len(hers):
-        old = get_item(hers[out])
+        old = held_item(heroine, hers[out])
         if to_stash:
             stash_item(party_dict, heroine, hers[out])
             await say(f"[narr]Into The Stash: {old['item_desc']}.[/]")
@@ -624,11 +642,15 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
                     await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))
-    if found:
+    fought = [mob] + [m for m in others if m is not mob]
+    kits = [kit for kit in upgrades_table if kit_drops_here(kit, fought) and roll_percent(kit['drop_chance'] or 0)] # rare: once per fight, not per mob
+    if found or kits:
         import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
         await nar.loot_found(party_dict)
     for item, source in found:
         await give_loot(item, source, party_dict, at_tavern)
+    for kit in kits:
+        await give_kit(kit, random.choice([m for m in fought if m.is_dead] or [mob]).name, party_dict, at_tavern)
     await pause()
     return party_dict
 
@@ -642,9 +664,10 @@ def carrying_line(heroine : object) -> str:
     Sword, Battle-Axe.  Potion: Half-Finished Ale (1/4).  Trinkets 1/2: Lucky Bottle Cap.'"""
     def names(kind):
         mine = [x for x in heroine.inv if slot_kind(get_item(x)) == kind]
-        return ', '.join(get_item(x)['item_desc'] + (f' ({uses_left(heroine, x)}/{MAX_USES})' if get_item(x)['uses'] else '') for x in mine) or 'nothing'
+        return ', '.join(held_item(heroine, x)['item_desc'] + (f' ({uses_left(heroine, x)}/{MAX_USES})' if get_item(x)['uses'] else '') for x in mine) or 'nothing'
+    kits = f"  Kits {len(kits_of(heroine))}/{KITS_CARRIED}: {', '.join(get_kit(k)['kit_desc'] for k in kits_of(heroine))}." if kits_of(heroine) else ''
     return (f"{heroine.name} is carrying:  Bag {len(carried(heroine, 'gear'))}/{slots(heroine, 'gear')}: {names('gear')}.  "
-            f"Potion: {names('potion')}.  Trinkets {len(carried(heroine, 'trinket'))}/{slots(heroine, 'trinket')}: {names('trinket')}.")
+            f"Potion: {names('potion')}.  Trinkets {len(carried(heroine, 'trinket'))}/{slots(heroine, 'trinket')}: {names('trinket')}.{kits}")
 
 async def visit_stash(party_dict : dict) -> dict:
     """Happy's back room, before the dungeon: gear up a heroine from the stash (only what she can use is
@@ -660,11 +683,14 @@ async def visit_stash(party_dict : dict) -> dict:
         if what == 3:
             return party_dict
         if what == 2:
-            if not stash:
+            kits = party_dict.get('kit_stash', [])
+            if not stash and not kits:
                 await say("[narr]It's empty.  Just dust and a sad sock.[/]")
             for entry in stash:
-                item = get_item(entry['item'])
+                item = stash_entry_item(entry)
                 await say(f"  {describe_item(item, entry['uses'])}:  {who_can_use(item)}")
+            for kit_name in sorted(set(kits), key=kits.index): # kits don't count against The Stash's room
+                await say(f"  {kit_label(get_kit(kit_name))}{f'  x{kits.count(kit_name)}' if kits.count(kit_name) > 1 else ''}:  for the forge out back")
             continue
         names = [f"{x.name}  ({class_label(x.hero_class)})" for x in party]
         who_pick = await choose("Gear up who?  " if what == 0 else "Whose gear goes in?  ", names + ['Never mind'], "One of THOSE numbers, please:  ")
@@ -678,7 +704,7 @@ async def visit_stash(party_dict : dict) -> dict:
             if not hers:
                 await say(f"[narr]Nothing in there {who.name} can use.[/]")
                 continue
-            labels = [describe_item(get_item(e['item']), e['uses']) for e in hers] # the whole item, never cut off; her slots are in the line above
+            labels = [describe_item(stash_entry_item(e), e['uses']) for e in hers] # the whole item, never cut off; her slots are in the line above
             pick = await choose(f"What does {who.name} take?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
             if pick == len(hers):
                 continue
@@ -690,7 +716,12 @@ async def visit_stash(party_dict : dict) -> dict:
                 if result != 'done':
                     stash.append(entry) # changed her mind: it goes back
                     continue
-            await say(add_item(who, item, entry['uses']))
+            line = add_item(who, item, entry['uses'])
+            if entry.get('upgrade'):
+                who.upgrades = getattr(who, 'upgrades', {})
+                who.upgrades[item['item']] = entry['upgrade']
+                line = line.replace(item['item_desc'], held_item(who, item['item'])['item_desc'])
+            await say(line)
         else:
             if not stash_has_room(party_dict):
                 await say(f"[narr]The Stash is stuffed ({stash_label(party_dict)}).  Take something out first.[/]")
@@ -699,12 +730,170 @@ async def visit_stash(party_dict : dict) -> dict:
             if not hers:
                 await say(f"[narr]{who.name} has nothing to put in.[/]")
                 continue
-            labels = [describe_item(get_item(x), uses_left(who, x)) for x in hers]
+            labels = [describe_item(held_item(who, x), uses_left(who, x)) for x in hers]
             pick = await choose(f"Which of {who.name}'s things?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
             if pick == len(hers):
                 continue
+            name = held_item(who, hers[pick])['item_desc']
             stash_item(party_dict, who, hers[pick])
-            await say(f"[narr]Into The Stash: {get_item(hers[pick])['item_desc']}.[/]")
+            await say(f"[narr]Into The Stash: {name}.[/]")
+
+# ---------- upgrade kits and the forge ---------------------------------------------
+# (Ted, Nov 12) Kits (upgrades.csv) are rare finds: each one rolls its drop_chance once per won fight. A heroine
+# carries at most KITS_CARRIED (they don't use bag slots); back at the Devil's Brew they go in The Stash, which
+# holds any number of them. Only the forge out back can use one, and Happy offers it after The Stash, only when
+# the party has a kit. A kit goes on a weapon it fits: the weapon hits (or heals) boost% harder, its kit's perk
+# counts while she's using it, and it takes the kit's prefix ('Honed Bastard Sword'). One kit per weapon, ever,
+# even on a weapon that dropped already upgraded. Forged weapons are kept like any loot, stay forged in The
+# Stash, and the upgrade is lost if the weapon's dropped. Upgraded starting gear (the Boom) comes back upgraded.
+KITS_CARRIED = 2
+KIT_KINDS = {'melee': 'hand weapons', 'ranged': 'bows and thrown weapons', 'spell': 'spells', 'bomb': 'bombs', 'heal': 'heals'}
+CASTERS = {'Witch', 'Battle_Mage', 'Cleric'}
+
+def and_words(words : list) -> str:
+    """['a', 'b', 'c'] -> 'a, b and c'"""
+    return words[0] if len(words) == 1 else ', '.join(words[:-1]) + ' and ' + words[-1]
+
+def get_kit(kit_name : str) -> dict:
+    return find_row(upgrades_table, 'kit', kit_name)
+
+def kit_fits(kit : dict) -> list:
+    return [kind.strip() for kind in kit['fits'].split(',')]
+
+def weapon_kind(item : dict):
+    """Which kind of kit fits it: 'melee', 'ranged', 'spell', 'bomb', 'heal', or None (trinkets, the Token,
+    afflictions and anything with uses can't be forged). A guess from attack_type and who can use it: ranged and
+    area attacks only the Witch or Battle Mage can use are spells. A 'kind' column in items.csv, if Ted adds one,
+    beats the guess."""
+    if item.get('kind'):
+        return item['kind']
+    attack = item['attack_type']
+    if attack in ('trinket', 'hail_mary') or item['uses'] or item['item'] in AFFLICTIONS:
+        return None
+    if attack in ('heal', 'aoe_heal'):
+        return 'heal'
+    from ast import literal_eval
+    if attack in ('range', 'aoe') and set(literal_eval(item['classes'])) <= CASTERS:
+        return 'spell'
+    if attack == 'aoe':
+        return 'bomb'
+    return 'ranged' if attack == 'range' else 'melee'
+
+def boosted(value : int, boost : int) -> int:
+    """value made boost% bigger (heals are negative, so they get more negative), always by at least 1."""
+    if not value:
+        return value
+    new = round(value * (100 + boost) / 100)
+    return new if new != value else value + (1 if value > 0 else -1)
+
+def upgraded(item : dict, kit_name : str) -> dict:
+    """A copy of the item with the kit on it: new name, boosted numbers, and 'upgrade' naming the kit."""
+    kit = get_kit(kit_name)
+    new = dict(item)
+    new['item_desc'] = f"{kit['prefix']} {item['item_desc']}"
+    new['damage_low'], new['damage_high'] = boosted(item['damage_low'], kit['boost']), boosted(item['damage_high'], kit['boost'])
+    new['upgrade'] = kit_name
+    return new
+
+def held_item(heroine : object, item_name : str) -> dict:
+    """The item as she has it: forged, if she's had a kit put on it."""
+    item = get_item(item_name)
+    kit_name = getattr(heroine, 'upgrades', {}).get(item_name) if heroine else None
+    return upgraded(item, kit_name) if kit_name else item
+
+def kits_of(heroine : object) -> list:
+    heroine.kits = getattr(heroine, 'kits', [])
+    return heroine.kits
+
+def kit_label(kit : dict) -> str:
+    """'Whetstone Kit (for hand weapons: hits harder, more crits)'. Words, not numbers; dev mode adds them."""
+    fits = kit_fits(kit)
+    words = ', '.join(w for w in ('heals more' if fits == ['heal'] else 'hits harder', bonus_hint(kit)) if w)
+    label = f"{kit['kit_desc']} (for {and_words([KIT_KINDS.get(k, k) for k in fits])}: {words})"
+    return label + (f" [+{kit['boost']}%, {kit['bonus'] or 'no perk'}]" if dev_mode() else '')
+
+def kit_drops_here(kit : dict, fought : list) -> bool:
+    """Blank sources: any fight. Otherwise, only a fight with one of those mob classes in it."""
+    if not kit['sources']:
+        return True
+    return any(m.mob_class in [s.strip() for s in kit['sources'].split(',')] for m in fought)
+
+async def give_kit(kit : dict, source : str, party_dict : dict, at_tavern : bool = False):
+    """A kit turned up. At the tavern it goes straight in The Stash; in the dungeon somebody has to carry it
+    (KITS_CARRIED each), or it's left behind."""
+    from Slayer_UI import choose
+    if at_tavern:
+        party_dict.setdefault('kit_stash', []).append(kit['kit'])
+        await say(f"From {source}: {kit_label(kit)}.  [narr]A rare one!  It goes in The Stash, ready for the forge out back.[/]")
+        return
+    await say(f"From {source}: {kit_label(kit)}.  [narr]A rare one!  It only works at the forge out back of the Devil's Brew, so somebody has to lug it home.[/]")
+    party = party_dict['party']
+    while True:
+        names = [f"{x.name}  ({class_label(x.hero_class)})\tkits {len(kits_of(x))}/{KITS_CARRIED}" for x in party]
+        pick = await choose(f"Who carries the {kit['kit_desc']}?  ", names + ['Leave it behind'], "One of THOSE numbers, please:  ")
+        if pick == len(party):
+            await say(f"[narr]You're leaving a {kit['kit_desc']} on the floor.  Bold.[/]")
+            return
+        who = party[pick]
+        hers = kits_of(who)
+        if len(hers) >= KITS_CARRIED:
+            out = await choose(f"{who.name} can only carry {KITS_CARRIED} kits, and her pockets are full.  Toss one for the {kit['kit_desc']}?  ",
+                               [f"Toss: {kit_label(get_kit(k))}" for k in hers] + ['Never mind, pick someone else'], "One of THOSE numbers, please:  ")
+            if out == len(hers):
+                continue
+            tossed = hers.pop(out)
+            await say(f"[narr]{who.name} tosses her {get_kit(tossed)['kit_desc']}.  Gone for good.[/]")
+        hers.append(kit['kit'])
+        await say(f"[narr]{who.name} pockets the {kit['kit_desc']}.[/]")
+        return
+
+def stash_carried_kits(party_dict : dict) -> list:
+    """Back at the Devil's Brew, every kit the heroines carried home goes in The Stash. Returns the lines to show."""
+    lines = []
+    for heroine in party_dict['party']:
+        if kits_of(heroine):
+            party_dict.setdefault('kit_stash', []).extend(heroine.kits)
+            lines.append(f"[narr]{heroine.name} empties her pockets into The Stash: {and_words([get_kit(k)['kit_desc'] for k in heroine.kits])}.[/]")
+            heroine.kits = []
+    return lines
+
+def forgeable(heroine : object) -> list:
+    """Her weapons that can still take a kit: carried (or starting gear that's only used up), not forged yet."""
+    dropped = getattr(heroine, 'dropped', [])
+    names = heroine.inv + [x for x in heroine.starting_inv if x not in heroine.inv and x not in dropped]
+    done = getattr(heroine, 'upgrades', {})
+    return [x for x in dict.fromkeys(names) if x not in done and weapon_kind(get_item(x))]
+
+async def visit_forge(party_dict : dict) -> dict:
+    """The forge out back (Slayer_Narration.happy_forge plays around it): pick a kit from The Stash, then a
+    weapon it fits. The kit's used up. Goes round until the player's done or the kits run out."""
+    from Slayer_UI import choose
+    party = party_dict['party']
+    while True:
+        kits = party_dict.get('kit_stash', [])
+        if not kits:
+            await say("[narr]That's every kit you had.[/]")
+            return party_dict
+        kinds = sorted(set(kits), key=kits.index)
+        labels = [kit_label(get_kit(k)) + (f"  x{kits.count(k)}" if kits.count(k) > 1 else '') for k in kinds]
+        pick = await choose("Which kit goes on the anvil?  ", labels + ['Done at the forge'], "One of THOSE numbers, please:  ")
+        if pick == len(kinds):
+            return party_dict
+        kit = get_kit(kinds[pick])
+        options = [(h, x) for h in party for x in forgeable(h) if weapon_kind(get_item(x)) in kit_fits(kit)]
+        if not options:
+            await say(f"[narr]Nobody's carrying anything a {kit['kit_desc']} fits.  It'll keep in The Stash.[/]")
+            continue
+        labels = [f"{h.name}:  {describe_item(held_item(h, x))}" for h, x in options]
+        pick = await choose(f"Which one gets the {kit['kit_desc']}?  ", labels + ['Never mind'], "One of THOSE numbers, please:  ")
+        if pick == len(options):
+            continue
+        heroine, item_name = options[pick]
+        before = held_item(heroine, item_name)['item_desc']
+        heroine.upgrades = getattr(heroine, 'upgrades', {})
+        heroine.upgrades[item_name] = kit['kit']
+        kits.remove(kit['kit'])
+        await say(f"[narr]Clang, clang, HISSSS.[/]  {heroine.name}'s {before} comes out of the forge as the {describe_item(held_item(heroine, item_name))}.")
 
 # ---------- stat bonuses after a fight ------------------------------------------
 # Every heroine (dead, alive or blown to bits) improves 1-4 stats by 1-3 points each, plus some max HP
