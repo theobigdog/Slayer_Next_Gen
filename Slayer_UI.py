@@ -107,6 +107,16 @@ def _pick(lines) -> str:
 
 # ---------- terminal backend: the command-prompt game -------------------------
 
+# What's on a combatant right now, one word each, for both screens (Slayer_Combat keeps it all in entity.status).
+STATUS_WORDS = [('poisoned', 'poisoned'), ('bleeding', 'bleeding'), ('intoxicated', 'drunk'), ('stunned', 'stunned'), ('confused', 'confused'),
+                ('hidden', 'hidden'), ('blessed', 'blessed'), ('strong', 'strong'), ('gassed', 'retching'), ('junked', 'sore'), ('hissed', 'rattled')]
+
+def status_words(entity) -> list:
+    """['poisoned', 'drunk'] for a living combatant with those on it; [] for anyone dead or clean."""
+    status = getattr(entity, 'status', None) or {}
+    return [] if entity.is_dead else [word for key, word in STATUS_WORDS if status.get(key)]
+
+
 class TerminalUI:
     """Plays in the Windows terminal, exactly like the game did before Slayer_UI."""
 
@@ -202,7 +212,8 @@ class TerminalUI:
         print()
         for heroine in party:
             turn = '   <-- her turn' if heroine is active else ''
-            sick = f'  {self.Fore.GREEN}(poisoned){self.Style.RESET_ALL}' if getattr(heroine, 'status', None) and heroine.status.get('poisoned') and not heroine.is_dead else ''
+            words = status_words(heroine)
+            sick = f"  {self.Fore.GREEN if 'poisoned' in words else ''}({', '.join(words)}){self.Style.RESET_ALL}" if words else ''
             print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{sick}{turn}")
 
     async def show_battle(self, party, mobs, round_num, active=None):
@@ -215,7 +226,7 @@ class TerminalUI:
             print()
             print(f"Name: {mob.name}{'   <-- its turn' if mob is active else ''}")
             print(f"Class: {getattr(mob, 'label', mob.mob_class)}{' (enraged)' if mob.enraged and not getattr(mob, 'is_boss', False) else ''}")
-            print(f"Current Health: {self.health_text(mob)}")
+            print(f"Current Health: {self.health_text(mob)}" + (f"  ({', '.join(status_words(mob))})" if status_words(mob) else ''))
         print()
         print('Party')
         await self.show_party(party, active)

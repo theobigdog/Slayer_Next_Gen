@@ -23,6 +23,7 @@ from pathlib import Path
 import pygame
 
 import Slayer_Accessory as acc
+import Slayer_UI as ui  # only for status_words: the words under a box are the same ones the terminal prints
 
 SCREEN_W, SCREEN_H = 1280, 720
 ASSETS = Path(__file__).parent / 'assets'
@@ -100,6 +101,17 @@ class NarrationFont:
         return getattr(self.words, name)
 
 
+RECHARGING = re.compile(r'  \(recharging(?:: (ready in \d+ turns?))?\)')
+
+def split_recharging(label : str) -> tuple:
+    """('Thor's Hammer (22 - 30 damage)', 'Recharging') for a label Slayer_Combat marked '  (recharging)';
+    'Ready in 3 turns' when it says how long (an item with a recharge); (label, None) for anything ready."""
+    match = RECHARGING.search(label)
+    if not match:
+        return label, None
+    return RECHARGING.sub('', label), (match.group(1).capitalize() if match.group(1) else 'Recharging')
+
+
 def hp_color(entity) -> tuple:
     """Her HP bar's colour, also used for the HP in the target menu: green, magenta at half or less, red at 10% or less."""
     share = max(0.0, entity.health / entity.starting_health)
@@ -162,7 +174,7 @@ class WindowUI:
             'name_big': font(28, 'fancy'), 'box_big': font(20, 'fancy'), 'keg': font(96, 'fancy'),
             'round': font(32, 'fancy'), 'menu_title': font(22, 'fancy'), 'float': font(34, 'fancy'),
             'box': font(17, 'fancy'), 'hp': font(16, 'fancy'),
-            'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'),
+            'small': font(14), 'title': font(13, 'mono'), 'big': font(30, 'bold'), 'status': font(11, 'bold'),
         }
         self.mode = 'text'          # 'title', 'text', 'party', 'battle', 'loser', 'end'
         self.party, self.mobs, self.round_num = [], [], 0
@@ -422,7 +434,7 @@ class WindowUI:
         kind, _, extra = self.waiting
         if kind in ('choose', 'choose_target'):
             label = self.menu_labels[extra['options'].index(value)]
-            self.echo(label.replace('  (recharging)', '').partition('\t')[0])
+            self.echo(split_recharging(label)[0].partition('\t')[0])
         elif kind == 'yes_no':
             self.echo('Yes' if value else 'No')
         self.buttons, self.targets = [], []
@@ -688,7 +700,8 @@ class WindowUI:
     def menu_font(self, labels, width):
         """The biggest menu font every row fits in, so the rows all match (the smallest if none fits)."""
         def short(label): # a long name may lose a few letters ('Brumhilda (Battl...'), rather than every row shrinking
-            name, tab, side = label.replace('  (recharging)', '   Recharging').partition('\t')
+            base, note = split_recharging(label)
+            name, tab, side = (base + (f'   {note}' if note else '')).partition('\t')
             if not tab:
                 return name # an item row: measured whole, so its end (damage, doses left) stays readable
             return (name if len(name) <= 18 else name[:15] + '...') + '   ' + side
@@ -888,13 +901,13 @@ class WindowUI:
         that's recharging is red and crossed out, with 'Recharging' after it. A label with a tab in it
         ('Xena  (Warrior)\tbag 4/6') keeps the part after the tab on the right edge, always whole:
         a long name gets trimmed instead."""
-        recharging = label.endswith('  (recharging)')
-        base = label.replace('  (recharging)', '')
+        base, note = split_recharging(label)
+        recharging = note is not None
         base, _, side = base.partition('\t')
         room = rect.width - 16
         for name in ((font_name,) if font_name else ('menu', 'menu_s', 'menu_xs')):
             fnt = self.fonts[name]
-            tail = [('   Recharging', GOLD)] if recharging else []
+            tail = [(f'   {note}', GOLD)] if recharging else []
             if side:
                 tail.append(('   ' + side, side_color or (200, 186, 150)))
             needed = fnt.size(f'{key}   ' + base)[0] + sum(fnt.size(t)[0] for t, _ in tail)
@@ -1163,6 +1176,35 @@ class WindowUI:
         if sick:  # the bar keeps its colour (it still says how hurt she is); a poison-green ring goes round it
             pygame.draw.rect(self.screen, POISON_EDGE, bar.inflate(8, 8), 2, border_radius=7)
         self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', POISON_EDGE if sick else DIM, center=True)
+        self.draw_status_words(entity, rect.centerx, bar.bottom + 26, max(width, 120))
+
+    def draw_status_words(self, entity, centerx, top, width):
+        """What's on her (or it) right now, in small words under the HP: 'bleeding · drunk'. Good things in gold,
+        poison in its green, bleeding in red, the rest in a pale grey. Two lines at most."""
+        words = ui.status_words(entity)
+        if not words:
+            return
+        colors = {'poisoned': POISON_EDGE, 'bleeding': HP_CRIT, 'hidden': GOLD, 'blessed': GOLD, 'strong': GOLD}
+        fnt = self.fonts['status']
+        gap = fnt.size(' · ')[0]
+        lines, line, used = [], [], 0
+        for word in words:
+            w = fnt.size(word)[0]
+            if line and used + gap + w > width:
+                lines.append(line)
+                line, used = [], 0
+            used += (gap if line else 0) + w
+            line.append(word)
+        lines.append(line)
+        for row, line in enumerate(lines[:2]):
+            total = sum(fnt.size(word)[0] for word in line) + gap * (len(line) - 1)
+            x = centerx - total // 2
+            for spot, word in enumerate(line):
+                if spot:
+                    self.screen.blit(self.ink('status', ' · ', DIM), (x, top + row * 13))
+                    x += gap
+                self.screen.blit(self.ink('status', word, colors.get(word, (200, 190, 175))), (x, top + row * 13))
+                x += fnt.size(word)[0]
 
     def draw_party_lineup(self):
         self.sprite_rects = []
