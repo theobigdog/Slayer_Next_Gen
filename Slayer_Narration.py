@@ -384,3 +384,20 @@ async def dungeon_wipe(party_dict : dict, mobs : list) -> None:
     """Plays when the whole party dies in the dungeon. That ends the run."""
     await say("[narr]DRAFT: Well.  Shit.  That's the run, folks.[/]")
     await pause()
+
+async def happy_forge(party_dict : dict) -> None:
+    """Right after The Stash, only if the party has any upgrade kits (the ones they carried home go in The Stash
+    first): Happy offers the forge out back. The forge menu happens in the middle (the acc.visit_forge line).
+    DRAFT lines, for Ted to rewrite. (Claude, Nov 14)"""
+    carried_home = acc.stash_carried_kits(party_dict)
+    if not party_dict.get('kit_stash'):
+        return
+    for line in carried_home:
+        await say(line)
+    await say('Happy spots the kits and his eyes light up.  \"Och, ye\'ve got some o\' the old recipes!  C\'mon oot back tae the forge, an\' I\'ll fire her up.\"')
+    if not await yes_no('Head out back to the forge?  '):
+        await say('\"Suit yerselves.  They\'ll keep in The Stash.\"')
+        return
+    await acc.visit_forge(party_dict)  # <-- the forge menu happens right here
+    await say('Happy douses the coals with what\'s left of his ale.  \"Dinnae go breakin\' those, now.\"')
+    await pause()

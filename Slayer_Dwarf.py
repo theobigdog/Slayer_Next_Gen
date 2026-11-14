@@ -51,6 +51,7 @@ class Disgruntled_Dwarf:
         await nar.happy_loot(party_dict)
         party_dict = await acc.get_loot(self, party_dict, mobs, at_tavern=True) # Happy's loot, plus whatever his dead buddies dropped
         await nar.happy_back_room(party_dict) # The Stash menu is in the middle of this scene
+        await nar.happy_forge(party_dict) # only if the party has an upgrade kit: the forge out back
         await nar.happy_stats(party_dict) # and the first stat raises are in the middle of this one
         return party_dict
 
