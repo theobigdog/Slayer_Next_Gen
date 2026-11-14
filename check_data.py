@@ -13,7 +13,8 @@ from pathlib import Path
 
 DOCS = Path(__file__).parent / 'supporting_docs'
 ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 'hail_mary'}
-AFFLICTIONS = {'happys_norovirus_regurgitation'}  # caught, not wielded (Slayer_Accessory.AFFLICTIONS), so the Cleric rule skips them
+AFFLICTIONS = {'happys_norovirus_regurgitation'}
+KIT_KINDS = ['melee', 'ranged', 'spell', 'bomb', 'heal']  # what an upgrade kit can fit (Slayer_Accessory.KIT_KINDS)  # caught, not wielded (Slayer_Accessory.AFFLICTIONS), so the Cleric rule skips them
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
 MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
@@ -114,6 +115,20 @@ for i, row in enumerate(gear, start=2):
     if 'weight' in row:
         number('mob_equipment.csv', i, 'weight', row['weight'], float, 0, 100, blank_ok=True)
 
+def check_bonus(file, i, text):
+    """A bonus like 'luck+5 dodge-2 crit_mult+0.1' (trinkets in items.csv, perks in upgrades.csv)."""
+    for part in text.split():
+        match = re.fullmatch(r'(\w+)([+-])(\d+(?:\.\d+)?)', part)
+        if not match:
+            problem(file, i, f"bonus '{part}' should look like luck+5, dodge-2 or crit_mult+0.1 (no spaces inside).")
+        elif match.group(1) not in bonus_stats:
+            problem(file, i, f"bonus stat '{match.group(1)}' isn't a stat ({', '.join(bonus_stats)}).")
+        elif match.group(1) == 'crit_mult' and float(match.group(3)) >= 1:
+            problem(file, i, f"bonus '{part}' is huge: crit power runs about 1.3 to 1.9, so +0.1 to +0.3 is already a lot.")
+        elif match.group(1) != 'crit_mult' and '.' in match.group(3):
+            problem(file, i, f"bonus '{part}' should be a whole number (only crit_mult takes decimals, like crit_mult+0.1).")
+
+
 # ---------- items.csv ----------
 _, items = read('items.csv')
 seen = {}
@@ -164,17 +179,9 @@ for i, row in enumerate(items, start=2):
     if 'uses' in row:
         number('items.csv', i, 'uses', row['uses'], int, 1, 99, blank_ok=True)
     if 'bonus' in row and row['bonus']:
-        parts = row['bonus'].split()
-        for part in parts:
-            match = re.fullmatch(r'(\w+)([+-])(\d+(?:\.\d+)?)', part)
-            if not match:
-                problem('items.csv', i, f"bonus '{part}' should look like luck+5, dodge-2 or crit_mult+0.1 (no spaces inside).")
-            elif match.group(1) not in bonus_stats:
-                problem('items.csv', i, f"bonus stat '{match.group(1)}' isn't a stat ({', '.join(bonus_stats)}).")
-            elif match.group(1) == 'crit_mult' and float(match.group(3)) >= 1:
-                problem('items.csv', i, f"bonus '{part}' is huge: crit power runs about 1.3 to 1.9, so +0.1 to +0.3 is already a lot.")
-            elif match.group(1) != 'crit_mult' and '.' in match.group(3):
-                problem('items.csv', i, f"bonus '{part}' should be a whole number (only crit_mult takes decimals, like crit_mult+0.1).")
+        check_bonus('items.csv', i, row['bonus'])
+    if row.get('kind') and row['kind'] not in KIT_KINDS:
+        problem('items.csv', i, f"kind '{row['kind']}' should be one of {', '.join(KIT_KINDS)} (which upgrade kit fits it), or blank to let the game guess.")
     if kind == 'trinket' and not row.get('bonus'):
         problem('items.csv', i, "is a trinket with no bonus, so it does nothing.")
 
@@ -190,6 +197,33 @@ for i, row in enumerate(growth, start=2):
 missing = [c for c in classes if c not in [row['hero_class'] for row in growth if row]]
 if missing:
     problems.append(f"stat_growth.csv: no row for {', '.join(missing)}.")
+
+# ---------- upgrades.csv ----------
+upgrade_header, kits = read('upgrades.csv')
+seen = {}
+for i, row in enumerate(kits, start=2):
+    if row is None:
+        continue
+    key = row['kit']
+    if not re.fullmatch(r'[a-z0-9_]+', key or ''):
+        problem('upgrades.csv', i, f"the kit key '{key}' should be lowercase letters, numbers and underscores only (like whetstone_kit).")
+    if key in seen:
+        problem('upgrades.csv', i, f"the kit key '{key}' is already used on row {seen[key]}.")
+    seen[key] = i
+    if not row['kit_desc']:
+        problem('upgrades.csv', i, "'kit_desc' (the name players see) is empty.")
+    if not row['prefix']:
+        problem('upgrades.csv', i, "'prefix' is empty: it's the word that goes in front of a forged weapon's name (Honed Bastard Sword).")
+    fits = [kind.strip() for kind in (row['fits'] or '').split(',') if kind.strip()]
+    if not fits or any(kind not in KIT_KINDS for kind in fits):
+        problem('upgrades.csv', i, f"'fits' should be one or more of {', '.join(KIT_KINDS)}, separated by commas (it says '{row['fits']}').")
+    number('upgrades.csv', i, 'boost', row['boost'], int, 0, 200)
+    number('upgrades.csv', i, 'drop_chance', row['drop_chance'], int, 0, 100)
+    if row['bonus']:
+        check_bonus('upgrades.csv', i, row['bonus'])
+    for source in [s.strip() for s in (row['sources'] or '').split(',') if s.strip()]:
+        if source not in mob_classes:
+            problem('upgrades.csv', i, f"source '{source}' isn't a mob class from mobs.csv ({', '.join(mob_classes)}); leave sources blank for any fight.")
 
 if problems:
     print(f"Found {len(problems)} thing{'s' if len(problems) != 1 else ''} to fix:\n")
