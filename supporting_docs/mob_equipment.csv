@@ -2,7 +2,7 @@ item,item_desc,mob_class,damage_low,damage_high,special,attack_type,effect,weigh
 vomit,Happy's Regurgitation,Disgruntled Dwarf,6,12,TRUE,aoe,,,
 beer_stein,Stein-Toss,Disgruntled Dwarf,4,8,FALSE,melee,,,
 drunken_pile_drive,Drunken Pile Driver,Disgruntled Dwarf,8,12,FALSE,melee,,,
-charging_bull,Bull Charge,Disgruntled Dwarf,9,15,FALSE,both,,,
+bull_charge,Bull Charge,Disgruntled Dwarf,9,15,FALSE,both,,,
 great_axe,Great Axe,Disgruntled Dwarf,5,11,FALSE,melee,,,
 mithril_dagger,Mithril Dagger,Disgruntled Dwarf,18,34,TRUE,melee,,,
 mithril_knuckles,Mithril Knuckles,Disgruntled Dwarf,10,20,FALSE,melee,,,
@@ -19,3 +19,6 @@ terrifying_hiss,Terrifying Hiss,Krazy Kobolds,0,0,TRUE,melee,hiss,1,"if it lands
 spark_flick,Spark Flick,Krazy Kobolds,4,9,FALSE,range,,3,"a fizzy little zap from its fingertips; ranged, so it can't be parried"
 blink_stab,Blink Stab,Krazy Kobolds,6,12,TRUE,melee,blink,1.5,"teleports behind a ranged heroine (Hunter, Witch, Cleric): no dodging, no parrying"
 glowy_mushroom,Glowy Mushroom,Krazy Kobolds,-10,-4,FALSE,melee,,,a heal (negative numbers) for a hurt Kobold; works at their heal_chance
+lock_jaw,Lock Jaw,Alpha Wolf,20,30,TRUE,melee,,,
+mega_pounce,Mega Pounce,Alpha Wolf,15,20,TRUE,aoe,,,
+pounce,Pounce,Pack Wolf,10,15,FALSE,melee,,,
