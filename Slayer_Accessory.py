@@ -278,6 +278,7 @@ def initialize_mob(mob: object, mobs_table: list):
     mob.is_dead = False
     mob.enraged = False
     mob.is_mob = True
+    mob.status = {} # what's been done to it this fight: poisoned, bleeding, intoxicated, stunned, confused, blessed, strong (Slayer_Combat)
     mob.starting_ai = row['ai']
     mob.enraged_ai = row['enraged_ai']
     return mob
@@ -375,11 +376,27 @@ BONUS_WORDS = {
     'speed': ('quicker', 'slower'), 'max_hp': ('hardier', 'frailer'),
 }
 
+# What an item's effect column reads like in its label, when its hint column is blank. DRAFTS: Ted, a hint in
+# items.csv replaces these. (The effects themselves are in Slayer_Combat.)
+EFFECT_WORDS = {
+    'poison': 'poisons', 'bleed': 'leaves them bleeding all fight', 'hide': 'no attack: nearly impossible to hit until her next turn',
+    'blessing': "someone's next attack: better aim, more crits", 'strength': "someone's next 2 attacks hit harder",
+    'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
+}
+INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}
+
+def effect_hint(item : dict) -> str:
+    which = item.get('effect')
+    if which == 'intoxicate':
+        return INTOXICATE_WORDS[max(1, min(3, item_family(item['item'])[1]))]
+    return EFFECT_WORDS.get(which, '')
+
 def bonus_hint(item : dict) -> str:
-    """'luck+5 dodge-2' -> 'luckier, a bit easier to hit'. The item's hint column wins if it has one."""
+    """'luck+5 dodge-2' -> 'luckier, a bit easier to hit'. The item's hint column wins if it has one; an item with
+    an effect gets that effect's words."""
     if item.get('hint'):
         return item['hint']
-    words = []
+    words = [effect_hint(item)] if item.get('effect') else []
     for stat, sign, amount in parse_bonus(item['bonus']):
         up, down = BONUS_WORDS.get(stat, (f'more {stat}', f'less {stat}'))
         size = 'a bit ' if amount <= 3 else 'much ' if amount >= 7 else ''
@@ -403,17 +420,19 @@ def describe_item(item : dict, left : int = None) -> str:
         return f'{desc} (hail mary)'
     if item['attack_type'] == 'trinket':
         return f"{desc} (trinket{': ' + hint if hint else ''})"
-    what = f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing'
-    if item['attack_type'] == 'aoe':
-        what += ', hits them all'
-    elif item['attack_type'] == 'aoe_heal':
-        what += ', heals everyone'
+    parts = [] # 'Bastard Sword (7 - 11 damage)'; with no numbers (Hide, Blessing, Intoxication...) the hint says what it does
+    if low or high:
+        parts.append(f'{low} - {high} damage' if low >= 0 else f'{-high} - {-low} healing')
+        if item['attack_type'] == 'aoe':
+            parts.append('hits them all')
+        elif item['attack_type'] == 'aoe_heal':
+            parts.append('heals everyone')
     if item['uses']: # 'doses' for something she drinks, 'uses' for a bomb. Carried: what's left / the most it holds
         unit = 'dose' if low < 0 else 'use'
-        what += f", {item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f", {left}/{MAX_USES} {unit}s"
+        parts.append(f"{item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f"{left}/{MAX_USES} {unit}s")
     if hint:
-        what += f', {hint}'
-    return f'{desc} ({what})'
+        parts.append(hint)
+    return f"{desc} ({', '.join(parts)})" if parts else desc
 
 def parse_bonus(bonus) -> list:
     """'luck+5 dodge-2 crit_mult+0.1' -> [('luck', '+', 5), ('dodge', '-', 2), ('crit_mult', '+', 0.1)]"""
@@ -448,6 +467,23 @@ def sync_max_hp(heroine : object):
         heroine.health = max(1, heroine.health + want - have)
     heroine.health = min(heroine.health, heroine.starting_health)
 
+def item_family(item_name : str) -> tuple:
+    """Ranked items (Ted, Nov 14): intoxication_1, intoxication_2 and intoxication_3 are one family, ranks 1 to 3.
+    Returns (family, rank); an id with no number on the end is rank 1 of its own family, so deep_meditation and a
+    later deep_meditation_2 belong together too."""
+    match = re.fullmatch(r'(.+)_(\d+)', item_name)
+    return (match.group(1), int(match.group(2))) if match else (item_name, 1)
+
+def family_item(heroine : object, item_name : str):
+    """Another rank of this item's family that she's carrying, or None. A heroine only ever holds one rank."""
+    family = item_family(item_name)[0]
+    return next((x for x in heroine.inv if x != item_name and item_family(x)[0] == family), None)
+
+def outranked(heroine : object, item : dict) -> bool:
+    """She already has a higher rank of this than the one on offer."""
+    other = family_item(heroine, item['item'])
+    return bool(other) and item_family(other)[1] > item_family(item['item'])[1]
+
 def uses_left(heroine : object, item_name : str):
     return getattr(heroine, 'uses', {}).get(item_name)
 
@@ -461,12 +497,23 @@ def add_item(heroine : object, item : dict, uses : int = None) -> str:
         heroine.uses[item['item']] = min(MAX_USES, before + uses)
         sync_max_hp(heroine)
         return f"[narr]{heroine.name} tops up the {item['item_desc']} she already had: {before}/{MAX_USES}, now {heroine.uses[item['item']]}/{MAX_USES}.[/]"
-    heroine.inv.append(item['item'])
+    lower = family_item(heroine, item['item'])
+    if lower: # a higher rank takes the lower one's place: same slot, and a kit that was forged onto it carries over
+        heroine.inv[heroine.inv.index(lower)] = item['item']
+        heroine.upgrades = getattr(heroine, 'upgrades', {})
+        if lower in heroine.upgrades:
+            heroine.upgrades[item['item']] = heroine.upgrades.pop(lower)
+        if lower in heroine.starting_inv:
+            heroine.dropped = getattr(heroine, 'dropped', []) + [lower] # the old rank doesn't come back next run
+    else:
+        heroine.inv.append(item['item'])
     if item['uses']:
         heroine.uses[item['item']] = uses
     if item['item'] in getattr(heroine, 'dropped', []):
         heroine.dropped.remove(item['item']) # her own starting gear, back from the stash
     sync_max_hp(heroine)
+    if lower:
+        return f"[narr]{heroine.name} takes {item['item_desc']}.  It replaces her {get_item(lower)['item_desc']}.[/]"
     return f"[narr]{heroine.name} takes {item['item_desc']}.[/]"
 
 def remove_item(heroine : object, item_name : str):
@@ -549,6 +596,8 @@ def has_room(heroine : object, item : dict) -> bool:
     kind = slot_kind(item)
     if item['uses'] and item['item'] in heroine.inv:
         return not stack_full(heroine, item) # tops up what she has
+    if family_item(heroine, item['item']):
+        return True # it takes the place of the rank she has
     return kind == 'none' or len(carried(heroine, kind)) < slots(heroine, kind)
 
 async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern : bool, new_can_stash : bool = True):
@@ -610,6 +659,9 @@ async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bo
         if stack_full(who, item):
             await say(f"[narr]{who.name} can't carry any more {item['item_desc']} than she's got.  Pick someone else.[/]")
             continue
+        if outranked(who, item):
+            await say(f"[narr]{who.name} already has better than that: {get_item(family_item(who, item['item']))['item_desc']}.  Pick someone else.[/]")
+            continue
         if not has_room(who, item):
             result = await make_room(who, item, party_dict, at_tavern)
             if result == 'back':
@@ -628,7 +680,8 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
     party = party_dict['party']
     found = []
     for source in [mob] + [m for m in others if m is not mob and m.is_dead]:
-        for item in [row for row in items_table if row['source'] == source.mob_class]:
+        tables = (source.mob_class, getattr(source, 'loot_class', None)) # a mini-boss also rolls a table of its own (Kobold Shaman)
+        for item in [row for row in items_table if row['source'] in tables]:
             if item['item'] in AFFLICTIONS:
                 able = [heroine for heroine in party if can_use(heroine, item)]
                 for heroine in party: # only ever one of them has it
@@ -710,6 +763,9 @@ async def visit_stash(party_dict : dict) -> dict:
                 continue
             entry = hers[pick]
             item = get_item(entry['item'])
+            if outranked(who, item):
+                await say(f"[narr]{who.name} already has better than that: {get_item(family_item(who, item['item']))['item_desc']}.[/]")
+                continue
             stash.remove(entry) # out of the stash first, so a swap can put her old one in its place
             if not has_room(who, item):
                 result = await make_room(who, item, party_dict, True, new_can_stash=False)
@@ -770,6 +826,8 @@ def weapon_kind(item : dict):
     attack = item['attack_type']
     if attack in ('trinket', 'hail_mary') or item['uses'] or item['item'] in AFFLICTIONS:
         return None
+    if not item['damage_low'] and not item['damage_high']:
+        return None # nothing to make 20% stronger: Hide, Blessing, Strength, Intoxication, Confusion
     if attack in ('heal', 'aoe_heal'):
         return 'heal'
     from ast import literal_eval

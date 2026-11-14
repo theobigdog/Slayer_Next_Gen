@@ -32,6 +32,8 @@ LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its sta
 MINI_BOSS = True  # one Kobold in every pack is the mini-boss (Ted, Nov 10). False = the plain pack, as it was.
 BOSS_SHARES = 2   # his slice whenever the pack's HP is shared out: 2 = twice a regular Kobold's
 BOSS_LABEL = 'Kobold Shaman' # what his box says. DRAFT, like his names: Ted, rename freely.
+BOSS_LOOT = 'Kobold Shaman'  # his own loot table: items.csv rows with this as their source, on top of the regular Kobold drops
+                             # (Ted, Nov 14). It's also in check_data.py's LOOT_SOURCES, so rename it in both places.
 BOSS_NAMES = ['Grand Poobah', 'Big Skab', 'Chief Gristle', 'Mother Squeak']
 
 # How tough the Kobolds are, by party size: (HP, damage), each a multiplier. HP is starting_hp from mobs.csv
@@ -174,6 +176,7 @@ def make_pack(party_size : int) -> list:
     if MINI_BOSS:
         boss = kobolds[0]
         boss.mini_boss, boss.shares, boss.label, boss.name = True, BOSS_SHARES, BOSS_LABEL, random.choice(BOSS_NAMES)
+        boss.loot_class = BOSS_LOOT
     slice_hp = max(1, round(total / sum(k.shares for k in kobolds)))
     for kobold in kobolds:
         kobold.starting_health = kobold.health = slice_hp * kobold.shares
