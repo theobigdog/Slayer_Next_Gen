@@ -156,6 +156,37 @@ def party_from_data(data : dict) -> dict:
         heroine = hero_class.__new__(hero_class) # an empty heroine: no new stats rolled
         vars(heroine).update(saved)
         party_dict['party'].append(heroine)
+    return catch_up_save(party_dict)
+
+def catch_up_save(party_dict : dict) -> dict:
+    """A save made before items.csv changed (Ted, Nov 15: a saved party crashed on a Hunting Knife that no longer
+    exists). Anything the game doesn't know any more is quietly taken out of every bag, The Stash and the kits;
+    her starting kit becomes today's kit for her class, and any starting item she's never had is handed to her."""
+    import Slayer_Heroes # imported here, because Slayer_Heroes imports this file
+    items = {row['item'] for row in items_table}
+    kits = {row['kit'] for row in upgrades_table}
+    for heroine in party_dict['party']:
+        old_kit = list(heroine.starting_inv)
+        kit_now = Slayer_Heroes.get_starting_inv(heroine.hero_class, items_table)
+        heroine.inv = [x for x in heroine.inv if x in items]
+        heroine.inv += [x for x in kit_now if x not in old_kit and x not in heroine.inv and not family_item(heroine, x)] # new to her class since she was saved
+        heroine.starting_inv = kit_now
+        for name in ('dropped', 'spent_specials'):
+            if hasattr(heroine, name):
+                setattr(heroine, name, [x for x in getattr(heroine, name) if x in items])
+        for name in ('uses', 'upgrades', 'cooldowns'):
+            if hasattr(heroine, name):
+                setattr(heroine, name, {k: v for k, v in getattr(heroine, name).items() if k in items and (name != 'upgrades' or v in kits)})
+        if hasattr(heroine, 'kits'):
+            heroine.kits = [k for k in heroine.kits if k in kits]
+        if getattr(heroine, 'wielding', None) not in kits:
+            heroine.wielding = None
+    party_dict['stash'] = [e for e in party_dict.get('stash', []) if e['item'] in items]
+    for entry in party_dict['stash']:
+        if entry.get('upgrade') not in kits:
+            entry['upgrade'] = None
+    if 'kit_stash' in party_dict:
+        party_dict['kit_stash'] = [k for k in party_dict['kit_stash'] if k in kits]
     return party_dict
 
 # Saves are scrambled so players can't just open one and read or edit their stats.
