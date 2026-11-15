@@ -58,6 +58,19 @@ async def name_heroine(prompt : str, choose_names : bool) -> str:
         return await acc.check_bad_heroine_name(await ask_text(prompt))
     return auto_pick_name()
 
+async def healer_ok(new_party : list, selection : str, party_count : int) -> bool:
+    """The nudge toward a healer (Ted, Nov 15): on the LAST pick, if nobody so far is a Cleric and this one isn't
+    either, the narrator double-checks. Yes keeps the pick; no goes back to the class list. DRAFT lines."""
+    last_pick = len(new_party) == party_count - 1
+    if not last_pick or selection == 'Cleric' or any(h.hero_class == 'Cleric' for h in new_party):
+        return True
+    sure = await yes_no("[narr]Whoa, whoa, whoa.  No Cleric?  Nobody to patch you up when shit goes sideways?  "
+                        "You're SURE you don't want a healer?[/]  ")
+    if sure:
+        await say("[narr]Bold.  Stupid, but bold.  I'll start writing the eulogies.[/]")
+        await pause()
+    return sure
+
 async def create_new_party(name: str) -> list:
     new_party = []
     await clear()
@@ -113,6 +126,10 @@ async def create_new_party(name: str) -> list:
                 "\nLet's try that again.  Of the listed Class options, which number would you like to add?  ",
             )
             selection = hero_classes[pick]
+            while not await healer_ok(new_party, selection, party_count):
+                pick = await choose("\nWhich Class would you like to add?  ", [hero_class.replace('_', ' ') for hero_class in hero_classes],
+                                    "\nLet's try that again.  Of the listed Class options, which number would you like to add?  ")
+                selection = hero_classes[pick]
             heroine_name = await name_heroine(f"\nOk, let's have a name for your {acc.class_label(selection)}:  ", choose_names) # the prompt names the class, so it stays on screen while naming
             new_party.append(get_hero(selection, heroine_name))
     else:
