@@ -268,12 +268,18 @@ class WindowUI:
         if error is not None and not isinstance(error, SystemExit):
             self.error = ''.join(traceback.format_exception(error))
             print(self.error, file=sys.stderr)
-            self.lines = ['[red]The game crashed:[/]'] + self.error.strip().splitlines()[-6:]
+            cause = self.error.split('\nThe above exception')[0] # when one error set off another, the first is the real one
+            self.lines = ['[red]The game crashed:[/]'] + cause.strip().splitlines()[-6:]
             try:  # the whole error, in a file a player can send you (the window only has room for the last few lines)
                 (acc.player_dir / 'crash_log.txt').write_text(self.error, encoding='utf-8')
                 self.lines += ['', 'The whole error is in crash_log.txt, in the game folder.']
             except Exception:
                 pass  # can't write it (read-only folder, or the browser): the window still shows the error
+            # Start the text box over, the way clear() does. Otherwise whatever page the last screen left it on
+            # hides the message: an empty box saying 'more' that no click gets past (Ted, Nov 15: it just froze).
+            self.scroll_back, self.fresh_from, self.mark_new, self.echo_line = 0, 0, False, None
+            self.read_vis, self.more, self.list_open, self.links, self.overlay = 0, False, False, [], None
+            self.text_version += 1
             self.revealed = self.total_chars()
         self.mode = 'end'
         self.waiting = ('close', None, None)
