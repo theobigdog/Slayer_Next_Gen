@@ -1115,6 +1115,20 @@ async def get_stat_increases(party_dict : dict, hints : int = 1) -> dict:
         await pause()
     return party_dict
 
+def rest_party(party_dict : dict) -> list:
+    """The breather between dungeon fights (Ted, Nov 15): everyone still standing is patched up to full HP and
+    shakes off whatever's on her. The fallen stay fallen (the Token is the only way back mid-run). Returns who
+    actually needed it."""
+    patched = []
+    for heroine in party_dict['party']:
+        if heroine.is_dead:
+            continue
+        if heroine.health < heroine.starting_health:
+            patched.append(heroine)
+        heroine.health = heroine.starting_health
+        heroine.status = {}
+    return patched
+
 def refresh_party(party_dict : dict, increment : bool) -> dict:
     """A fresh start: everyone alive at full health with her full starting kit (the Token and Big Badda Boom
     included), and a blown-up Sapper back in one piece. A wipe is a full dungeon restart, so it gets this too.

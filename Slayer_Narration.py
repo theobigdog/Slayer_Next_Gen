@@ -384,6 +384,18 @@ async def stats_after_fight(party_dict : dict) -> None:
     empty and only the STAT_HINTS lines play."""
     pass
 
+async def rest_between_fights(party_dict : dict, patched : list) -> None:
+    """After the stat raises: the living have just been healed to full (acc.rest_party). patched = the ones who
+    were hurt. The fallen stay down, so this is a good spot to rub that in. DRAFT lines."""
+    fallen = [h for h in party_dict['party'] if h.is_dead]
+    if patched:
+        await say("\n[narr]Everyone catches their breath, slaps on some bandages, and passes the flask around.  Good as new.  Well.  The ones still breathing are.[/]" if fallen
+                  else "\n[narr]Everyone catches their breath, slaps on some bandages, and passes the flask around.  Good as new.[/]")
+    if fallen:
+        names = fallen[0].name if len(fallen) == 1 else ', '.join(h.name for h in fallen[:-1]) + f' and {fallen[-1].name}'
+        await say(f"[narr]{names} {'stays' if len(fallen) == 1 else 'stay'} right where {'she' if len(fallen) == 1 else 'they'} fell, though.  No bandage fixes dead.[/]")
+    await pause()
+
 async def dungeon_wipe(party_dict : dict, mobs : list) -> None:
     """Plays when the whole party dies in the dungeon. That ends the run."""
     await say("[narr]DRAFT: Well.  Shit.  That's the run, folks.[/]")

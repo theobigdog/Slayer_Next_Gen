@@ -134,11 +134,13 @@ async def between_fights(party_dict: dict):
 
 
 async def between_battles(party_dict: dict, mobs: list) -> dict:
-    """After a won fight in the dungeon: gamble the Token on anyone who's down, the loot, then the stat raises."""
+    """After a won fight in the dungeon: gamble the Token on anyone who's down, the loot, the stat raises, then a
+    breather that heals everyone still standing to full (Ted, Nov 15)."""
     party_dict = await combat.token_between_battles(party_dict)
     party_dict = await acc.get_loot(mobs[0], party_dict, mobs) # every one of them rolls its own drops
     await nar.stats_after_fight(party_dict)
     party_dict = await acc.get_stat_increases(party_dict)
+    await nar.rest_between_fights(party_dict, acc.rest_party(party_dict)) # full HP for the living; the dead stay dead
     return party_dict
 
 
