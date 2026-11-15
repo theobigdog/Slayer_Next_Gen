@@ -392,6 +392,34 @@ class WindowUI:
             self.typed += char
             self.caps = char == ' '  # capital after a space, like a phone does for names
 
+    def draw_links(self, bits, mouse):
+        """The List is drawn word by word, but it's one link (Ted, Nov 15: 'The' and 'List' lit up separately). The
+        pieces on each line join into one clickable box, the space between included, and hovering any of it
+        underlines all of it (both lines, if it wrapped) and shows the hand pointer."""
+        boxes = []  # (rect, color)
+        for rect, color, y in bits:
+            if boxes and boxes[-1][0].y == rect.y and rect.x - boxes[-1][0].right < 20:
+                boxes[-1] = (boxes[-1][0].union(rect), boxes[-1][1])
+            else:
+                boxes.append((rect.copy(), color))
+        self.links = [(rect, 'the list') for rect, _ in boxes]
+        hovering = any(rect.collidepoint(mouse) for rect, _ in boxes)
+        if hovering:
+            for rect, color in boxes:
+                pygame.draw.line(self.screen, color, (rect.x, rect.bottom - 3), (rect.right, rect.bottom - 3), 1)
+        self.set_pointer(hovering)
+
+    def set_pointer(self, hand):
+        """The hand pointer over something clickable in the text, the arrow everywhere else. Only changed when it
+        needs to be, and skipped quietly where the browser or system doesn't offer it."""
+        if getattr(self, 'pointer_hand', False) == hand:
+            return
+        self.pointer_hand = hand
+        try:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if hand else pygame.SYSTEM_CURSOR_ARROW)
+        except (pygame.error, AttributeError):
+            pass
+
     def on_control(self, pos):
         return any(b.rect.collidepoint(pos) for b in self.buttons) or any(r.collidepoint(pos) for r, _ in self.targets)
 
@@ -791,6 +819,7 @@ class WindowUI:
         budget = self.revealed - sum(n for _, n, _ in vis[:top])
         y = box.y + 16
         self.links = []
+        link_bits = []  # (rect, color, line y) for each piece of The List; joined up below so it acts like one button
         mouse = pygame.mouse.get_pos()
         for runs, n, number in vis[top:end]:
             if budget <= 0:
@@ -808,12 +837,10 @@ class WindowUI:
                     surf = self.ink('text', shown, color) if shown == chunk else self.fonts['text'].render(shown, True, color)
                     self.screen.blit(surf, (x, y))
                     if link:
-                        rect = surf.get_rect(topleft=(x, y))
-                        self.links.append((rect, 'the list'))
-                        if rect.collidepoint(mouse):  # a hint that it's clickable, only while hovering
-                            pygame.draw.line(self.screen, color, (rect.x, rect.bottom - 3), (rect.right, rect.bottom - 3), 1)
+                        link_bits.append((surf.get_rect(topleft=(x, y)), color, y))
                     x += surf.get_width()
             y += self.line_h
+        self.draw_links(link_bits, mouse)
         kind = self.waiting[0] if self.waiting else None
         if kind == 'text':
             keyboard = self.keyboard_on()
