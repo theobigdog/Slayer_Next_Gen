@@ -490,12 +490,12 @@ async def heroine_buff(heroine : object, item : dict, party_dict : dict, mobs : 
         return (party_dict, mobs, False)
     if which == 'blessing':
         status(target)['blessed'] = dict(BLESSING)
-        what = f"{'Its' if target.is_mob else 'Her'} next attack is going to be something special"
+        what = f"{'Their' if target.is_mob else 'Her'} next attack is going to be something special"
     else:
         status(target)['strong'] = {'attacks': STRENGTH_ATTACKS}
-        what = f"{'Its' if target.is_mob else 'Her'} next {STRENGTH_ATTACKS} attacks will hit harder"
+        what = f"{'Their' if target.is_mob else 'Her'} next {STRENGTH_ATTACKS} attacks will hit harder"
     if target.is_mob:
-        await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and it's coming for one of you.")
+        await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and they're coming for one of you.")
         await pause()
         return (party_dict, mobs, False) # helping a mob never earns the luck roll
     await say(f"{heroine.name} lays her {item['item_desc']} on {who}.  {what}.  [narr]Don't waste it.[/]")
@@ -722,6 +722,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
         await pause()
         return (party_dict, mobs, False)
     inv = [x for x in heroine.inv if acc.get_item(x)['attack_type'] != 'trinket'] # trinkets just ride along in the bag
+    inv.sort(key=lambda x: bool(acc.get_item(x)['special'])) # specials at the bottom of the list, in the order she carries them (Ted, Nov 15)
     inv_len = len(inv)
     if inv_len < 1:
         await say(f"[narr]{heroine.name} has no inventory, so I guess she's skipping this turn...[/]")
