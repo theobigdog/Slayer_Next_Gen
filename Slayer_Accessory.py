@@ -346,18 +346,20 @@ AFFLICTIONS = {
 #   gear     GEAR_SLOTS (6): weapons, bandages, bombs... everything that isn't one of the two below
 #   trinkets her class's trinket_slots (hero_stats.csv, 2-4): attack_type trinket, a bonus while carried
 #   potion   POTION_SLOTS (1): a healing item with uses (her own; when it's used up, she's out)
-# The Token and afflictions (the norovirus) don't take a slot. Loot is kept across runs and through wipes.
+# The Token, afflictions (the norovirus) and ABILITIES don't take a slot. Loot is kept across runs and through wipes.
 # The stash at Happy's tavern holds the party's spare gear: at the tavern a full slot can send things to the
 # stash; in the dungeon there's no stash, so a full slot means dropping something, and dropped is gone for good.
 # Starting gear can be stashed or dropped too; it doesn't come back next run unless it was only used up.
 GEAR_SLOTS, POTION_SLOTS = 6, 1
+ABILITIES = {'deep_scratch', 'angry_bite', 'hide'} # part of her, not something she carries: no bag slot, and she can't
+                                                  # stash or drop them (Ted, Nov 15: the Sapper started 8/6)
 MAX_USES = 4 # a bottle (or a pouch of bombs) holds this many uses at most, whatever it came with (Ted, Nov 10).
               # The uses column in items.csv is how many a found one has in it: 1 to 3, so there's room to top it up.
 SLOT_NAMES = {'gear': 'bag', 'trinket': 'trinkets', 'potion': 'potion'}
 
 def slot_kind(item : dict) -> str:
-    """'none' (the Token, afflictions), 'trinket', 'potion' or 'gear'."""
-    if item['item'] == 'token_of_the_wise_witch' or item['item'] in AFFLICTIONS:
+    """'none' (the Token, afflictions, ABILITIES), 'trinket', 'potion' or 'gear'."""
+    if item['item'] == 'token_of_the_wise_witch' or item['item'] in AFFLICTIONS or item['item'] in ABILITIES:
         return 'none'
     if item['attack_type'] == 'trinket':
         return 'trinket'
