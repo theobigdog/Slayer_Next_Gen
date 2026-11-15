@@ -160,7 +160,7 @@ def update_health(to_update : object, delta : int) -> object:
 
 async def check_tough(tough : bool, target : object) -> None:
     if tough and not target.is_mob:
-        await say(f"{target.name}, being the tough muthafucka she is, shrugs off half the damage.  [narr]Hell yeah![/]")
+        await say(f"{target.name}, being the bad mother fucker she is, shrugs off half the damage.  [narr]Hell yeah![/]")
     elif tough and target.is_mob:
         await say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF the damage!")
 
@@ -644,7 +644,11 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         damage = int(damage)
         if target.health <= damage:
             damage = target.health
-        if mob_rolls['scare'] and heroine_rolls['fear']:
+        if mob_rolls['scare'] and heroine_rolls['fear'] and item['item'] == 'happys_norovirus_regurgitation':
+            tally(heroine, 'scared') # fear doesn't stop the puke, it makes it worse (Ted, Nov 15)
+            damage = min(int(damage * SCARED_PUKE), target.health)
+            await say(f"{heroine.name} takes one look at {target.name} and her stomach does a backflip.  [narr]Oh no.  Fear makes it come out FASTER.[/]") # DRAFT line
+        elif mob_rolls['scare'] and heroine_rolls['fear']:
             tally(heroine, 'scared')
             await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  [narr]Honestly?  Fair.  That's a lost turn, though.[/]")
             await pause()
@@ -709,6 +713,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
             del heroine.status['poisoned']
         if heroine.is_dead:
             await say(f"\n[green]The poison finishes what the Kobold started:[/]  it burns {heroine.name} for -{sting} hp, and she drops.  [red]slain[/]")
+            await say("[narr]Did you really just let her wither away like that?  What an unfitting death.  They might torture her for it in the afterlife.[/]")
             await check_last_cleric([heroine], party_dict['party'])
             await pause()
             return (party_dict, mobs, False)
@@ -849,6 +854,8 @@ HEAL_TRY = {'easy': 0.10, 'medium': 0.25, 'hard': 0.6} # how often a mob with a 
 #   poison - a normal hit; if it lands, POISON_CHANCE of the time she's poisoned for her next POISON_TURNS turns
 #   front - an area attack that only reaches the melee heroines up front (the Alpha Wolf's Mega Pounce)
 #   howl  - no damage; every heroine standing is scared half as often as her fear stat says, and a scared one loses her next turn
+SCARED_PUKE = 1.5 # Happy's Norovirus Regurgitation: a scared heroine pukes this much harder instead of losing her turn
+
 MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison', 'front', 'howl')
 POISON_CHANCE, POISON_TURNS, POISON_DAMAGE = 0.5, 3, (2, 3) # Kobold Bite (Ted, Nov 8); the damage ticks at the start of her turn
 GAS_MAX = 3 # one Gas Release reaches at most this many heroines, and never more than half the front line (rounded up)
