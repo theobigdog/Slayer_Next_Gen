@@ -262,7 +262,7 @@ async def happy_stats(party_dict : dict) -> None:
     h = random.choice(party_dict['party'])
     us = 'us' if many else 'me'
     await say(f"{h.name} mutters just loudly enough to be heard, \"I swear to fucking Christ, if you call {us} 'wee {lassies}' one more time, I'm going to slit your fucking th...\"")
-    await say(f'A quick look from Happy, eyes once again burning with purple fire, changes her mind, and she chooses not to complete the sentence.  [narr]Good choice, {h.name}.[/]')
+    await say(f'One quick look from Happy, eyes once again burning with purple fire, and she instantly sobers up a bit from all the adrenaline.  She chooses not to complete the sentence.  [narr]Good choice, {h.name}.[/]')
     await pause()
     await say('\"As I was sayin\', wi\' how quickly ye seem tae develop, I\'d think if ye stick at it for a bit, ye\'ll be a FORCE tae be reckoned with.\"')
     await say('\"Or just see what this dungeon is all aboot, this one time.  The choice is yers, but I hope ye enjoy yer adventure!\"')
@@ -356,7 +356,7 @@ async def kobolds_appear(party_dict : dict, kobolds : list) -> None:
     await say(f'As a group, the kobolds all glare at {the_party} and begin to hiss loudly.')
     await say('[narr]Them some crazy-looking motherfuckers, and they look hungry!  I wonder when they last ate?  Good luck![/]')
     await say(f'\"Already?\" sighs {h1.name}.  \"I\'m still barely recovered from that fat dwarf!\"  [narr]It doesn\'t appear that the kobolds care much what state you\'re in.[/]')
-    await say(f'One of them stands tall and sticks out his chest.  \"Me {k1.name}, that {k2.name}.\"  [narr]These fuckers speak English???[/]  \"And you are...\"')
+    await say(f'One of them stands tall and sticks out his chest.  \"Me {k1.name}, that {k2.name}.\"  [narr]These fuckers speak English???[/]  \"And you are...\"  [narr]Oh look at this, a fucking diplomat![/]')
     await say(f'\"{h1.name},\" says {h1.name}, disgusted that she is even speaking to this miserable creature.')
     await pause()
     await say(f'\"Oh, good, good-good, good-good,\" chatters {k1.name} excitedly.')
@@ -394,10 +394,13 @@ async def happy_forge(party_dict : dict) -> None:
     first): Happy offers the forge out back. The forge menu happens in the middle (the acc.visit_forge line).
     DRAFT lines, for Ted to rewrite. (Claude, Nov 14)"""
     carried_home = acc.stash_carried_kits(party_dict)
-    if not party_dict.get('kit_stash'):
-        return
     for line in carried_home:
         await say(line)
+    if not acc.usable_kits(party_dict): # no kit fits anything anyone's carrying: no trip to the forge (Ted, Nov 15)
+        if carried_home:
+            await say("[narr]None of those fit anything you're carrying, though.  They'll keep in The Stash.[/]")
+            await pause()
+        return
     await say('Happy spots the kits and his eyes light up.  \"Och, ye\'ve got some o\' the old recipes!  C\'mon oot back tae the forge, an\' I\'ll fire her up.\"')
     if not await yes_no('Head out back to the forge?  '):
         await say('\"Suit yerselves.  They\'ll keep in The Stash.\"')
