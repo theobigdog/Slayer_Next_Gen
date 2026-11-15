@@ -27,7 +27,7 @@ angry_bite,Angry Bite,['Sapper'],3,10,melee,FALSE,starting,,,,,,
 hide,Hide,['Sapper'],0,0,melee,FALSE,starting,,,,,hide,
 tooth_sharpened_dagger,Tooth-Sharpened Dagger,['Sapper'],10,18,melee,TRUE,starting,,,,,bleed,
 big_badda_boom,Big Badda Boom,['Sapper'],50,75,aoe,TRUE,starting,,,,,,
-healing_wand,Healing Wand,['Cleric'],-20,-10,heal,FALSE,starting,,,,,,
+healing_wand,Healing Wand,['Cleric'],-14,-6,heal,FALSE,starting,,,,,,
 strength,Strength,['Cleric'],0,0,heal,FALSE,starting,,,,,strength,
 blessing,Blessing,['Cleric'],0,0,heal,TRUE,starting,,,,,blessing,5
 deep_meditation,Deep Meditation,['Cleric'],-15,-8,aoe_heal,TRUE,starting,,,,,,
