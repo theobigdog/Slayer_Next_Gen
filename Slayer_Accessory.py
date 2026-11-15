@@ -10,7 +10,7 @@ from pathlib import Path
 from Slayer_UI import say, wait, pause, ask_text
 
 
-whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls", "I haven't had a day off since the Third Age, but sure, let's go", "I'm running on four hours of sleep and pure spite, but for YOU? Anything", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
+whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good.", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls.", "I haven't had a day off since the Third Age, but sure, let's go.", "I'm running on four hours of sleep and pure spite, but for YOU? Anything.", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
 
 game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where it's launched from
 docs_dir = game_dir / 'supporting_docs'
@@ -336,7 +336,7 @@ def item_specific_wipe_taunts() -> list:
 # Its bonus column works like a trinket's: the norovirus is dodge-5 (she doesn't want to move much).
 AFFLICTIONS = {
     'happys_norovirus_regurgitation': {
-        'before': '"Oh, an\' one last thing...."', # Happy, right before he leans in (Ted, Nov 10)
+        'before': '"Oh, an\' I almost forgot.  One last thing on yer gear...."', # Happy, right before he leans in (Ted, Nov 10)
         'caught': "{mob} leans in close and coughs right in {who}'s face.  [narr]Aaaand {who} has caught Happy's norovirus.  She's stuck with it for the rest of this run, but hey, now she can puke on people too.[/]",
         'cured': "[narr]Good news: {who}'s norovirus finally cleared up.[/]",
     },
@@ -730,7 +730,7 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
     kits = [kit for kit in upgrades_table if kit_drops_here(kit, fought) and roll_percent(kit['drop_chance'] or 0)] # rare: once per fight, not per mob
     if found or kits:
         import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
-        await nar.loot_found(party_dict)
+        await nar.loot_found(party_dict, at_tavern)
     for item, source in found:
         await give_loot(item, source, party_dict, at_tavern)
     for kit in kits:
@@ -999,7 +999,6 @@ DOING = { # what she did -> the stats it helps
 }
 STAT_CAP, FEAR_FLOOR, CRIT_MULT_CAP = 95, 5, get_dice_cutoffs()['crit_mult_cutoff']
 # The hint lines themselves (STAT_HINTS) are Ted's, in Slayer_Narration.py.
-HINT_CHANCE = 0.5 # how often a heroine gets a hint after a fight
 
 def growth_weights(heroine : object) -> dict:
     leaning = find_row(stat_growth_table, 'hero_class', heroine.hero_class)
@@ -1050,17 +1049,20 @@ def improve_heroine(heroine : object) -> dict:
     heroine.fight_tally = {}
     return changes
 
-async def get_stat_increases(party_dict : dict, hint_chance : float = HINT_CHANCE) -> dict:
-    """Every heroine improves; some get a STAT_HINTS line. hint_chance=1 (Happy's speech) gives everyone one."""
+async def get_stat_increases(party_dict : dict, hints : int = 1) -> dict:
+    """Every heroine improves, but only `hints` of them (picked at random) get a STAT_HINTS line: just enough to
+    hint that something's happening, not a roll call (Ted, Nov 15). Dev mode still lists everyone's numbers."""
     import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file
     lines = []
+    standing = [h for h in party_dict['party'] if not h.is_dead] or party_dict['party'] # hint about someone who's on her feet
+    hinted = random.sample(standing, min(hints, len(standing)))
     for heroine in party_dict['party']:
         changes = improve_heroine(heroine)
         if dev_mode():
             shown = ', '.join(f"{stat} {'-' if stat == 'fear' else '+'}{abs(change)} ({heroine.stats[stat] if stat != 'max_hp' else heroine.starting_health})"
                               for stat, change in changes.items())
             lines.append(f"[dev] {heroine.name}: {shown}")
-        if random.random() < hint_chance:
+        if heroine in hinted:
             biggest = max(changes, key=lambda stat: abs(changes[stat]) * (30 if stat == 'crit_mult' else 1))
             lines.append(f"[narr]{nar.STAT_HINTS[biggest].format(name=heroine.name)}[/]")
     for line in lines:
@@ -1119,6 +1121,16 @@ def restore_starting_items(heroine : object):
         if backup:
             heroine.inv.append(backup)
             heroine.dropped = [x for x in dropped if x != backup]
+
+MOB_DEBUFFS = ('poisoned', 'bleeding', 'intoxicated', 'stunned', 'confused')
+
+def clear_head(mob : object) -> bool:
+    """A boss that enrages shakes off everything the heroines put on it (Ted, Nov 15), the way a Cleric's heal
+    clears poison out of a heroine. Only at the moment it enrages: they can all be put back on. Anything that helps
+    it (a Blessing or Strength some Cleric gave it) stays. Returns whether there was anything to shake off."""
+    status = getattr(mob, 'status', None) or {}
+    had = [key for key in MOB_DEBUFFS if status.pop(key, None)]
+    return bool(had)
 
 def wipe_party(party_dict : dict) -> dict:
     """Everyone dies at once (killing enraged Happy). Who was still standing, and with how much HP, is kept in

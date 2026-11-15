@@ -22,6 +22,8 @@ class Disgruntled_Dwarf:
         await say("\"Och, lassies,\" he growls, \"ye really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")
         self.is_dead = False # setting to True is necessary just in case the blow that caused Happy to enrage also "killed" him
         self.enraged = True
+        if acc.clear_head(self): # DRAFT line
+            await say(f"{self.name} shakes his head like a wet dog, and everything you'd put on him is gone.  [narr]Well, shit.  You can always do it again.[/]")
         self.starting_health = self.stats['enraged_hp']
         self.health = self.stats['enraged_hp']
 

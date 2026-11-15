@@ -84,6 +84,8 @@ class Pack:
         """Everyone still standing is enraged, and without the link that never wears off."""
         for kobold in self.members:
             if not kobold.is_dead:
+                if not kobold.enraged:
+                    acc.clear_head(kobold) # enraging shakes off the heroines' debuffs (Ted, Nov 15)
                 kobold.enraged = True
         self.raging = True
 
@@ -126,6 +128,8 @@ class Krazy_Kobold:
         if not angry:
             return
         calm = [k for k in angry if not k.enraged]
+        for kobold in calm:
+            acc.clear_head(kobold) # enraging shakes off the heroines' debuffs (Ted, Nov 15); buffs stay
         for kobold in angry:
             kobold.enraged = True
         pack.raging, pack.fresh, pack.acted = True, True, False

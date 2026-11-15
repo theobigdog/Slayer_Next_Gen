@@ -162,7 +162,7 @@ async def happy_resurrection(party_dict : dict) -> None:
     about his 'Disgruntled' bouncer job here.) Leave it empty and nothing plays."""
     h = random.choice(party_dict['party'])
     solo = len(party_dict['party']) == 1 # a party of one gets her name instead of "each heroine"
-    await say(f"\"Aye, aye, I've done some fine work today,\" he mutters to himself, chuckling.  That is, until he catches a glimpse of {h.name}\'s mangled corpse.")
+    await say(f"\"Aye, aye, we've done some fine work today, lads,\" he mutters to himself, chuckling.  That is, until he catches a glimpse of {h.name}\'s mangled corpse.")
     await say("Happy stops to look deeply into the blank eyes of the poor, late heroine.  That purple flame briefly lights up in Happy's eyes again, and then he appears to suddenly experience a complete metaphysical breakdown.")
     await say("Huge tears well up in his eyes as he thinks back to all of his countless victims over the years.")
     await say(f"[narr]Happy my ass...[/]")
@@ -183,6 +183,7 @@ async def happy_resurrection(party_dict : dict) -> None:
     await say("[narr]Oh.  Oh my.  I just went from 6 to midnight....[/]")
     await say(f"{h.name if solo else 'The final party member'} comes back to full consciousness, and Happy\'s face softens, the staccato runes slow down and eventually cease completely.")
     await say('\"Welcome Back!\" Happy booms.')
+    await pause()
 
 
 async def carrying_rules(party_dict : dict) -> None:
@@ -218,8 +219,8 @@ async def happy_loot(party_dict : dict) -> None:
     many = len(party_dict['party']) > 1
     heroines = 'heroines' if many else 'heroine'
     await say('\"Now dinnae ye go thinkin\' that Happy is just a big softy, but he isnae stingy neither!\" he starts.  \"Seems tae me ye could use a wee bit o\' extra help.  I honestly dinnae have a great deal here tae help ye oot, but I dinnae want tae quite literally toss ye tae the wolves withoot any help!\"')
-    await say('[narr]Goddamnit, that had better not be foreshadowing - Hey I\'m on your side here, but I doubt you can handle a challenge of that magnitude![/]')
-    await say(f'{h1.name} whispers, \"Wolves?  I fucking hate wolves....\"')
+    await say('\n[narr]Goddamnit, that had better not be foreshadowing - Hey I\'m on your side here, but I doubt you can handle a challenge of that magnitude![/]')
+    await say(f'\n{h1.name} whispers, \"Wolves?  I fucking hate wolves....\"')
     await say(f'\"Breathe easy, wee lassie,\" Happy reassures.  \"We havenae had any wolves in these parts for at least the last week or two.  Nae stress.\"  Happy shoots a quick wink at {h1.name}, who just shudders.')
     await pause()
     to_share = ' tae share oot as ye see fit.' if many else '.'
@@ -250,13 +251,13 @@ async def happy_back_room(party_dict : dict) -> None:
 async def happy_stats(party_dict : dict) -> None:
     """After The Stash: Happy explains that fights make them better, with the first stat raises in the middle
     of his speech (the acc.get_stat_increases line). This first time, every heroine gets one of the STAT_HINTS
-    lines below; after later fights it's about half of them. The dungeon's secret_entrance comes next."""
+    lines below, since he's explaining it; after later fights just one heroine does, to keep hinting. The dungeon's secret_entrance comes next."""
     many = len(party_dict['party']) > 1
     lassies = 'lassies' if many else 'lassie'
     each = ', for each o\' ye,' if many else ''
     adventurers = 'adventurers' if many else 'adventurer'
     await say(f"\"Now listen close, young {lassies}.  I dinnae know exactly how this could be, but that last battle seems tae have increased certain skills{each} at a rate I didnae think was possible for folk tae improve.  But ye appear tae be no average {adventurers}!\"")
-    await acc.get_stat_increases(party_dict, hint_chance=1)  # <-- the stat raises happen right here: each heroine's hint line ("Neyssa looks a little beefier."), then a pause
+    await acc.get_stat_increases(party_dict, hints=len(party_dict['party']))  # <-- the stat raises happen right here: each heroine's hint line ("Neyssa looks a little beefier."), then a pause
     await say(f'\"Seein\' as how ye\'ve improved so vastly, so rapidly, I\'d expect this sort o\' thing tae happen again after each successful encounter ye wee {lassies} might face.\"')
     h = random.choice(party_dict['party'])
     us = 'us' if many else 'me'
@@ -371,9 +372,12 @@ async def fight_won(party_dict : dict, mobs : list) -> None:
     await say()
     await pause()
 
-async def loot_found(party_dict : dict) -> None:
-    """Plays before the loot menus after any fight that dropped something (at the tavern too)."""
-    await say(f"\n[narr]Loot!  Let's see what's on the floor.[/]")
+async def loot_found(party_dict : dict, at_tavern : bool = False) -> None:
+    """Plays before the loot menus after any fight that dropped something. at_tavern: it's Happy's goodie bag."""
+    if at_tavern:
+        await say("\n[narr]Loot!  Let's see what you got.[/]")
+    else:
+        await say("\n[narr]Loot!  Quick, search their pockets!![/]")
 
 async def stats_after_fight(party_dict : dict) -> None:
     """Plays before the stat raises after a dungeon fight (Happy's happy_stats covers the tavern). Leave it

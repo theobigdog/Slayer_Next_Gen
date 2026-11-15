@@ -89,7 +89,10 @@ class Pack_Wolf:
         if alpha.is_dead or alpha.enraged or len(pack.standing()) * 2 > len(pack.wolves):
             return
         alpha.enraged = True
+        shook = acc.clear_head(alpha)
         await say(f"{alpha.name} looks over what's left of his pack, throws back his head, and ROARS.  [red]{alpha.name} is enraged![/]  [narr]Oh good.  He's taking it personally.  Expect a Hunt every round now.[/]")
+        if shook: # DRAFT line
+            await say(f"[narr]And whatever you'd put on him?  Gone.  Rage is one hell of a hangover cure.[/]")
 
 
 class Alpha_Wolf:
