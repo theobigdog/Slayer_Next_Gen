@@ -188,7 +188,7 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
                 if after_turn:
                     after_turn(mobs)
         for heroine in party_dict['party']: # the ones who died this round take one last swipe from beyond (Ted, Nov 15)
-            if combat.ghost_ready(heroine) and not party_dict['wiped'] and alive_mobs(mobs):
+            if combat.ghost_ready(heroine) and not party_dict['wiped'] and alive_mobs(mobs) and combat.ghost_rises(heroine):
                 await combat.show_current_status(party_dict['party'], mobs, round_num)
                 party_dict = await combat.parting_shot(heroine, party_dict, mobs)
         if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):

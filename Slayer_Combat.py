@@ -579,14 +579,20 @@ async def after_mob_damage(mob : object, party_dict : dict, mobs : list) -> dict
     return party_dict
 
 GHOST_DAMAGE = (3, 8) # a slain heroine's parting shot: small, and nothing can dodge it
+GHOST_CHANCE = 30     # % of deaths that get one (Ted, Nov 15: a surprise, not a guarantee)
 
 def ghost_ready(heroine : object) -> bool:
     """She's down and her ghost hasn't had its parting shot yet (see parting_shot)."""
     return heroine.is_dead and not getattr(heroine, 'ghost_spent', True)
 
+def ghost_rises(heroine : object) -> bool:
+    """One roll per death: GHOST_CHANCE% of the time her ghost gets its parting shot. Either way, that death's used up."""
+    heroine.ghost_spent = True
+    return acc.roll_percent(GHOST_CHANCE)
+
 async def parting_shot(heroine : object, party_dict : dict, mobs : list) -> dict:
     """(Ted, Nov 15) At the end of the round she died in, a slain heroine's ghost takes one last little swipe
-    (GHOST_DAMAGE) at whichever mob is closest to dead, for the times she was 1 hp away. It can't be dodged, it
+    (GHOST_DAMAGE) at whichever mob is closest to dead, GHOST_CHANCE% of the time (ghost_rises), for the times she was 1 hp away. It can't be dodged, it
     doesn't care about bodyguards, and it only happens once per death. DRAFT lines."""
     heroine.ghost_spent = True
     standing = [m for m in mobs if not m.is_dead]
