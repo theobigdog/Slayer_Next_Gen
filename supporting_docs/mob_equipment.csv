@@ -19,6 +19,9 @@ terrifying_hiss,Terrifying Hiss,Krazy Kobolds,0,0,TRUE,melee,hiss,1,"if it lands
 spark_flick,Spark Flick,Krazy Kobolds,4,9,FALSE,range,,3,"a fizzy little zap from its fingertips; ranged, so it can't be parried"
 blink_stab,Blink Stab,Krazy Kobolds,6,12,TRUE,melee,blink,1.5,"teleports behind a ranged heroine (Hunter, Witch, Cleric): no dodging, no parrying"
 glowy_mushroom,Glowy Mushroom,Krazy Kobolds,-10,-4,FALSE,melee,,,a heal (negative numbers) for a hurt Kobold; works at their heal_chance
-lock_jaw,Lock Jaw,Alpha Wolf,20,30,TRUE,melee,,,
-mega_pounce,Mega Pounce,Alpha Wolf,15,20,TRUE,aoe,,,
-pounce,Pounce,Pack Wolf,10,15,FALSE,melee,,,
+lock_jaw,Lock Jaw,Alpha Wolf,20,30,TRUE,melee,,1,his big single bite
+mega_pounce,Mega Pounce,Alpha Wolf,15,20,TRUE,aoe,front,1,lands on every melee heroine up front; the ranged ones are out of reach
+pounce,Pounce,Pack Wolf,10,15,FALSE,melee,,1.5,
+wolf_bite,Bite,Pack Wolf,6,11,FALSE,melee,,3,the everyday attack (added by Claude so a wolf has more than one move)
+savage_snap,Savage Snap,Alpha Wolf,10,16,FALSE,melee,,3,his everyday attack (added by Claude)
+howl,Bone-Rattling Howl,Alpha Wolf,0,0,TRUE,aoe,howl,0.7,"no damage: each heroine is scared half as often as her fear stat says, and a scared one loses her next turn (added by Claude)"

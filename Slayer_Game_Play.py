@@ -3,6 +3,7 @@ from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party
 import Slayer_Combat as combat
 import Slayer_Dwarf
 import Slayer_Kobolds
+import Slayer_Wolves
 import Slayer_Narration as nar
 import random
 
@@ -97,25 +98,30 @@ async def tavern(party_dict: dict) -> dict:
 
 
 async def dungeon(party_dict: dict) -> dict:
-    """Down through Happy's secret entrance to the Krazy Kobolds. A wipe ends the run; a win gets the
-    between-battles step. Either way the run is over for now (the Kobolds are as deep as it goes)."""
+    """Down through Happy's secret entrance: the Krazy Kobolds, then the wolf pack. A wipe ends the run; a win
+    gets the between-battles step and the next fight. The wolves are as deep as it goes for now."""
     await nar.secret_entrance(party_dict)
-    await between_fights(party_dict) # down the hole: Happy and his buddies are off the screen
-    kobolds = Slayer_Kobolds.make_pack(len(party_dict['party']))
-    await nar.kobolds_appear(party_dict, kobolds)
-    party_dict = await battle(party_dict, kobolds, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn)
-    if party_dict['wiped']:
-        party_dict['run_result'] = 'wiped'
-        await show_battle(party_dict['party'], kobolds, 0) # the Kobolds stay to gloat, without the round counter
-        await nar.dungeon_wipe(party_dict, kobolds)
-    else:
-        party_dict['run_result'] = 'won'
+    fights = [ # (make the mobs, the scene before the fight, what runs after each round, what runs after each turn)
+        (Slayer_Kobolds.make_pack, nar.kobolds_appear, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn),
+        (Slayer_Wolves.make_pack, nar.wolves_appear, Slayer_Wolves.round_end, None),
+    ]
+    for make_mobs, appear, round_end, after_turn in fights:
+        await between_fights(party_dict) # the last fight's mobs are off the screen
+        mobs = make_mobs(len(party_dict['party']))
+        await appear(party_dict, mobs)
+        party_dict = await battle(party_dict, mobs, round_end, after_turn)
+        if party_dict['wiped']:
+            party_dict['run_result'] = 'wiped'
+            await show_battle(party_dict['party'], mobs, 0) # they stay to gloat, without the round counter
+            await nar.dungeon_wipe(party_dict, mobs)
+            return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
         await between_fights(party_dict)
-        await nar.fight_won(party_dict, kobolds)
-        party_dict = await between_battles(party_dict, kobolds)
-        await say("[narr]To be continued![/]")
-        await pause()
-    return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
+        await nar.fight_won(party_dict, mobs)
+        party_dict = await between_battles(party_dict, mobs)
+    party_dict['run_result'] = 'won'
+    await say("[narr]To be continued![/]")
+    await pause()
+    return acc.refresh_party(party_dict, False)
 
 
 async def between_fights(party_dict: dict):

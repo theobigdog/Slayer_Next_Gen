@@ -401,3 +401,14 @@ async def happy_forge(party_dict : dict) -> None:
     await acc.visit_forge(party_dict)  # <-- the forge menu happens right here
     await say('Happy douses the coals with what\'s left of his ale.  \"Dinnae go breakin\' those, now.\"')
     await pause()
+
+async def wolves_appear(party_dict : dict, wolves : list) -> None:
+    """Plays when the wolf pack shows up, before the fight. wolves[0] is the Alpha; the rest are his Pack Wolves
+    (each has .name). DRAFT lines, for Ted to rewrite. (Claude, Nov 15)"""
+    h1, h2 = two_of(party_dict['party'])
+    alpha, pack = wolves[0], wolves[1:]
+    await say('The tunnel opens into a cavern that smells like wet dog and old bones.')
+    await say(f'{len(pack)} pairs of yellow eyes blink open in the dark.  Then a much bigger pair, a lot higher up.')
+    await say(f'{h1.name} sighs.  \"Wolves.  Of course it\'s fucking wolves.\"')
+    await say(f'[narr]That big one is {alpha.name}.  Drop him and the rest will run for it, but they will throw themselves in front of him to stop you.  And if he stares at one of you...  she\'s next.[/]')
+    await pause()

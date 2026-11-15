@@ -50,7 +50,7 @@ CONFUSE_TURNS = 2
 def hex_immune(mob : object, which : str, rank : int = 1) -> bool:
     """Who shrugs a hex off (see the list above)."""
     if which == 'intoxicate':
-        return getattr(mob, 'is_boss', False) and rank < 3
+        return (getattr(mob, 'is_boss', False) or getattr(mob, 'hex_proof', False)) and rank < 3
     return getattr(mob, 'is_boss', False) or getattr(mob, 'mini_boss', False)
 
 def strength_bonus(entity : object) -> int:
@@ -386,7 +386,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
         damage = int(min(damage, mob.health))
         pack = getattr(mob, 'pack', None)
-        if rules['link_shields'] and pack and pack.linked and damage >= mob.health:
+        if rules['link_shields'] and pack and getattr(pack, 'linked', False) and damage >= mob.health: # only the Kobolds' pack has a link (the wolves' doesn't)
             damage = mob.health - 1 # the Kobolds' life-link won't let the blast kill anyone still standing (Ted, Nov 10)
             shielded.append(mob)
         update_health(mob, damage)
@@ -713,6 +713,10 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
             await pause()
             return (party_dict, mobs, False)
         await say(f"\n[green]The poison burns[/] {heroine.name} for -{sting} hp." + ("  [narr]That's the last of it, at least.[/]" if 'poisoned' not in heroine.status else ""))
+    if status(heroine).pop('cowed', False):
+        await say(f"\n{heroine.name} is still frozen stiff from that howl.  She loses her turn.  [narr]Blink, honey.  Blink.[/]")
+        await pause()
+        return (party_dict, mobs, False)
     if status(heroine).pop('gassed', False):
         await say(f"\n{heroine.name} is still doubled over, retching from the Kobold gas.  She loses her turn.  [narr]Breathe through your mouth, sweetie.[/]")
         await pause()
@@ -791,6 +795,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
     else:
         target = await get_target_choice(mobs, [])
 
+    if target.is_mob and not is_heal and hasattr(target, 'guard'):
+        target = await target.guard(heroine) # the wolf pack: a wolf may throw itself in front of the Alpha
     heroine_rolls = get_heroine_rolls(heroine, attacking=not is_heal)
     await blessed_line(heroine, heroine_rolls)
     if target.is_mob:
@@ -840,7 +846,9 @@ HEAL_TRY = {'easy': 0.10, 'medium': 0.25, 'hard': 0.6} # how often a mob with a 
 #   hiss  - Terrifying Hiss: no damage; if it lands she can't dodge for the rest of the fight (skips anyone already rattled)
 #   blink - Blink Stab: teleports behind a ranged heroine; she can't dodge or parry it
 #   poison - a normal hit; if it lands, POISON_CHANCE of the time she's poisoned for her next POISON_TURNS turns
-MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison')
+#   front - an area attack that only reaches the melee heroines up front (the Alpha Wolf's Mega Pounce)
+#   howl  - no damage; every heroine standing is scared half as often as her fear stat says, and a scared one loses her next turn
+MOB_EFFECTS = ('gas', 'junk', 'hiss', 'blink', 'poison', 'front', 'howl')
 POISON_CHANCE, POISON_TURNS, POISON_DAMAGE = 0.5, 3, (2, 3) # Kobold Bite (Ted, Nov 8); the damage ticks at the start of her turn
 GAS_MAX = 3 # one Gas Release reaches at most this many heroines, and never more than half the front line (rounded up)
 
@@ -872,8 +880,10 @@ def standing_targets(item : dict, party : list) -> list:
     for the back line, and the Hiss skips anyone it already rattled."""
     standing = [x for x in party if not x.is_dead]
     effect = item.get('effect')
-    if effect in ('gas', 'blink'):
-        return [x for x in standing if position(x) == ('melee' if effect == 'gas' else 'range')]
+    if effect in ('gas', 'blink', 'front'):
+        return [x for x in standing if position(x) == ('range' if effect == 'blink' else 'melee')]
+    if effect == 'howl':
+        return [x for x in standing if not status(x).get('cowed')]
     if effect == 'hiss':
         return [x for x in standing if not status(x).get('hissed')]
     return standing
@@ -917,14 +927,16 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     crit = mob_rolls['crit_mult'] # one crit for the whole spray; the damage itself is rolled for each heroine
     if item['item'] == 'vomit':
         await say(f"{mob.name} suddenly goes stark-white, a panicked look on his face.  He doubles over, gurgles and suddenly pops up and sprays projectile vomit across the whole party!  [narr]Oh god.  The SMELL.[/]  \"Och, I feel sae much better,\" he taunts.")
+    elif item.get('effect') == 'front':
+        await say(f"{mob.name} launches a {item['item_desc']} and comes down on the whole front line!")
     else:
         await say(f"{mob.name} unleashes {item['item_desc']} on the whole party!")
     if not mob_rolls['hit']:
-        await say(f"[narr]...and it splatters everywhere EXCEPT on anyone.  Lucky, lucky lassies.[/]")
+        await say("[narr]...and lands in an empty patch of dirt.  Graceful.[/]" if item.get('effect') == 'front' else "[narr]...and it splatters everywhere EXCEPT on anyone.  Lucky, lucky lassies.[/]")
         await pause()
         return (party_dict, mobs, False)
     fallen = []
-    for heroine in [x for x in party if not x.is_dead]:
+    for heroine in standing_targets(item, party):
         rolls = get_heroine_rolls(heroine)
         if rolls['dodge'] and not mob_rolls['expertise']:
             tally(heroine, 'dodges')
@@ -974,6 +986,22 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
     await check_last_cleric(fallen, party)
     await pause()
     return (party_dict, mobs, mob_rolls['luck'])
+
+async def mob_howl(mob : object, item : dict, party_dict : dict, mobs : list) -> tuple:
+    """The Alpha Wolf's Howl: no damage. Each heroine still standing is scared half as often as her fear stat
+    says; a scared one loses her next turn. DRAFT lines."""
+    await say(f"{mob.name} throws back his head and lets out a {item['item_desc']} that rattles teeth.  [narr]Every hair I have just stood up.[/]")
+    scared = []
+    for heroine in standing_targets(item, party_dict['party']):
+        if acc.roll_percent((heroine.stats['fear'] + acc.stat_bonus(heroine, 'fear')) / 2):
+            status(heroine)['cowed'] = True
+            scared.append(heroine.name)
+    if scared:
+        await say(f"  {acc.and_words(scared)} {'freezes' if len(scared) == 1 else 'freeze'} on the spot and will lose {'her' if len(scared) == 1 else 'their'} next turn.")
+    else:
+        await say("  Nobody flinches.  [narr]Ice in their veins, these ladies.[/]")
+    await pause()
+    return (party_dict, mobs, False)
 
 async def mob_hiss(mob : object, target : object, item : dict, party_dict : dict, mobs : list, mob_rolls : dict) -> tuple:
     """Terrifying Hiss: no damage, but if it lands she's too rattled to dodge for the rest of the fight."""
@@ -1136,6 +1164,8 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
     effect = item.get('effect')
     if effect == 'gas':
         return await mob_gas(mob, item, party_dict, mobs, get_mob_rolls(mob, attacking=True))
+    if effect == 'howl':
+        return await mob_howl(mob, item, party_dict, mobs)
     if item['attack_type'] == 'aoe' and item['damage_high'] >= 0:
         return await mob_aoe(mob, item, party_dict, mobs, get_mob_rolls(mob, attacking=True))
     if item['damage_high'] < 0:
@@ -1149,6 +1179,8 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
         living_heroines = standing_targets(item, party_dict['party']) or [x for x in party_dict['party'] if not x.is_dead]
         if len(living_heroines) > 0:
             target = choose_mob_target(living_heroines, ai, item)
+            if hasattr(mob, 'pick_target'): # the wolf pack's Hunt: several wolves on one heroine
+                target = await mob.pick_target(living_heroines, item) or target
             mob_rolls = get_mob_rolls(mob, attacking=True)
             if effect == 'hiss':
                 return await mob_hiss(mob, target, item, party_dict, mobs, mob_rolls)

@@ -679,7 +679,7 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
     heroine for the rest of the run instead. at_tavern: the stash is right there."""
     party = party_dict['party']
     found = []
-    for source in [mob] + [m for m in others if m is not mob and m.is_dead]:
+    for source in [mob] + [m for m in others if m is not mob and m.is_dead and not getattr(m, 'fled', False)]: # a wolf that ran off took its loot with it
         tables = (source.mob_class, getattr(source, 'loot_class', None)) # a mini-boss also rolls a table of its own (Kobold Shaman)
         for item in [row for row in items_table if row['source'] in tables]:
             if item['item'] in AFFLICTIONS:
@@ -695,7 +695,7 @@ async def get_loot(mob : object, party_dict : dict, others : list = (), at_taver
                     await say(AFFLICTIONS[item['item']]['caught'].format(mob=source.name, who=who.name))
             elif roll_percent(item['drop_chance'] if item['drop_chance'] is not None else 100):
                 found.append((item, source.name))
-    fought = [mob] + [m for m in others if m is not mob]
+    fought = [mob] + [m for m in others if m is not mob and not getattr(m, 'fled', False)]
     kits = [kit for kit in upgrades_table if kit_drops_here(kit, fought) and roll_percent(kit['drop_chance'] or 0)] # rare: once per fight, not per mob
     if found or kits:
         import Slayer_Narration as nar # imported here, because Slayer_Narration imports this file

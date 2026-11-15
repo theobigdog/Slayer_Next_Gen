@@ -1184,7 +1184,7 @@ class WindowUI:
         words = ui.status_words(entity)
         if not words:
             return
-        colors = {'poisoned': POISON_EDGE, 'bleeding': HP_CRIT, 'hidden': GOLD, 'blessed': GOLD, 'strong': GOLD}
+        colors = {'poisoned': POISON_EDGE, 'bleeding': HP_CRIT, 'hunted': HP_CRIT, 'hidden': GOLD, 'blessed': GOLD, 'strong': GOLD}
         fnt = self.fonts['status']
         gap = fnt.size(' · ')[0]
         lines, line, used = [], [], 0

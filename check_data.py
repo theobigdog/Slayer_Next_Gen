@@ -16,11 +16,11 @@ ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 
 AFFLICTIONS = {'happys_norovirus_regurgitation'}
 KIT_KINDS = ['melee', 'ranged', 'spell', 'bomb', 'heal']  # what an upgrade kit can fit (Slayer_Accessory.KIT_KINDS)  # caught, not wielded (Slayer_Accessory.AFFLICTIONS), so the Cleric rule skips them
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
-MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
+MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison', 'front', 'howl'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
 ITEM_EFFECTS = {'poison', 'bleed', 'intoxicate', 'stun', 'confuse', 'hide', 'blessing', 'strength'}  # what a heroine's item can do (Slayer_Combat, 'item effects')
 LOOT_SOURCES = {'Kobold Shaman'}  # loot tables that aren't a mob class of their own: the Kobold mini-boss (Slayer_Kobolds.BOSS_LOOT)
-PLANNED_MOBS = {'Alpha Wolf', 'Pack Wolf'}  # written into the CSVs ahead of time; no row in mobs.csv until their fight is built
+PLANNED_MOBS = set()  # written into the CSVs ahead of time; no row in mobs.csv until their fight is built
 problems = []
 notes = []  # heads-ups that aren't mistakes
 

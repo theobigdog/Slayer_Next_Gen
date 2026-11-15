@@ -109,7 +109,7 @@ def _pick(lines) -> str:
 
 # What's on a combatant right now, one word each, for both screens (Slayer_Combat keeps it all in entity.status).
 STATUS_WORDS = [('poisoned', 'poisoned'), ('bleeding', 'bleeding'), ('intoxicated', 'drunk'), ('stunned', 'stunned'), ('confused', 'confused'),
-                ('hidden', 'hidden'), ('blessed', 'blessed'), ('strong', 'strong'), ('gassed', 'retching'), ('junked', 'sore'), ('hissed', 'rattled')]
+                ('hunted', 'hunted'), ('hidden', 'hidden'), ('blessed', 'blessed'), ('strong', 'strong'), ('gassed', 'retching'), ('cowed', 'frozen'), ('junked', 'sore'), ('hissed', 'rattled')]
 
 def status_words(entity) -> list:
     """['poisoned', 'drunk'] for a living combatant with those on it; [] for anyone dead or clean."""
