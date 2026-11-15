@@ -22,8 +22,8 @@ async def get_name(greet : bool = True) -> str:
 async def print_recommended_classes(num_chars : int):
     await say('\n[narr]Recommended Party Composition (based on party-size):[/]')
     await say()
-    for _ in range(num_chars):
-        await say(acc.class_label(random.choice(acc.get_hero_classes())))
+    for hero_class in get_default_classes(num_chars): # the same lineup the narrator picks if you let him choose
+        await say(acc.class_label(hero_class))
 
 def get_default_classes(party_count : int) -> list:
     default_order =  ['Warrior', 'Cleric', 'Hunter', 'Shifter', 'Cleric', 'Sapper', 'Witch', 'Battle_Mage']
