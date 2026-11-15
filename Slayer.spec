@@ -30,6 +30,7 @@ exe = EXE(
     exclude_binaries=True,
     name='Slayer',
     console=False,  # just the game window, no black command-prompt window behind it
+    icon=str(game / 'assets' / 'icon.ico'),  # Slayer.exe's own icon in Explorer (the window sets its own, from icon.png)
     upx=False,      # UPX packing tends to make antivirus programs suspicious, so it's off
 )
 

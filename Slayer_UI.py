@@ -108,11 +108,11 @@ def _pick(lines) -> str:
 # ---------- terminal backend: the command-prompt game -------------------------
 
 # What's on a combatant right now, one word each, for both screens (Slayer_Combat keeps it all in entity.status).
-STATUS_WORDS = [('poisoned', 'poisoned'), ('bleeding', 'bleeding'), ('intoxicated', 'drunk'), ('stunned', 'stunned'), ('confused', 'confused'),
-                ('hunted', 'hunted'), ('hidden', 'hidden'), ('blessed', 'blessed'), ('strong', 'strong'), ('gassed', 'retching'), ('cowed', 'frozen'), ('junked', 'sore'), ('hissed', 'rattled')]
+STATUS_WORDS = [('poisoned', 'Poisoned'), ('bleeding', 'Bleeding'), ('intoxicated', 'Drunk'), ('stunned', 'Stunned'), ('confused', 'Confused'),
+                ('hunted', 'Hunted'), ('hidden', 'Hidden'), ('blessed', 'Blessed'), ('strong', 'Strong'), ('gassed', 'Retching'), ('cowed', 'Frozen'), ('junked', 'Sore'), ('hissed', 'Rattled')]
 
 def status_words(entity) -> list:
-    """['poisoned', 'drunk'] for a living combatant with those on it; [] for anyone dead or clean."""
+    """['Poisoned', 'Drunk'] for a living combatant with those on it; [] for anyone dead or clean."""
     status = getattr(entity, 'status', None) or {}
     return [] if entity.is_dead else [word for key, word in STATUS_WORDS if status.get(key)]
 
@@ -213,7 +213,7 @@ class TerminalUI:
         for heroine in party:
             turn = '   <-- her turn' if heroine is active else ''
             words = status_words(heroine)
-            sick = f"  {self.Fore.GREEN if 'poisoned' in words else ''}({', '.join(words)}){self.Style.RESET_ALL}" if words else ''
+            sick = f"  {self.Fore.GREEN if 'Poisoned' in words else ''}({', '.join(words)}){self.Style.RESET_ALL}" if words else ''
             print(f"{heroine.name}:  {heroine.hero_class.replace('_', ' ')}, {self.health_text(heroine)}{sick}{turn}")
 
     async def show_battle(self, party, mobs, round_num, active=None):

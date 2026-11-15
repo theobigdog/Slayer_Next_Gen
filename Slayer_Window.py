@@ -163,6 +163,7 @@ class WindowUI:
 
     def __init__(self, headless_fps: int = 60):
         pygame.init()
+        self.set_icon()
         flags = 0 if IN_BROWSER else pygame.SCALED | pygame.RESIZABLE
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), flags)
         pygame.display.set_caption('SLAYER')
@@ -1184,13 +1185,31 @@ class WindowUI:
         self.blit_text(f'{int(round(entity.health))}/{entity.starting_health}', (rect.centerx, bar.bottom + 11), 'hp', POISON_EDGE if sick else DIM, center=True)
         self.draw_status_words(entity, rect.centerx, bar.bottom + 26, max(width, 120))
 
+    @staticmethod
+    def set_icon():
+        """The game's own icon (assets/icon.png: the bloody S and dagger) instead of pygame's snake, on the window
+        and the taskbar. Windows groups windows by app and shows python.exe's icon unless the game names itself,
+        hence the AppUserModelID. (Slayer.exe gets the same picture from assets/icon.ico, via Slayer.spec.)"""
+        try:
+            pygame.display.set_icon(pygame.image.load(ASSETS / 'icon.png'))
+        except (pygame.error, FileNotFoundError):
+            pass # no icon is no reason to not play
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('theobigdog.slayer')
+        except (ImportError, AttributeError, OSError):
+            pass # not on Windows
+
     def draw_status_words(self, entity, centerx, top, width):
-        """What's on her (or it) right now, in small words under the HP: 'bleeding · drunk'. Good things in gold,
-        poison in its green, bleeding in red, the rest in a pale grey. Two lines at most."""
+        """What's on her (or it) right now, in small words under the HP: 'Bleeding · Drunk'. Each one has its own
+        color: good things in gold, poison in its green, bleeding and the Hunt in red, can't-act ones (stunned, frozen)
+        in icy blue, head-scramblers (drunk, confused) in amber and violet, the mild stuff in a pale grey. Two lines at most."""
         words = ui.status_words(entity)
         if not words:
             return
-        colors = {'poisoned': POISON_EDGE, 'bleeding': HP_CRIT, 'hunted': HP_CRIT, 'hidden': GOLD, 'blessed': GOLD, 'strong': GOLD}
+        colors = {'Poisoned': POISON_EDGE, 'Bleeding': HP_CRIT, 'Hunted': HP_CRIT, 'Hidden': GOLD, 'Blessed': GOLD, 'Strong': GOLD,
+                  'Drunk': (230, 140, 60), 'Confused': (190, 130, 240), 'Stunned': (130, 190, 255), 'Frozen': (130, 190, 255),
+                  'Retching': (160, 180, 70)}
         fnt = self.fonts['status']
         gap = fnt.size(' · ')[0]
         lines, line, used = [], [], 0
