@@ -24,7 +24,7 @@ Blink Stab, and a Glowy Mushroom to heal); the special ones work through Slayer_
 """
 import random
 import Slayer_Accessory as acc
-from Slayer_UI import say, pause
+from Slayer_UI import say, pause, effect
 
 PACK_EXTRA, PACK_MIN, PACK_MAX = 2, 4, 8 # the party's size + 2 Kobolds, never fewer than 4 or more than 8 (8 fill the screen)
 LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its starting HP (0.35 = 35%)
@@ -221,14 +221,16 @@ async def round_end(party_dict : dict, mobs : list, round_num : int):
                 kobold.is_dead = False
                 if carry:
                     kobold.enraged = True # the whole pack, the revived ones too, starts the next round enraged
+            # Subtle on purpose (Ted, Nov 15): no numbers and no spelling it out. The puff of smoke on the mini-boss
+            # is the hint about who's doing it; the bars evening out are the hint about what.
+            boss = pack.boss()
+            if boss and not boss.is_dead:
+                await effect('purple_puff', boss)
             if not pack.explained:
                 pack.explained = True
-                await say("[narr]Wait.  Are their wounds... spreading out?  These little shits SHARE their health!  Hurt one, you hurt them all.  Kill one, and it just pops back up at the end of the round.[/]")
-                await say("[narr]Wear the whole pack down.  Something's gotta give eventually.[/]")
-                if pack.boss(): # DRAFT hint, so players can work out what he's for
-                    await say(f"[narr]And is it me, or do {pack.boss().name}'s eyes burn brighter than the rest?  I bet that one's holding this whole little circle together.  Drop him in one round and see what happens.[/]")
-            boss = pack.boss()
-            await say(f"The Kobolds' eyes flicker purple as their wounds even out: about {share} hp each" + (f", and {share * boss.shares} for {boss.name}." if boss else "."))
+                await say("The Kobolds' eyes flicker purple as their wounds migrate and spread evenly amongst the group.  [narr]What in the flyin' fuck?[/]")
+            else:
+                await say("The Kobolds' eyes flicker purple, and their wounds spread out across the pack again.")
             if revived:
                 await say(f"{names_list(revived)} {'twitches, sits up and giggles' if len(revived) == 1 else 'twitch, sit up and giggle'}.  [narr]Oh, come ON.[/]")
             if carry:

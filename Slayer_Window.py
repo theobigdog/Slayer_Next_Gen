@@ -195,6 +195,7 @@ class WindowUI:
         self.dt = 0.0
         self.health_seen = {}       # id(entity) -> (entity, hp, max hp) last frame, for the floating numbers
         self.floaters = []          # floating damage/heal numbers on screen
+        self.puffs = []             # purple puffs of smoke on a sprite (effect('purple_puff', who))
         self.motion = Motion(self)  # the little idle animations
         self.placeholders = {}
         self.buttons = []
@@ -655,11 +656,15 @@ class WindowUI:
         await LoserAnimation(self).play()
         self.mode = 'text'
 
-    async def effect(self, name):
+    async def effect(self, name, target=None):
         if name == 'boom':
             await self.until_typed()      # let 'lights the fuse...' finish first
             await asyncio.sleep(0.3)
             await KegFlash(self).play()
+        elif name == 'purple_puff' and target is not None:  # the Kobold mini-boss sharing out the pack's wounds
+            await self.until_typed()
+            self.puffs.append({'entity': target, 'born': self.now})
+            await asyncio.sleep(0.9)
 
     # ---------- drawing --------------------------------------------------------
 
@@ -749,6 +754,7 @@ class WindowUI:
         elif self.more:
             self.buttons, self.targets = [], []
         self.draw_floaters()
+        self.draw_puffs()
         if self.effect_overlay:
             self.effect_overlay()
 
@@ -882,7 +888,13 @@ class WindowUI:
             col, row = divmod(i, per_column)  # numbers run down the first column, then the second
             rect = pygame.Rect(area.x + 10 + col * (col_w + 8), area.y + 44 + row * row_h, col_w, row_h - 4)
             hover = rect.collidepoint(mouse)
-            pygame.draw.rect(self.screen, (58, 50, 42) if hover else (40, 35, 30), rect, border_radius=6)
+            fill = (58, 50, 42) if hover else (40, 35, 30)
+            if kind == 'choose_target':  # heroines' rows in her box's teal, mobs' in their box's red (Ted, Nov 15), with a stripe down the left
+                side = HERO_BOX if not getattr(extra['options'][i], 'is_mob', False) else MOB_BOX
+                fill = tuple(int(c * (0.75 if hover else 0.5)) for c in side)
+            pygame.draw.rect(self.screen, fill, rect, border_radius=6)
+            if kind == 'choose_target':
+                pygame.draw.rect(self.screen, tuple(min(255, int(c * 1.7)) for c in side), (rect.x, rect.y, 5, rect.height), border_top_left_radius=6, border_bottom_left_radius=6)
             side_color = hp_color(extra['options'][i]) if kind == 'choose_target' else None  # target HP, coloured like her bar
             self.draw_menu_label(rect, str(i + 1), label, font_name, side_color)
             self.buttons.append(Button(rect, label, extra['options'][i]))
@@ -1133,6 +1145,25 @@ class WindowUI:
                 surf.blit(text, (2, 2))
             surf.set_alpha(alpha)
             self.screen.blit(surf, surf.get_rect(center=(f['x'], f['y'] - rise)))
+
+    def draw_puffs(self):
+        """A big soft purple puff of smoke swelling up over someone's box and fading out (about a second)."""
+        life = 1.1
+        self.puffs = [p for p in self.puffs if self.now - p['born'] < life]
+        for puff in self.puffs:
+            rect = next((r for r, e in self.sprite_rects if e is puff['entity']), None)
+            if rect is None:
+                continue
+            t = (self.now - puff['born']) / life
+            layer = pygame.Surface((rect.width + 120, rect.height + 120), pygame.SRCALPHA)
+            cx, cy = layer.get_width() // 2, layer.get_height() // 2
+            fade = 1 - t
+            for spot, (dx, dy) in enumerate(((0, 0), (-0.32, -0.18), (0.3, -0.22), (-0.2, 0.25), (0.26, 0.2), (0, -0.38))):
+                radius = int((0.22 + 0.5 * smooth(min(1.0, t * 1.6))) * min(rect.width, rect.height) * (1.0 if spot == 0 else 0.7))
+                x, y = int(cx + dx * rect.width * (0.6 + t)), int(cy + dy * rect.height * (0.6 + t) - 30 * t)
+                pygame.draw.circle(layer, (150, 60, 210, int(120 * fade)), (x, y), radius)
+                pygame.draw.circle(layer, (205, 150, 255, int(70 * fade)), (x, y), max(1, int(radius * 0.55)))
+            self.screen.blit(layer, (rect.centerx - cx, rect.centery - cy))
 
     def sprite_for(self, entity, size):
         """assets/sprites/<class>_<pose>.png, e.g. warrior_idle.png, disgruntled_dwarf_enraged.png."""

@@ -87,9 +87,12 @@ async def title_screen():
 async def loser_banner():
     await _backend.loser_banner()
 
-async def effect(name: str):
-    """A short visual effect, e.g. 'boom' (the keg before a Big Badda Boom)."""
-    await _backend.effect(name)
+async def effect(name: str, target=None):
+    """A short visual effect: 'boom' (the keg before a Big Badda Boom), 'purple_puff' (smoke over target's box)."""
+    if target is None:
+        await _backend.effect(name)
+    else:
+        await _backend.effect(name, target)
 
 
 def _or_default(oops):
@@ -241,7 +244,7 @@ class TerminalUI:
         import Slayer_Graphics
         Slayer_Graphics.loser_banner()
 
-    async def effect(self, name):
+    async def effect(self, name, target=None):
         if name == 'boom':  # a little ASCII keg with its fuse lit
             print(self.paint('[red]          *  ~~~\\[/]'))
             for row in ('       .---------.', '      (  [red]T N T[/]  )', '      |`---------\'|', '      |  [red]T N T[/]  |', '       `---------\''):
