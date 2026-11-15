@@ -95,6 +95,7 @@ def start_battle(party : list):
         heroine.status = {} # what the mobs did to her this fight: gassed, junked, hissed (see MOB_EFFECTS)
         heroine.wielding = None # no kit perk until she picks a forged weapon
         heroine.cooldowns = {} # items with a recharge: how many more of her turns each needs (see ready_in)
+        heroine.ghost_spent = heroine.is_dead # down before the fight even started: no parting shot (see parting_shot)
         acc.sync_max_hp(heroine) # a max HP trinket counts (a safety net: picking one up already syncs)
 
 def status(heroine : object) -> dict:
@@ -575,6 +576,33 @@ async def after_mob_damage(mob : object, party_dict : dict, mobs : list) -> dict
         await say(f"{mob.name} has been slain!!  [narr]Didn't even have to touch that one.[/]")
         if hasattr(mob, 'on_death'): # the Krazy Kobolds' pack enrages
             await mob.on_death(mobs)
+    return party_dict
+
+GHOST_DAMAGE = (3, 8) # a slain heroine's parting shot: small, and nothing can dodge it
+
+def ghost_ready(heroine : object) -> bool:
+    """She's down and her ghost hasn't had its parting shot yet (see parting_shot)."""
+    return heroine.is_dead and not getattr(heroine, 'ghost_spent', True)
+
+async def parting_shot(heroine : object, party_dict : dict, mobs : list) -> dict:
+    """(Ted, Nov 15) At the end of the round she died in, a slain heroine's ghost takes one last little swipe
+    (GHOST_DAMAGE) at whichever mob is closest to dead, for the times she was 1 hp away. It can't be dodged, it
+    doesn't care about bodyguards, and it only happens once per death. DRAFT lines."""
+    heroine.ghost_spent = True
+    standing = [m for m in mobs if not m.is_dead]
+    if not standing:
+        return party_dict
+    mob = min(standing, key=lambda m: m.health)
+    damage = min(mob.health, acc.multi_roll(*GHOST_DAMAGE))
+    update_health(mob, damage)
+    await say(f"\n{heroine.name}'s ghost claws its way up out of her body, wails, and takes one last swipe at {mob.name}: -{damage} hp.  [narr]Spite.  Stronger than death.[/]")
+    if mob.is_dead and mob.mob_class != 'Disgruntled Dwarf':
+        await say(f"{mob.name} has been slain!!  [narr]From BEYOND THE GRAVE, motherfucker![/]")
+        if hasattr(mob, 'on_death'):
+            await mob.on_death(mobs)
+    else:
+        party_dict = await after_mob_damage(mob, party_dict, mobs) # Happy: enraging, or the wipe if he's enraged
+    await pause()
     return party_dict
 
 async def mob_start_of_turn(mob : object, party_dict : dict, mobs : list) -> tuple:

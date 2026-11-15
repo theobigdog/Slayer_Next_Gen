@@ -152,6 +152,9 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
     round_num = 0
     while not party_dict['wiped'] and alive_mobs(mobs):
         round_num += 1
+        for heroine in party_dict['party']:
+            if not heroine.is_dead:
+                heroine.ghost_spent = False # alive (or brought back): if she goes down, her ghost gets its swipe
         turn_order = get_turn_order(party_dict['party'], mobs)
         for attacker in turn_order:
             if not attacker.is_dead and alive_mobs(mobs):
@@ -184,6 +187,10 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
                 party_dict['wiped'] = check_wiped(party_dict['party'])
                 if after_turn:
                     after_turn(mobs)
+        for heroine in party_dict['party']: # the ones who died this round take one last swipe from beyond (Ted, Nov 15)
+            if combat.ghost_ready(heroine) and not party_dict['wiped'] and alive_mobs(mobs):
+                await combat.show_current_status(party_dict['party'], mobs, round_num)
+                party_dict = await combat.parting_shot(heroine, party_dict, mobs)
         if round_num >= CRANKY_ROUND and not party_dict['wiped'] and alive_mobs(mobs):
             if round_num == CRANKY_ROUND:
                 await say(f"[narr]Round {CRANKY_ROUND}?  Seriously?  Everybody in here is getting cranky, me included.  The mobs hit harder every round from now on, until SOMEBODY wins.[/]")
