@@ -124,7 +124,7 @@ def get_dice_cutoffs() -> dict: ### These are only for heroine, not mobs.  Every
         'speed_cutoff' : 40,
     }
 
-db = ["DICK BUBBLE","DICK-BUBBLE","DICKBUBBLE","DICK BUBBLES", "DICKBUBBLES","DICK-BUBBLES","DICK-BBL","DICKBBL", "DICK-BBLS", "DICKBBLS", "DICK BBL", "DICK BBLS"]
+db = ["DICKBUBBLE", "DICKBUBBLES", "DICKBBL", "DICKBBLS"] # letters only: spaces, dashes and the rest are ignored
 
 def get_dice_cutoffs_mobs() -> dict:  ### These are only for mobs, not heroine.  Every other stat is a % chance (see roll_percent)
     return {
@@ -256,27 +256,24 @@ async def print_player_starting_summary(party : list):
         await say()
     await pause()
 
-async def check_bad_name(name : str) -> str:
+FINE_NAMES = ['William', 'Bubba', 'Nanopenis', 'Buhtlicker'] # what a name on db gets instead (Ted, Nov 15)
+
+async def check_bad_name(name : str, again : str = None) -> str:
+    """A blank name gets asked for again. A name on db doesn't get a second chance: the narrator sighs and
+    picks one from FINE_NAMES. Used for the player's name and every heroine's."""
+    again = again or f"[narr]Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.[/]  "
     name = name.strip()
-    while name.upper() in db or name == '':
-        await say('[narr]No.[/]')
-        await wait(2)
-        if name.upper() in db:
-            name = (await ask_text(f'[narr]No, Bubba!  {whine()}.  Try again![/]  ')).title().strip()
-        else:
-            name = (await ask_text(f"[narr]Your NAME, buddy!  The thing your mom yells across the yard!  {whine()}.[/]  ")).title().strip()
+    while not name:
+        name = (await ask_text(again)).strip()
+    if ''.join(ch for ch in name.upper() if ch.isalpha()) in db:
+        await say('[narr]*sigh*[/]')
+        await wait(1.5)
+        name = random.choice(FINE_NAMES)
+        await say(f'[narr]Fine....  {name} it is.[/]')
     return name
 
 async def check_bad_heroine_name(name : str) -> str:
-    name = name.strip()
-    while name.upper() in db or name == '':
-        await say('[narr]Nope.[/]')
-        await wait(2)
-        if name.upper() in db:
-            name = (await ask_text(f"[narr]Stopit!!  Take this more seriously.  What name do you want to give her, Bubba?  {whine()}.[/]  ")).strip()
-        else:
-            name = (await ask_text(f"[narr]Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.[/]  ")).strip()
-    return name
+    return await check_bad_name(name, f"[narr]Stopit!!  Take this more seriously.  What name do you want to give her?  {whine()}.[/]  ")
 
 def get_items() -> list:
     return items_table
@@ -765,7 +762,9 @@ async def visit_stash(party_dict : dict) -> dict:
                             ['Gear up a heroine', 'Put something in The Stash', 'Look through The Stash', "Done, let's go"],
                             "One of THOSE numbers, please:  ")
         if what == 3:
-            return party_dict
+            if await packed_right(party_dict):
+                return party_dict
+            continue
         if what == 2:
             kits = party_dict.get('kit_stash', [])
             if not stash and not kits:
@@ -824,6 +823,43 @@ async def visit_stash(party_dict : dict) -> dict:
             name = held_item(who, hers[pick])['item_desc']
             stash_item(party_dict, who, hers[pick])
             await say(f"[narr]Into The Stash: {name}.[/]")
+
+def overloaded(heroine : object) -> list:
+    """[(slot kind, carrying, room)] for every kind of slot she's over (the Sapper's starting kit, a save from
+    before the limits, a bug)."""
+    over = []
+    for kind in ('gear', 'potion', 'trinket'):
+        have, room = len(carried(heroine, kind)), slots(heroine, kind)
+        if have > room:
+            over.append((kind, have, room))
+    return over
+
+async def packed_right(party_dict : dict) -> bool:
+    """The check on the way out of The Stash (Ted, Nov 15): nobody heads down carrying more than her slots hold.
+    Anyone over picks what stays behind until she fits; it goes in The Stash, or if that's full it's left
+    behind for good. 'Back to The Stash' lets the player sort it out there instead. True once everyone fits."""
+    from Slayer_UI import choose
+    for heroine in party_dict['party']:
+        while overloaded(heroine):
+            kind, have, room = overloaded(heroine)[0]
+            await say(f"[narr]Whoa, whoa.  {heroine.name} can't haul all that down there: {SLOT_NAMES[kind]} {have}/{room}.  Something stays here.[/]")
+            hers = [x for x in dict.fromkeys(carried(heroine, kind)) if x in heroine.inv]
+            if not hers:
+                break # only used-up starting gear is over (can't happen today): nothing to pick, so let her go
+            to_stash = stash_has_room(party_dict)
+            where = '' if to_stash else '   (The Stash is full: gone for good)'
+            labels = [describe_item(held_item(heroine, x), uses_left(heroine, x)) + where for x in hers]
+            pick = await choose(f"What does {heroine.name} leave behind?  ", labels + ['Back to The Stash'], "One of THOSE numbers, please:  ")
+            if pick == len(hers):
+                return False
+            name = held_item(heroine, hers[pick])['item_desc']
+            if to_stash:
+                stash_item(party_dict, heroine, hers[pick])
+                await say(f"[narr]Into The Stash: {name}.[/]")
+            else:
+                drop_item(heroine, hers[pick])
+                await say(f"[narr]{heroine.name} leaves the {name} in the corner.  Happy will find a use for it.[/]")
+    return True
 
 # ---------- upgrade kits and the forge ---------------------------------------------
 # (Ted, Nov 12) Kits (upgrades.csv) are rare finds: each one rolls its drop_chance once per won fight. A heroine
@@ -946,6 +982,12 @@ def stash_carried_kits(party_dict : dict) -> list:
             heroine.kits = []
     return lines
 
+def usable_kits(party_dict : dict) -> list:
+    """The kits in The Stash that fit something somebody's carrying (one name per kind of kit)."""
+    kits = party_dict.get('kit_stash', [])
+    weapons = {weapon_kind(get_item(x)) for h in party_dict['party'] for x in forgeable(h)}
+    return [k for k in dict.fromkeys(kits) if weapons & set(kit_fits(get_kit(k)))]
+
 def forgeable(heroine : object) -> list:
     """Her weapons that can still take a kit: carried (or starting gear that's only used up), not forged yet."""
     dropped = getattr(heroine, 'dropped', [])
@@ -960,10 +1002,10 @@ async def visit_forge(party_dict : dict) -> dict:
     party = party_dict['party']
     while True:
         kits = party_dict.get('kit_stash', [])
-        if not kits:
-            await say("[narr]That's every kit you had.[/]")
+        kinds = usable_kits(party_dict) # only kits that fit something (Ted, Nov 15: no listing kits that can't go on anything)
+        if not kinds:
+            await say("[narr]That's every kit you can use right now." + ("  The rest will keep in The Stash.[/]" if kits else "[/]"))
             return party_dict
-        kinds = sorted(set(kits), key=kits.index)
         labels = [kit_label(get_kit(k)) + (f"  x{kits.count(k)}" if kits.count(k) > 1 else '') for k in kinds]
         pick = await choose("Which kit goes on the anvil?  ", labels + ['Done at the forge'], "One of THOSE numbers, please:  ")
         if pick == len(kinds):
