@@ -61,6 +61,12 @@ async def name_heroine(prompt : str, choose_names : bool) -> str:
 async def healer_ok(new_party : list, selection : str, party_count : int) -> bool:
     """The nudge toward a healer (Ted, Nov 15): on the LAST pick, if nobody so far is a Cleric and this one isn't
     either, the narrator double-checks. Yes keeps the pick; no goes back to the class list. DRAFT lines."""
+    if party_count == 1: # a party of one is doomed anyway: no healer nudge, just a jab (Ted, Nov 16). DRAFT lines
+        if selection == 'Cleric':
+            await say("[narr]A Cleric.  Alone.  And who, exactly, are you planning to hit with a Healing Wand?[/]")
+        else:
+            await say(f"[narr]One {selection.replace('_', ' ')}.  No healer, no backup, no friends.  Bold.  Short-lived, but bold.[/]")
+        return True
     last_pick = len(new_party) == party_count - 1
     if not last_pick or selection == 'Cleric' or any(h.hero_class == 'Cleric' for h in new_party):
         return True
