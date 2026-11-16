@@ -420,6 +420,9 @@ async def happy_forge(party_dict : dict) -> None:
             await say("[narr]None of those fit anything you're carrying, though.  They'll keep in The Stash.[/]")
             await pause()
         return
+    if carried_home:
+        await pause()
+    await clear() # a fresh box, so the question fits without a 'more' page first (Ted, Nov 16: it took two taps on the tablet)
     await say('Happy spots the kits and his eyes light up.  \"Och, ye\'ve got some o\' the old recipes!  C\'mon oot back tae the forge, an\' I\'ll fire her up.\"')
     if not await yes_no('Head out back to the forge?  '):
         await say('\"Suit yerselves.  They\'ll keep in The Stash.\"')

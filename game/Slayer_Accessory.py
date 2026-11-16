@@ -97,8 +97,11 @@ upgrades_table = read_table('upgrades.csv') # upgrade kits for the forge (see 'u
 
 DEV_MODE = True # flip to False to play like a real player; Slayer.exe is always a player build either way
 
+IN_BROWSER = sys.platform == 'emscripten' # the web version (pygbag), e.g. on itch.io
+
 def dev_mode() -> bool:
-    return DEV_MODE and not FROZEN
+    """Dev mode's numbers only show when running the .py files on a PC: never in Slayer.exe or the browser."""
+    return DEV_MODE and not FROZEN and not IN_BROWSER
 
 NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
                 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
