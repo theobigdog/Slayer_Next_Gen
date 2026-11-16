@@ -32,6 +32,7 @@ LINK_SNAP = 0.35 # the link snaps once the pack is down to this share of its sta
 MINI_BOSS = True  # one Kobold in every pack is the mini-boss (Ted, Nov 10). False = the plain pack, as it was.
 BOSS_SHARES = 2   # his slice whenever the pack's HP is shared out: 2 = twice a regular Kobold's
 BOSS_LABEL = 'Kobold Shaman' # what his box says. DRAFT, like his names: Ted, rename freely.
+BOSS_NOTICED = 3 # the share-out where the narration starts mentioning the mini-boss's brighter eyes
 BOSS_LOOT = 'Kobold Shaman'  # his own loot table: items.csv rows with this as their source, on top of the regular Kobold drops
                              # (Ted, Nov 14). It's also in tools/check_data.py's LOOT_SOURCES, so rename it in both places.
 BOSS_NAMES = ['Grand Poobah', 'Big Skab', 'Chief Gristle', 'Mother Squeak']
@@ -68,6 +69,7 @@ class Pack:
         self.round = 1 # the round being fought right now (round_end moves it on)
         self.start_total = sum(k.starting_health for k in members)
         self.explained = False # the narrator explains the link the first time it does anything
+        self.share_outs = 0 # how many times the wounds have been spread out (the boss gets noticed after a few)
         self.raging = False # a death set off the rage and it hasn't worn off yet
         self.fresh = False  # ...and that death happened during the turn going on right now
         self.acted = False  # somebody has taken a turn since that death
@@ -231,6 +233,9 @@ async def round_end(party_dict : dict, mobs : list, round_num : int):
                 await say("The Kobolds' eyes flicker purple as their wounds migrate and spread evenly amongst the group.  [narr]What in the flyin' fuck?[/]")
             else:
                 await say("The Kobolds' eyes flicker purple, and their wounds spread out across the pack again.")
+            pack.share_outs += 1
+            if boss and not boss.is_dead and pack.share_outs >= BOSS_NOTICED: # a slightly bigger hint, a few rounds in (Ted, Nov 16)
+                await say(f"{boss.name}'s eyes flare a little brighter than the others'.")
             if revived:
                 await say(f"{names_list(revived)} {'twitches, sits up and giggles' if len(revived) == 1 else 'twitch, sit up and giggle'}.  [narr]Oh, come ON.[/]")
             if carry:
