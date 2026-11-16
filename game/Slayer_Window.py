@@ -183,7 +183,8 @@ class WindowUI:
         self.active = None  # whoever's turn it is: her box gets a gold frame
         self.lines = []             # narration lines since the last clear (tagged text)
         self.revealed = 0.0         # how many characters of self.lines the typewriter has shown
-        self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel
+        self.scroll_back = 0        # lines the player has scrolled up with the mouse wheel (or the arrows, on a touch screen)
+        self.scroll_buttons = []    # [(rect, lines)]: the scroll arrows, drawn only on touch screens
         self.read_vis = 0           # wrapped lines before this one have been seen; text never scrolls past it unread
         self.more = False           # the box is full of unread text: 'more' until a click shows the next page
         self.links = []             # (rect, what) for clickable words in the narration (The List)
@@ -296,6 +297,10 @@ class WindowUI:
             self.touch_seen = True  # a phone or tablet: typing gets the on-screen keyboard (the tap itself arrives as a click)
             return
         clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+        if clicked:
+            for rect, lines in self.scroll_buttons:  # the touch-screen scroll arrows: they scroll, nothing else
+                if rect.collidepoint(event.pos):
+                    return self.scroll(lines)
         enter = event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
         if self.more and (enter or (clicked and not self.on_control(event.pos))):
             return self.next_page()  # the box is full: a click, tap or Enter shows the next page
@@ -869,12 +874,34 @@ class WindowUI:
                 self.blit_text(label, rect.center, 'menu', TEXT, center=True)
                 self.buttons.append(Button(rect, label, value))
         if self.more:
-            hint = 'more  (click or Enter)'
+            hint = 'more  (tap or Enter)' if self.touch_seen else 'more  (click or Enter)'
             lift = 56 if kind in ('text', 'yes_no') else 0  # above the typing field / Yes and No buttons
+            if kind == 'text' and self.keyboard_on():  # and above the on-screen keyboard (Ted, Nov 16: it hid the hint)
+                lift = box.bottom - self.keyboard_rect().top + 8 + 56
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26 - lift), 'small', GOLD)
         elif kind in ('pause', 'close') and self.typed_out():
-            hint = {'pause': 'click or Enter', 'close': 'click to play again' if IN_BROWSER else 'click to close'}[kind]
+            hint = {'pause': 'tap to go on' if self.touch_seen else 'click or Enter', 'close': 'click to play again' if IN_BROWSER else 'click to close'}[kind]
             self.blit_text(f'{hint}  ▼', (box.right - 20 - self.fonts['small'].size(f'{hint}  ▼')[0], box.bottom - 26), 'small', GOLD)
+        self.draw_scroll_buttons(box)
+
+    def draw_scroll_buttons(self, box):
+        """Up and down arrows on the text box's right edge, for touch screens (there's no mouse wheel to scroll
+        back through the narration, and a tap anywhere else moves the story on; Ted, Nov 16). Only while there's
+        earlier text to see."""
+        self.scroll_buttons = []
+        if not self.touch_seen or self.menu_open():  # (with a menu open the box is narrow, and they'd sit on the text)
+            return
+        most = max(0, min(self.lines_started(), self.page_end()) - self.page_capacity())
+        if most == 0:
+            return
+        for i, (arrow, lines, usable) in enumerate((('▲', -3, self.scroll_back < most), ('▼', 3, self.scroll_back > 0))):
+            rect = pygame.Rect(box.right - 52, box.y + 10 + i * 50, 42, 42)
+            pygame.draw.rect(self.screen, (40, 35, 30), rect, border_radius=8)
+            pygame.draw.rect(self.screen, GOLD if usable else PANEL_EDGE, rect, 2, border_radius=8)
+            cx, cy, h = rect.centerx, rect.centery, 9  # drawn, not typed: the fonts here have no arrow characters
+            points = [(cx, cy - h), (cx - h, cy + h - 2), (cx + h, cy + h - 2)] if arrow == '▲' else [(cx, cy + h), (cx - h, cy - h + 2), (cx + h, cy - h + 2)]
+            pygame.draw.polygon(self.screen, GOLD if usable else DIM, points)
+            self.scroll_buttons.append((rect, lines))
 
     def draw_the_list(self):
         """The List: every saved party, newest first. Clicking a name types it in."""
