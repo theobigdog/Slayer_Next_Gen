@@ -17,7 +17,7 @@ while a narrator who's only *pretending* to be an asshole heckles every move you
 - **Parties of 1 to 8.** Choose every class and name yourself, or let the narrator do it. He has opinions.
 - **Turn-based fights** with speed, luck, crits, dodges, buffs and debuffs: poison, bleeding, drunkenness,
   confusion, Blessings, Strength, and a Big Badda Boom that ends badly for everyone, the Sapper most of all.
-- **Bosses with tricks:** Krazy Kobolds who share their wounds through a purple-eyed Grand Poobah, and a wolf
+- **Bosses with tricks:** Krazy Kobolds who share their wounds through their purple-eyed boss, and a wolf
   pack that hunts as one and guards its Alpha.
 - **Loot, a stash and a forge:** gear, potions and trinkets drop after fights. Keep the overflow in The Stash
   and bring upgrade kits to the forge out back of the Devil's Brew.
