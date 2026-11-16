@@ -25,8 +25,9 @@ HUNTERS = 3   # how many wolves pile onto the hunted heroine in a round
 BLOOD = 0.25  # under this share of her HP, the pack smells blood
 
 # How tough the pack is, by party size: (the Alpha's HP, the wolves' HP, damage), each a multiplier on mobs.csv.
-# Tuned by simulation so every party size has about the same chance (see the commit that added this).
-PARTY_SCALE = {1: (0.45, 0.6, 0.35), 2: (0.7, 0.8, 0.5), 3: (0.85, 0.9, 0.6), 4: (1.0, 1.0, 0.6), 5: (1.1, 1.0, 0.66), 6: (1.2, 1.0, 0.65), 7: (1.35, 1.1, 0.68), 8: (1.55, 1.2, 0.7)}
+# Damage re-tuned by simulation Nov 15 (after the Cleric nerf and the full heal between fights): a decent party with
+# one Cleric wins the wolves about 85% of the time at every size from 2 to 8, after the Kobolds.
+PARTY_SCALE = {1: (0.45, 0.6, 0.35), 2: (0.7, 0.8, 0.34), 3: (0.85, 0.9, 0.46), 4: (1.0, 1.0, 0.42), 5: (1.1, 1.0, 0.46), 6: (1.2, 1.0, 0.46), 7: (1.35, 1.1, 0.41), 8: (1.55, 1.2, 0.39)}
 
 # Ted: rename these freely (one per wolf, no repeats, so keep at least 6).
 WOLF_NAMES = ['Mange', 'Scab', 'Drool', 'Fleabag', 'Snaggle', 'Gristle', 'Chewie', 'Ripper', 'Mutt', 'Yowler']
