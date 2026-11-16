@@ -1297,6 +1297,10 @@ class WindowUI:
         self.motion.draw_particles()
 
 
+def sick_tummy(entity) -> bool:
+    """She's caught Happy's norovirus (an affliction in her inventory until the next run)."""
+    return not entity.is_dead and not getattr(entity, 'is_mob', False) and any(x in acc.AFFLICTIONS for x in getattr(entity, 'inv', []))
+
 def poisoned(entity) -> bool:
     """She's carrying Kobold poison right now (Slayer_Combat keeps it in her status until it wears off or is healed)."""
     return bool(getattr(entity, 'status', None)) and bool(entity.status.get('poisoned')) and not entity.is_dead
@@ -1368,7 +1372,7 @@ class Motion:
 
     def __init__(self, window):
         self.window = window
-        self.particles = []  # [x, y, vx, vy, age, life, size, grow, color]
+        self.particles = []  # [x, y, vx, vy, age, life, size, grow, color] and optionally gravity (it falls)
         self.next_play = {}  # (id(entity), effect) -> when that effect next starts
         self.later = []      # effects to draw after every sprite and nameplate (so they land on top)
         self.popped = {}     # id(sapper) -> which fuse burn already went pop
@@ -1452,6 +1456,15 @@ class Motion:
         if poisoned(entity) and random.random() < dt * 5:  # sickly green bubbles drifting up off a poisoned heroine
             x = rect.x + random.uniform(0.1, 0.9) * rect.width
             self.particles.append([x, rect.bottom - 6, random.uniform(-6, 6), random.uniform(-34, -18), 0, 1.3, 3, 2, POISON_EDGE])
+        if sick_tummy(entity):    # Happy's norovirus: every so often she hurls (Ted, Nov 15)
+            retch = self.playing(entity, 'puke', 7.0, 0.45)
+            if retch is not None and random.random() < dt * 60:
+                side = 1 if self.phase(entity) > 3.14 else -1  # each heroine always pukes the same way
+                x = rect.right - 6 if side > 0 else rect.x + 6
+                y = rect.y + rect.height * 0.38
+                color = random.choice([(150, 172, 58), (176, 160, 66), (128, 150, 46)])
+                self.particles.append([x, y, side * random.uniform(60, 140), random.uniform(-70, 0), 0, 0.9,
+                                       random.uniform(3, 5), 1.5, color, 320])
         if kind == 'warrior':     # a dagger thunks into her box and sticks for a bit
             stab = self.playing(entity, 'stab', 5.0, 1.8)
             if stab is not None:
@@ -1622,6 +1635,8 @@ class Motion:
         dt, screen = self.window.dt, self.window.screen
         alive = []
         for p in self.particles:
+            if len(p) > 9:
+                p[3] += p[9] * dt  # gravity: the puke arcs down
             p[0] += p[2] * dt
             p[1] += p[3] * dt
             p[4] += dt
