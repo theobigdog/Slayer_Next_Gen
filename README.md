@@ -2,7 +2,7 @@
 
 *A profane parody dungeon crawler, written in Python.*
 
-<!-- DRAFT by Claude for Ted to review: rewrite anything, especially the voice. Lines marked TODO need your answer. -->
+<!-- DRAFT by Claude for Ted to review: rewrite anything, especially the voice. -->
 
 Pick a party of heroines, walk into the Devil's Brew, and pick a fight with Happy, the tavern's very disgruntled
 dwarf. Lose. Get dragged into his secret dungeon anyway. Then fight your way down, one bad decision at a time,
@@ -31,16 +31,22 @@ Still early: the dungeon currently ends after the wolves. *To be continued!*
 
 ### The easy way (Windows)
 
-<!-- TODO: where should people get Slayer.zip? A GitHub Release, itch.io, a link you send them? -->
-Download `Slayer.zip`, unzip it anywhere, and double-click `Slayer.exe`. No Python needed. Your saved parties are
-kept in the same folder.
+Download `Slayer.zip` from the [Releases page](https://github.com/theobigdog/slayer_next_gen/releases), unzip it
+anywhere, open the `Slayer` folder and double-click `Slayer.exe`. Nothing to install. Your saved parties are kept in
+that folder, so keep it together.
+
+Windows may warn about an unrecognized app the first time, since the game isn't signed: click **More info**, then
+**Run anyway**.
+
+When a new version comes out, download the new zip and unzip it into a fresh folder. To keep your parties, copy the
+`saved_parties` folder over from the old one.
 
 ### From the source
 
-You'll need Python 3 <!-- TODO: which version do you use? (`python --version`) --> and two packages:
+You'll need Python (it's made with 3.12.3) and two packages:
 
 ```
-pip install pygame-ce colorama
+pip install -r requirements.txt
 ```
 
 Then, in the game folder:
@@ -51,6 +57,10 @@ Then, in the game folder:
 | `python Slayer_Main.py` | the command-prompt version (Windows only) |
 
 To build your own `Slayer.exe`, double-click `build_exe.bat`; the result lands in `dist\Slayer.zip`.
+
+Making a release (developers): publish a GitHub release tagged like `v0.1`. A few minutes later
+[the release build](.github/workflows/release-build.yml) attaches `Slayer.zip` to it. The same build can be run by
+hand from the Actions tab to try it out without releasing anything.
 To play in a browser or on a tablet, see [WEB_BUILD.md](WEB_BUILD.md).
 
 ## Making changes
@@ -72,11 +82,10 @@ how to drop in your own sprites. `tools/balance/` has the simulations used to ba
 
 ## Credits
 
-<!-- TODO: how do you want to be credited? Name, handle, a line about the project? -->
-- Made by **theobigdog**, with a lot of coding help from Claude (Anthropic).
+- Made by **theobigdog**, in collaboration with Claude (Anthropic).
 - Fonts: New Rocker and Fondamento (SIL Open Font License) and DejaVu. Their licenses are in `assets/fonts/`.
 
 ## License
 
-<!-- TODO: pick one. If you want it to stay free and never be sold, ask Claude about the options. -->
-Not decided yet.
+Free forever, never for profit. Code: PolyForm Noncommercial 1.0.0. Art and writing: CC BY-NC-SA 4.0. The fonts
+keep their own licenses. See [LICENSE.md](LICENSE.md).
