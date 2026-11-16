@@ -2,7 +2,7 @@
 Kobolds and the full heal) about TARGET% of the time. usage: python tune_wolves.py GAME_DIR RUNS TARGET"""
 import json, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))  # tools/balance
-sys.path.insert(0, sys.argv[1]); import Slayer_Wolves
+sys.path.insert(0, os.path.join(sys.argv[1], 'game')); import Slayer_Wolves
 GAME, RUNS, TARGET = sys.argv[1], sys.argv[2], float(sys.argv[3])
 PARTIES = {2: 'Warrior,Cleric', 3: 'Warrior,Hunter,Cleric', 4: 'Warrior,Shifter,Hunter,Cleric', 5: 'Warrior,Shifter,Hunter,Witch,Cleric',
            6: 'Warrior,Shifter,Hunter,Witch,Sapper,Cleric', 7: 'Warrior,Shifter,Battle_Mage,Hunter,Witch,Sapper,Cleric',

@@ -32,7 +32,7 @@ Tips:
   HP numbers and floating numbers. License: SIL Open Font License, `LICENSE-NewRocker-OFL.txt`.
 - **Fondamento** (`Fondamento-Regular.ttf`): the narration, readable but still stylized. License: SIL Open
   Font License, `LICENSE-Fondamento-OFL.txt`. To try another, change `NARRATION_FONT` near the top of
-  `Slayer_Window.py`.
+  `game/Slayer_Window.py`.
 - **DejaVu Sans / Sans Mono**: the click hints and the ASCII title art. License: `LICENSE-DejaVu.txt`.
 
 All three come from Google Fonts / the DejaVu project. Both licenses allow shipping the fonts with the game, as long as the license files stay alongside.

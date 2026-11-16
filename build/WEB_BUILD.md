@@ -13,7 +13,7 @@ pip install pygbag
 
 ## Try it on your PC
 
-From the game folder (`E:\PersonalProjects\Slayer_Next_Gen`):
+From the game's top folder (`E:\PersonalProjects\Slayer_Next_Gen`, where main.py is):
 
 ```
 python -m pygbag .
@@ -50,7 +50,8 @@ Restricted) while testing. Then open the project page on any device.
 - **Typing** on a touch screen: an on-screen keyboard appears after the first tap. On any device, the **Keyboard**
   button in the typing field shows or hides it.
 - **The End**: on the web there's no window to close, so a click starts a new game.
-- `pygbag.ini` keeps the saved_parties folder, the build folder and check_data.py out of the web version.
+- `pygbag.ini` (in the top folder, where pygbag looks for it) keeps saved_parties, build, tools and the other
+  non-game files out of the web version.
 - `dev_mode()` is still on, so the web build is a dev build until that's switched off.
 - Claude couldn't run the web build itself (the sandbox can't reach pygbag's download site), so the first real run
   is the real test. If something looks off, a screenshot or the browser console (F12) text helps a lot.

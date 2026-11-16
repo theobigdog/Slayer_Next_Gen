@@ -7,7 +7,7 @@ import asyncio, json, os, random, re, sys, zlib
 from itertools import combinations_with_replacement
 from collections import Counter
 from multiprocessing import Pool
-GAME = sys.argv[1]; sys.path.insert(0, GAME)
+GAME = sys.argv[1]; sys.path.insert(0, os.path.join(GAME, 'game'))  # GAME: the game's top folder; the code is in its game folder
 CLASSES = ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 REST = os.environ.get('REST', '1') == '1'
 BOOM = os.environ.get('BOOM', '')  # '', 'kobolds', 'wolves' or 'any': where the bot may use the Boom

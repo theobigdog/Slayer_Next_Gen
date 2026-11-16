@@ -1,7 +1,7 @@
-"""Checks the CSV files in supporting_docs for mistakes, in plain English, before the game trips over them.
+r"""Checks the CSV files in supporting_docs for mistakes, in plain English, before the game trips over them.
 
-Run it from the game folder after editing a CSV:
-    python check_data.py
+Run it from the game's top folder after editing a CSV:
+    python tools\check_data.py
 
 It doesn't change anything. "Row 12" means row 12 in Excel (row 1 is the header).
 """
@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 
-DOCS = Path(__file__).parent / 'supporting_docs'
+DOCS = Path(__file__).resolve().parent.parent / 'supporting_docs'  # tools/ is one folder down from the game's top folder
 ATTACK_TYPES = {'melee', 'range', 'both', 'aoe', 'heal', 'aoe_heal', 'trinket', 'hail_mary'}
 AFFLICTIONS = {'happys_norovirus_regurgitation'}
 KIT_KINDS = ['melee', 'ranged', 'spell', 'bomb', 'heal']  # what an upgrade kit can fit (Slayer_Accessory.KIT_KINDS)  # caught, not wielded (Slayer_Accessory.AFFLICTIONS), so the Cleric rule skips them

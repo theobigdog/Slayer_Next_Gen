@@ -1,4 +1,4 @@
-# Builds Slayer.zip (the Windows game: Slayer.exe and its folder) the same way build_exe.bat does.
+# Builds Slayer.zip (the Windows game: Slayer.exe and its folder) the same way build/build_exe.bat does.
 #
 # - When a release is published on GitHub (tag like v0.1 or v0.1.2), Slayer.zip is attached to it a few
 #   minutes later. A Slayer.zip already on that release is replaced.
@@ -43,10 +43,10 @@ jobs:
           python -m pip install -r requirements.txt pyinstaller==6.11.1
 
       - name: Check the CSVs
-        run: python check_data.py
+        run: python tools/check_data.py
 
       - name: Build Slayer.exe
-        run: python -m PyInstaller --noconfirm --clean Slayer.spec
+        run: python -m PyInstaller --noconfirm --clean --distpath dist --workpath build/temp build/Slayer.spec
 
       - name: Check the build is all there
         shell: bash

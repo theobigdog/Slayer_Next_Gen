@@ -3,7 +3,11 @@ saved_parties/*.pkl
 saved_parties/*.sav
 saved_parties/*.json
 saved_parties/*.checkpoint
-build/
+build/temp/
+build/web/
+build/web.zip
+build/web-cache/
+build/version.txt
 dist/
 crash_log.txt
 

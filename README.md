@@ -49,19 +49,33 @@ You'll need Python (it's made with 3.12.3) and two packages:
 pip install -r requirements.txt
 ```
 
-Then, in the game folder:
+Then, in the game's top folder:
 
 | Command | What it starts |
 |---|---|
 | `python main.py` | the game window |
-| `python Slayer_Main.py` | the command-prompt version (Windows only) |
+| `python game\Slayer_Main.py` | the command-prompt version (Windows only) |
 
-To build your own `Slayer.exe`, double-click `build_exe.bat`; the result lands in `dist\Slayer.zip`.
+To build your own `Slayer.exe`, double-click `build\build_exe.bat`; the result lands in `dist\Slayer.zip`.
+
+To play in a browser or on a tablet, see [build/WEB_BUILD.md](build/WEB_BUILD.md).
 
 Making a release (developers): publish a GitHub release tagged like `v0.1`. A few minutes later
 [the release build](.github/workflows/release-build.yml) attaches `Slayer.zip` to it. The same build can be run by
 hand from the Actions tab to try it out without releasing anything.
-To play in a browser or on a tablet, see [WEB_BUILD.md](WEB_BUILD.md).
+
+## What's where
+
+| Folder | What's in it |
+|---|---|
+| `game/` | the game's code: every `Slayer_*.py` |
+| `supporting_docs/` | the CSVs with the game's numbers (below) |
+| `assets/` | art, fonts and the icon |
+| `build/` | how the `.exe` and the browser version get built |
+| `tools/` | `check_data.py` and the balance simulations |
+| `saved_parties/` | your saves, when you run it from the source |
+
+`main.py` stays in the top folder because the browser build looks for it there.
 
 ## Making changes
 
@@ -75,9 +89,9 @@ touching code:
 | `mobs.csv`, `mob_equipment.csv` | the enemies and their attacks |
 | `upgrades.csv` | the upgrade kits for the forge |
 
-After editing them, `python check_data.py` checks for typos and anything that doesn't add up.
+After editing them, `python tools\check_data.py` checks for typos and anything that doesn't add up.
 
-The narrator's lines are in `Slayer_Narration.py`. Art and fonts go in `assets/`, and `assets/README.md` explains
+The narrator's lines are in `game/Slayer_Narration.py`. Art and fonts go in `assets/`, and `assets/README.md` explains
 how to drop in your own sprites. `tools/balance/` has the simulations used to balance the classes and fights.
 
 ## Credits

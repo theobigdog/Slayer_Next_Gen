@@ -12,14 +12,17 @@ from Slayer_UI import say, wait, pause, ask_text
 
 whines = ["Jesus Christ, this dungeon's plumbing is a nightmare. Sorry, I'm good, I'm good.", "Would you stop that sh-- oh, sorry, I was yelling at the banshee in the walls.", "I haven't had a day off since the Third Age, but sure, let's go.", "I'm running on four hours of sleep and pure spite, but for YOU? Anything.", "Why do I do this to myself?  I told mother I would never.... Umm Hi!", "Sometimes, I just care too fucking much about this, that's my problem.  What?  Oh!"]
 
-game_dir = Path(__file__).parent # the folder these .py files live in, so the game finds its files no matter where it's launched from
-docs_dir = game_dir / 'supporting_docs'
-
-# FROZEN: running as the Slayer.exe that build_exe.bat makes. The game's own files are unpacked
+# FROZEN: running as the Slayer.exe that build/build_exe.bat makes. The game's own files are unpacked
 # inside the exe's _internal folder, so saves (and crash logs) go in the folder the player can see,
 # right next to Slayer.exe, instead.
 FROZEN = getattr(sys, 'frozen', False)
-player_dir = Path(sys.executable).parent if FROZEN else game_dir
+
+# root_dir: the top folder of the game, the one holding supporting_docs, assets and saved_parties. These .py files
+# live in its game folder, so it's one up from here; in Slayer.exe everything is unpacked together in _internal.
+# Going by this file (not wherever the game was launched from) means it always finds its files.
+root_dir = Path(sys._MEIPASS) if FROZEN else Path(__file__).resolve().parent.parent
+docs_dir = root_dir / 'supporting_docs'
+player_dir = Path(sys.executable).parent if FROZEN else root_dir
 save_dir = player_dir / 'saved_parties'
 
 # In the browser (pygbag), files vanish when the page closes, so every save is also kept in the browser's

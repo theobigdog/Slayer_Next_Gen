@@ -33,7 +33,7 @@ MINI_BOSS = True  # one Kobold in every pack is the mini-boss (Ted, Nov 10). Fal
 BOSS_SHARES = 2   # his slice whenever the pack's HP is shared out: 2 = twice a regular Kobold's
 BOSS_LABEL = 'Kobold Shaman' # what his box says. DRAFT, like his names: Ted, rename freely.
 BOSS_LOOT = 'Kobold Shaman'  # his own loot table: items.csv rows with this as their source, on top of the regular Kobold drops
-                             # (Ted, Nov 14). It's also in check_data.py's LOOT_SOURCES, so rename it in both places.
+                             # (Ted, Nov 14). It's also in tools/check_data.py's LOOT_SOURCES, so rename it in both places.
 BOSS_NAMES = ['Grand Poobah', 'Big Skab', 'Chief Gristle', 'Mother Squeak']
 
 # How tough the Kobolds are, by party size: (HP, damage), each a multiplier. HP is starting_hp from mobs.csv

@@ -26,7 +26,7 @@ import Slayer_Accessory as acc
 import Slayer_UI as ui  # only for status_words: the words under a box are the same ones the terminal prints
 
 SCREEN_W, SCREEN_H = 1280, 720
-ASSETS = Path(__file__).parent / 'assets'
+ASSETS = acc.root_dir / 'assets' # the game's top folder, one up from game/ (see Slayer_Accessory.root_dir)
 IN_BROWSER = sys.platform == 'emscripten'
 
 # Placeholder colors until there's art and a real palette.
@@ -1247,7 +1247,7 @@ class WindowUI:
     def set_icon():
         """The game's own icon (assets/icon.png: the bloody S and dagger) instead of pygame's snake, on the window
         and the taskbar. Windows groups windows by app and shows python.exe's icon unless the game names itself,
-        hence the AppUserModelID. (Slayer.exe gets the same picture from assets/icon.ico, via Slayer.spec.)"""
+        hence the AppUserModelID. (Slayer.exe gets the same picture from assets/icon.ico, via build/Slayer.spec.)"""
         try:
             pygame.display.set_icon(pygame.image.load(ASSETS / 'icon.png'))
         except (pygame.error, FileNotFoundError):

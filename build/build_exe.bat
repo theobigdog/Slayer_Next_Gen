@@ -1,9 +1,10 @@
 @echo off
 rem Builds Slayer.exe (the window version) and zips it up to send to someone.
-rem Double-click this file in the game folder. It takes a minute or two.
-rem   Result: dist\Slayer.zip  (and dist\Slayer\Slayer.exe, if you want to try it first)
+rem Double-click this file (it's in the game's build folder). It takes a minute or two.
+rem   Result: dist\Slayer.zip in the game's top folder  (and dist\Slayer\Slayer.exe, if you want to try it first)
 
-cd /d "%~dp0"
+rem Work from the game's top folder, one up from here.
+cd /d "%~dp0.."
 
 rem Use "python" if it works, otherwise the "py" launcher.
 set PY=python
@@ -14,7 +15,7 @@ echo Installing/updating PyInstaller...
 
 echo.
 echo Building Slayer.exe...
-%PY% -m PyInstaller --noconfirm --clean Slayer.spec || goto failed
+%PY% -m PyInstaller --noconfirm --clean --distpath dist --workpath build\temp build\Slayer.spec || goto failed
 
 echo.
 echo Zipping it up...
