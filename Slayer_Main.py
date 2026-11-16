@@ -13,7 +13,8 @@ async def play():
         await pause()
     await clear()
     party_dict = await fp.get_party()
-    party_dict = await gp.play_game(party_dict)
+    resume = party_dict.pop('resume_fight', None) # a crashed run picked back up (see fp.offer_checkpoint)
+    party_dict = await (gp.resume_run(party_dict, resume) if resume is not None else gp.play_game(party_dict))
     won = party_dict.pop('run_result', None) == 'won' # beat the Kobolds: no LOSER banner this time
     confirm_save = await yes_no(f"Would you like to save your game (as {party_dict['name'].title()})?  ")
     if confirm_save:

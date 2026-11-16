@@ -84,6 +84,12 @@ async def play_game(party_dict: dict) -> dict:
     return party_dict
 
 
+async def resume_run(party_dict: dict, next_fight: int) -> dict:
+    """Picking a crashed run back up from its checkpoint (Slayer_Accessory.save_checkpoint): straight to the next
+    dungeon fight, no tavern, no intro."""
+    return await dungeon(party_dict, next_fight)
+
+
 async def tavern(party_dict: dict) -> dict:
     """The Happy fight. It always ends in his wipe, the resurrection, loot, stat raises and the back room."""
     happy = Slayer_Dwarf.Disgruntled_Dwarf('Happy')
@@ -97,29 +103,40 @@ async def tavern(party_dict: dict) -> dict:
     return party_dict
 
 
-async def dungeon(party_dict: dict) -> dict:
+# The dungeon's fights in order: (who, make the mobs, the scene before the fight, what runs after each round,
+# what runs after each turn). 'who' is for the crash checkpoint's question ("pick up after the Krazy Kobolds?").
+FIGHTS = [
+    ('the Krazy Kobolds', Slayer_Kobolds.make_pack, nar.kobolds_appear, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn),
+    ('the wolves', Slayer_Wolves.make_pack, nar.wolves_appear, Slayer_Wolves.round_end, None),
+]
+
+async def dungeon(party_dict: dict, start: int = 0) -> dict:
     """Down through Happy's secret entrance: the Krazy Kobolds, then the wolf pack. A wipe ends the run; a win
-    gets the between-battles step and the next fight. The wolves are as deep as it goes for now."""
-    await nar.secret_entrance(party_dict)
-    fights = [ # (make the mobs, the scene before the fight, what runs after each round, what runs after each turn)
-        (Slayer_Kobolds.make_pack, nar.kobolds_appear, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn),
-        (Slayer_Wolves.make_pack, nar.wolves_appear, Slayer_Wolves.round_end, None),
-    ]
-    for make_mobs, appear, round_end, after_turn in fights:
+    gets the between-battles step, a checkpoint, and the next fight. The wolves are as deep as it goes for now.
+    start: the fight to begin at (a run picked back up after a crash skips the ones it already won)."""
+    if start == 0:
+        await nar.secret_entrance(party_dict)
+    for number, (_, make_mobs, appear, round_end, after_turn) in enumerate(FIGHTS):
+        if number < start:
+            continue
         await between_fights(party_dict) # the last fight's mobs are off the screen
         mobs = make_mobs(len(party_dict['party']))
         await appear(party_dict, mobs)
         party_dict = await battle(party_dict, mobs, round_end, after_turn)
         if party_dict['wiped']:
             party_dict['run_result'] = 'wiped'
+            acc.clear_checkpoint(party_dict['name']) # the run's over, properly
             await show_battle(party_dict['party'], mobs, 0) # they stay to gloat, without the round counter
             await nar.dungeon_wipe(party_dict, mobs)
             return acc.refresh_party(party_dict, False) # everyone's back in one piece for the save (a wipe is a full restart)
         await between_fights(party_dict)
         await nar.fight_won(party_dict, mobs)
         party_dict = await between_battles(party_dict, mobs)
+        if number + 1 < len(FIGHTS):
+            acc.save_checkpoint(party_dict, number + 1) # if the game dies before the run's over, it can pick up here
+    acc.clear_checkpoint(party_dict['name'])
     party_dict['run_result'] = 'won'
-    await say("[narr]To be continued![/]")
+    await say("\n[narr]Well done!  That's as deep as the dungeon goes...  for now.  To be continued!  Thank you so much for playing![/]") # DRAFT, for the end of the dungeon until there's more of it
     await pause()
     return acc.refresh_party(party_dict, False)
 

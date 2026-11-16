@@ -154,8 +154,31 @@ async def show_the_list():
     else:
         await say("[narr]The List is empty.  Nobody's on it.  Not even you.  Especially not you.[/]")
 
+async def offer_checkpoint(name : str):
+    """If this name's last run never finished (Slayer_Accessory.save_checkpoint), offer to pick it up at the next
+    fight. Returns the party to play (with 'resume_fight' set), or None to carry on as usual. Either way the
+    checkpoint is used up. DRAFT lines."""
+    found = acc.load_checkpoint(name)
+    if found is None:
+        return None
+    party_dict, next_fight = found
+    acc.clear_checkpoint(name)
+    import Slayer_Game_Play as gp # imported here, because Slayer_Game_Play imports this file
+    won = gp.FIGHTS[next_fight - 1][0]
+    await say(f"[narr]Wait a second, {name}...  your last run never finished.  Last I saw, you'd just beaten {won}.  Did the whole world just...  stop?[/]")
+    if await yes_no("[narr]Want to pick up right where you left off?[/]  "):
+        await say("[narr]Right.  Dust yourselves off.  Onward.[/]")
+        await pause()
+        party_dict['resume_fight'] = next_fight
+        return party_dict
+    await say("[narr]Your call.  That run never happened, then.[/]")
+    return None
+
 async def get_party() -> dict:
     name = await get_name()
+    resumed = await offer_checkpoint(name)
+    if resumed:
+        return resumed
     try:
         saved_party = acc.load_party(name)
         await say(f"[narr]Ah yes, here you are: {name}!  The legend returns![/]\n[narr]Ok, are you ready to rock and ro......{whine()}[/]\n[narr]Sorry.  I'm thrilled.  Genuinely.  This is my thrilled face.[/]")
@@ -168,6 +191,9 @@ async def get_party() -> dict:
             await show_the_list()
             name = (await ask_text("[narr]So.  Which one are you?[/]  ")).title()
         name = await acc.check_bad_name(name)
+        resumed = await offer_checkpoint(name)
+        if resumed:
+            return resumed
         try:
             saved_party = acc.load_party(name)
             await say(f"[narr]Oh, that's right, {name}!  You're the one who projectile-vomited into the fountain last night.  Legendary distance, by the way.{whine()}  Welcome back.[/]")

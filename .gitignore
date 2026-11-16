@@ -2,6 +2,7 @@ __pycache__/
 saved_parties/*.pkl
 saved_parties/*.sav
 saved_parties/*.json
+saved_parties/*.checkpoint
 build/
 dist/
 crash_log.txt
