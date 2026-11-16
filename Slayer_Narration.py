@@ -5,14 +5,21 @@ import random
 
 LUCKY_GIFT = 5 # the narrator's thank-you for listening: + this much luck for every heroine, first run only
 
+# Things she DOES rather than holds (claws, bites, kicks, spells): nothing to fondle there (Ted, Nov 15: a Sapper
+# "fondled her Deep Scratch"). The Sapper's Deep Scratch, Angry Bite and Hide are in acc.ABILITIES too.
+NOT_HELD = {'token_of_the_wise_witch', 'plain_bandage', 'squirrel_claws', 'kangaroo_kick', 'snake_bite', 'bear_maul',
+            'roundhouse_throat_kick', 'flying_fist_of_judah', 'basic_fire_bolt', 'small_lightning_strike', 'fire_rain',
+            'intoxication', 'confusion', 'strength', 'blessing', 'deep_meditation', 'happys_norovirus_regurgitation'} | acc.ABILITIES
+
 def threatening_item(heroine : object) -> str:
-    """Something she can fondle threateningly: a melee weapon if she has one, then any weapon, then whatever she's got."""
-    items = [acc.get_item(name) for name in heroine.inv if name != 'token_of_the_wise_witch']
+    """Something she can fondle threateningly: a melee weapon if she has one, then any weapon, then whatever she's got
+    in her hands. Never a claw, a kick or a spell (NOT_HELD); with nothing to hold, it's her knuckles."""
+    items = [acc.get_item(name) for name in heroine.inv if name not in NOT_HELD and acc.item_family(name)[0] not in NOT_HELD]
     for kinds in (('melee', 'both'), ('range', 'aoe'), ('heal', 'trinket')):
         found = [item for item in items if item['attack_type'] in kinds]
         if found:
             return random.choice(found)['item_desc']
-    return 'fists'
+    return 'knuckles'
 
 def two_of(party : list) -> tuple:
     """Two DIFFERENT heroines at random. A party of one gets the same heroine twice (random.sample would crash

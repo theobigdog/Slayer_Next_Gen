@@ -1021,7 +1021,7 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
             await say(f"  {heroine.name} holds her breath and ducks out of it!")
             continue
         tally(heroine, 'hits_taken')
-        damage = min(int(acc.multi_roll(item['damage_low'], item['damage_high']) * mob_rolls['crit_mult'] * getattr(mob, 'damage_mult', 1)), heroine.health)
+        damage = min(max(1, int(acc.multi_roll(item['damage_low'], item['damage_high']) * mob_rolls['crit_mult'] * getattr(mob, 'damage_mult', 1))), heroine.health) # at least 1: '-0 hp' looked silly (Ted, Nov 15)
         update_health(heroine, damage)
         if heroine.is_dead:
             fallen.append(heroine)

@@ -170,6 +170,7 @@ def party_from_data(data : dict) -> dict:
         hero_class = getattr(Slayer_Heroes, saved['hero_class'])
         heroine = hero_class.__new__(hero_class) # an empty heroine: no new stats rolled
         vars(heroine).update(saved)
+        heroine.status = {} # a save from before Nov 15 could have kept a fight's statuses
         party_dict['party'].append(heroine)
     return catch_up_save(party_dict)
 
@@ -1204,6 +1205,7 @@ def refresh_party(party_dict : dict, increment : bool) -> dict:
         restore_starting_items(heroine)
         heroine.is_dead = False
         heroine.blown_up = False
+        heroine.status = {} # Strength, poison and the rest don't come back from the dead with her (Ted, Nov 15)
         sync_max_hp(heroine)
         heroine.health = heroine.starting_health
     return party_dict
