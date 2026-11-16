@@ -4,6 +4,7 @@ saved_parties/*.sav
 saved_parties/*.json
 saved_parties/*.checkpoint
 build/temp/
+build/Slayer/
 build/web/
 build/web.zip
 build/web-cache/
