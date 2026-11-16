@@ -5,3 +5,7 @@ saved_parties/*.json
 build/
 dist/
 crash_log.txt
+
+# balance tool output
+tools/balance/*.jsonl
+tools/balance/variants/
