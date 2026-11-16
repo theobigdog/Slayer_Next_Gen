@@ -248,6 +248,8 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
     if status(heroine).pop('junked', False): # a Junk Attack halves her next heal too (Ted, Nov 8)
         healing = max(1, healing // 2)
         await say(f"[narr]{heroine.name}'s junk still hurts, so it's a half-strength heal.[/]")
+    if heroine.hero_class == 'Cleric' and status(heroine).get('strong'): # Strength on a Cleric goes into her heals (Ted, Nov 15); still capped at max HP
+        healing = min(missing_hp, healing + strength_bonus(heroine))
     target = update_health(target, -healing)
     await cleanse(target, item)
     if acc.slot_kind(item) == 'potion':
@@ -376,7 +378,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     if strong:
         await say("[narr]The Cleric's Strength is behind this one.[/]")
     if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
-        await say(f"[narr]Spread across all {standing} of them, it's thinner on each one.[/]")
+        await say(f"[narr]Spread across all {acc.number_word(standing)} of them, it's thinner on each one.[/]")
     killed, shielded = [], []
     for mob in [m for m in mobs if not m.is_dead]:
         mob_rolls = get_mob_rolls(mob)
@@ -456,8 +458,9 @@ async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mob
     if junked:
         await say(f"[narr]Her junk still hurts, so it's a half-strength heal.[/]")
     helped = 0
+    strong = strength_bonus(heroine) if heroine.hero_class == 'Cleric' else 0 # Strength on a Cleric: one of its uses, added to what each heroine gets
     for member in [x for x in party if not x.is_dead]:
-        amount = int(-acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult'] * (0.5 if junked else 1))
+        amount = int(-acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult'] * (0.5 if junked else 1)) + strong
         amount = min(max(1, amount), member.starting_health - member.health)
         if amount <= 0:
             continue
@@ -494,7 +497,8 @@ async def heroine_buff(heroine : object, item : dict, party_dict : dict, mobs : 
         what = f"{'Their' if target.is_mob else 'Her'} next attack is going to be something special"
     else:
         status(target)['strong'] = {'attacks': STRENGTH_ATTACKS}
-        what = f"{'Their' if target.is_mob else 'Her'} next {STRENGTH_ATTACKS} attacks will hit harder"
+        acts = 'heals will be stronger' if getattr(target, 'hero_class', '') == 'Cleric' else 'attacks will hit harder' # a Cleric's Strength goes into her heals (Ted, Nov 15)
+        what = f"{'Their' if target.is_mob else 'Her'} next {acc.number_word(STRENGTH_ATTACKS)} {acts}"
     if target.is_mob:
         await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and they're coming for one of you.")
         await pause()

@@ -191,7 +191,7 @@ async def carrying_rules(party_dict : dict) -> None:
     run, and on later runs if the player asks to hear it again. The numbers come from the real rules
     (acc.capacity_facts), so Happy stays right if they ever change."""
     cap = acc.capacity_facts(party_dict)
-    potions = f"{cap['potions']} potion" + ('' if cap['potions'] == 1 else 's')
+    potions = f"{acc.number_word(cap['potions'])} potion" + ('' if cap['potions'] == 1 else 's')
     # Each subject gets said once, with a blank line between subjects (Ted, Nov 10): potions, trinkets, the bag.
     top_up = f'it\'ll just top up the one ye have - a bottle holds {cap["doses"]} doses, nae more.' # Ted, Nov 10: always the same size bottle
     if cap['potions'] == 1:
@@ -342,10 +342,10 @@ async def kobolds_appear(party_dict : dict, kobolds : list) -> None:
     await pause()
     await say(f'{h1.name} tries to be patient and let her eyes adjust to the dark.')
     await say(f'[narr]Wait, what was that scratching sound?[/]  {h1.name} pauses to listen more closely.')
-    await say(f'Something giggles in the dark.  Then something else giggles back.  [narr]{kobold_party_len} somethings, actually.[/]')
+    await say(f'Something giggles in the dark.  Then something else giggles back.  [narr]{acc.number_word(kobold_party_len, capital=True)} somethings, actually.[/]')
     await pause()
     await say(f'{h1.name} finally gets a torch burning, and just in time.')
-    await say(f'To {the_party}\'s horror, {kobold_party_len} smallish creatures of varying, dark, mottled colors stream out from the shadows.')
+    await say(f'To {the_party}\'s horror, {acc.number_word(kobold_party_len)} smallish creatures of varying, dark, mottled colors stream out from the shadows.')
     await say('The little bastards begin teleporting all over the chamber.  [narr]Well this is gonna suck![/]')
     if party_len > 1:
         await say(f'\"What the fuck are those things?\" asks {h2.name} in disbelief of what she is seeing.')
@@ -427,7 +427,7 @@ async def wolves_appear(party_dict : dict, wolves : list) -> None:
     h1, h2 = two_of(party_dict['party'])
     alpha, pack = wolves[0], wolves[1:]
     await say('The tunnel opens into a cavern that smells like wet dog and old bones.')
-    await say(f'{len(pack)} pairs of yellow eyes blink open in the dark.  Then a much bigger pair, a lot higher up.')
+    await say(f'{acc.number_word(len(pack), capital=True)} pairs of yellow eyes blink open in the dark.  Then a much bigger pair, a lot higher up.')
     await say(f'{h1.name} sighs.  \"Wolves.  Of course it\'s fucking wolves.\"')
-    await say(f'[narr]That big one is {alpha.name}.  Drop him and the rest will run for it, but they will throw themselves in front of him to stop you.  And if he stares at one of you...  she\'s next.[/]')
+    await say(f'[narr]I think the big one is called \'{alpha.name}\'![/]') # no tactics up front: they work out the Alpha for themselves (Ted, Nov 15)
     await pause()

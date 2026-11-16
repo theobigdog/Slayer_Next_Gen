@@ -126,7 +126,7 @@ class Alpha_Wolf:
             wolf.is_dead, wolf.fled, wolf.label = True, True, 'Pack Wolf (ran off)'
         if runners:
             one = len(runners) == 1
-            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {len(runners)} wolves'} {'takes' if one else 'take'} one look, {'tucks its tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out!  ...they took their loot with them, though.[/]")
+            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {acc.number_word(len(runners))} wolves'} {'takes' if one else 'take'} one look, {'tucks its tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out!  ...they took their loot with them, though.[/]")
 
 
 def party_scale(party_size : int) -> tuple:
@@ -164,5 +164,7 @@ async def round_end(party_dict : dict, mobs : list, round_num : int):
     pack.mark = random.choice(heroines)
     pack.mark.status = getattr(pack.mark, 'status', None) or {}
     pack.mark.status['hunted'] = True
-    await say(f"{alpha.name} lifts his muzzle, sniffs, and locks his yellow eyes on {pack.mark.name}.  The whole pack turns to look.  [narr]Uh oh.  They're coming for {pack.mark.name} next round.  Do something about that.[/]")
+    left = len(pack.standing())
+    watching = 'The whole pack turns to look' if left == len(pack.wolves) else ('The last wolf of his pack turns to look' if left == 1 else "What's left of the pack turns to look")
+    await say(f"{alpha.name} lifts his muzzle, sniffs, and locks his yellow eyes on {pack.mark.name}.  {watching}.  [narr]Uh oh.  They're coming for {pack.mark.name} next round.  Do something about that.[/]")
     await pause()

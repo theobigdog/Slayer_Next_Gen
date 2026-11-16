@@ -97,6 +97,21 @@ DEV_MODE = True # flip to False to play like a real player; Slayer.exe is always
 def dev_mode() -> bool:
     return DEV_MODE and not FROZEN
 
+NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+                'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+TENS_WORDS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+
+def number_word(n : int, capital : bool = False) -> str:
+    """8 -> 'eight', 28 -> 'twenty-eight' (or 'Eight' to start a sentence). Counts in the story are spelled out:
+    the narration font's digits are hard to read (an 8 looked like a B, Ted Nov 15). 100 and up stay digits."""
+    if 0 <= n < 20:
+        word = NUMBER_WORDS[n]
+    elif 20 <= n < 100:
+        word = TENS_WORDS[n // 10] + (f'-{NUMBER_WORDS[n % 10]}' if n % 10 else '')
+    else:
+        word = str(n)
+    return word.capitalize() if capital else word
+
 def get_hero_classes():
     return ['Warrior', 'Shifter', 'Battle_Mage', 'Hunter', 'Witch', 'Sapper', 'Cleric']
 
@@ -231,6 +246,45 @@ async def save_party(party : dict):
     await say(f"Your party has been saved as {name}.")
     await say(f"Keep track of this saved name if you want to recover your party: {name}")
     await pause()
+
+# ---------- the crash checkpoint (Ted, Nov 15) ---------------------------------------
+# After every won dungeon fight the run so far (the party, its loot, the Token, which fight is next) goes in
+# <Name>.checkpoint next to the saves. A run that ends properly, won or wiped, deletes it. So if one is still there
+# when that name comes back, the last run never finished (a crash, or the window got closed), and the game offers
+# to pick up at the next fight. It's not a save: The List doesn't show it, and it's gone once it's used or turned down.
+
+def checkpoint_path(name : str):
+    return save_dir / f'{name.title()}.checkpoint'
+
+def save_checkpoint(party_dict : dict, next_fight : int):
+    """Quietly, after a won fight. Failing to write one never stops the game."""
+    try:
+        save_dir.mkdir(exist_ok=True)
+        data = party_to_data(party_dict)
+        data['next_fight'] = next_fight
+        checkpoint_path(party_dict['name']).write_text(scramble(json.dumps(data)), encoding='ascii')
+    except Exception as error:
+        print('Slayer: could not write the checkpoint:', error)
+
+def load_checkpoint(name : str):
+    """(party_dict, next_fight), or None when there's no checkpoint for that name or it can't be read."""
+    path = checkpoint_path(name)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(unscramble(path.read_text(encoding='ascii')))
+        next_fight = data.pop('next_fight')
+        return party_from_data(data), next_fight
+    except Exception as error: # an unreadable checkpoint is just dropped
+        print('Slayer: could not read the checkpoint:', error)
+        clear_checkpoint(name)
+        return None
+
+def clear_checkpoint(name : str):
+    try:
+        checkpoint_path(name).unlink(missing_ok=True)
+    except OSError:
+        pass
 
 def saved_party_names() -> list:
     """Every saved party's name, most recently played first."""
@@ -579,11 +633,13 @@ def capacity_facts(party_dict : dict) -> dict:
     for cls, n in by_class.items():
         groups.setdefault(n, []).append(plural(cls))
     if len(party_dict['party']) == 1:
-        trinkets = f"ye can carry {next(iter(by_class.values()))}"
+        trinkets = f"ye can carry {number_word(next(iter(by_class.values())))}"
     else:
-        parts = [f"{and_list(sorted(names))} {'can carry ' if spot == 0 else ''}{n}" for spot, (n, names) in enumerate(sorted(groups.items()))]
+        parts = [f"{and_list(sorted(names))} {'can carry ' if spot == 0 else ''}{number_word(n)}" for spot, (n, names) in enumerate(sorted(groups.items()))]
         trinkets = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ', and ' + parts[-1]
-    return {'gear': GEAR_SLOTS, 'potions': POTION_SLOTS, 'doses': MAX_USES, 'trinkets': trinkets, 'stash': stash_capacity(party_dict)}
+    # numbers spelled out, since Happy says them (number_word); 'potions' stays a number for the narration's plural check
+    return {'gear': number_word(GEAR_SLOTS), 'potions': POTION_SLOTS, 'doses': number_word(MAX_USES), 'trinkets': trinkets,
+            'stash': number_word(stash_capacity(party_dict))}
 
 def stash_has_room(party_dict : dict) -> bool:
     return len(party_dict.setdefault('stash', [])) < stash_capacity(party_dict)
@@ -1088,7 +1144,8 @@ def improve_heroine(heroine : object) -> dict:
     growth = find_row(stat_growth_table, 'hero_class', heroine.hero_class)
     hp = random.randint(int(growth['hp_low']), int(growth['hp_high'])) # by class: Warriors beef up faster than Witches
     heroine.starting_health += hp
-    heroine.health = min(heroine.starting_health, heroine.health + hp)
+    if not heroine.is_dead: # the dead get the bigger max HP, but stay at 0 (a dead Cleric showed 1/43, Ted Nov 15)
+        heroine.health = min(heroine.starting_health, heroine.health + hp)
     changes['max_hp'] = hp
     heroine.fight_tally = {}
     return changes
