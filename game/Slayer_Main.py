@@ -11,6 +11,7 @@ async def play():
     await title_screen()
     if not dev_mode:
         await pause()
+    ui.music('tavern') # (after the first click: a browser won't play sound before one)
     await clear()
     party_dict = await fp.get_party()
     resume = party_dict.pop('resume_fight', None) # a crashed run picked back up (see fp.offer_checkpoint)

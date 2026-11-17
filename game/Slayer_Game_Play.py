@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party
+from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party, music, sting
 import Slayer_Combat as combat
 import Slayer_Dwarf
 import Slayer_Kobolds
@@ -100,6 +100,7 @@ async def tavern(party_dict: dict) -> dict:
         await show_battle(party_dict['party'], mobs, 0) # the fight's over: Happy stays on screen for his scenes, the round counter doesn't
         party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
         party_dict = acc.refresh_party(party_dict, False)
+    music('tavern') # back to the jig for the loot, The Stash and the forge
     return party_dict
 
 
@@ -114,6 +115,7 @@ async def dungeon(party_dict: dict, start: int = 0) -> dict:
     """Down through Happy's secret entrance: the Krazy Kobolds, then the wolf pack. A wipe ends the run; a win
     gets the between-battles step, a checkpoint, and the next fight. The wolves are as deep as it goes for now.
     start: the fight to begin at (a run picked back up after a crash skips the ones it already won)."""
+    music('dungeon')
     if start == 0:
         await nar.secret_entrance(party_dict)
     for number, (_, make_mobs, appear, round_end, after_turn) in enumerate(FIGHTS):
@@ -153,6 +155,7 @@ async def between_fights(party_dict: dict):
 async def between_battles(party_dict: dict, mobs: list) -> dict:
     """After a won fight in the dungeon: gamble the Token on anyone who's down, the loot, the stat raises, then a
     breather that heals everyone still standing to full (Ted, Nov 15)."""
+    music('dungeon') # (the victory sting has had its moment during fight_won)
     party_dict = await combat.token_between_battles(party_dict)
     party_dict = await acc.get_loot(mobs[0], party_dict, mobs) # every one of them rolls its own drops
     await nar.stats_after_fight(party_dict)
@@ -166,6 +169,7 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
     round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there), and
     after_turn(mobs) after every turn (the Kobolds' rage keeps track with it)."""
     combat.start_battle(party_dict['party']) # special weapons are ready again
+    music('battle')
     party_dict['wipe_taunted'] = False # one wipe taunt per fight, from whichever mob gets there first
 
     round_num = 0
@@ -223,4 +227,5 @@ async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) 
             await combat.show_current_status(party_dict['party'], mobs, round_num)
             await pause()
     party_dict.pop('wipe_taunted', None) # only for this fight (keeps it out of the save)
+    sting('defeat' if party_dict['wiped'] else 'victory')
     return party_dict

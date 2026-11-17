@@ -23,6 +23,7 @@ from pathlib import Path
 import pygame
 
 import Slayer_Accessory as acc
+import Slayer_Music
 import Slayer_UI as ui  # only for status_words: the words under a box are the same ones the terminal prints
 
 SCREEN_W, SCREEN_H = 1280, 720
@@ -226,6 +227,7 @@ class WindowUI:
         self.caps = True            # the on-screen keyboard's next letter is a capital
         self.key_rects = []         # (rect, key) for the on-screen keyboard
         self.kb_button = None       # the Keyboard button in the typing field
+        self.music_rect = pygame.Rect(SCREEN_W - 132, 3, 66, 20)  # the music on/off button, top right
 
     # ---------- the frame loop -------------------------------------------------
 
@@ -254,6 +256,7 @@ class WindowUI:
             if task.done() and self.mode != 'end':
                 self.finish(task)
             self.draw()
+            self.draw_music_button()
             if acc.dev_mode():  # frames a second, top right: how smoothly this device is running the game
                 self.blit_text(f'{self.frame_rate:.0f} fps', (SCREEN_W - 58, 4), 'small', DIM)
             pygame.display.flip()
@@ -299,6 +302,9 @@ class WindowUI:
             self.touch_seen = True  # a phone or tablet: typing gets the on-screen keyboard (the tap itself arrives as a click)
             return
         clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+        if clicked and self.music_rect.collidepoint(event.pos):
+            Slayer_Music.toggle()  # the music button: nothing else happens with this click
+            return
         if clicked:
             for rect, lines in self.scroll_buttons:  # the touch-screen scroll arrows: they scroll, nothing else
                 if rect.collidepoint(event.pos):
@@ -437,7 +443,7 @@ class WindowUI:
             pass
 
     def on_control(self, pos):
-        return any(b.rect.collidepoint(pos) for b in self.buttons) or any(r.collidepoint(pos) for r, _ in self.targets)
+        return self.music_rect.collidepoint(pos) or any(b.rect.collidepoint(pos) for b in self.buttons) or any(r.collidepoint(pos) for r, _ in self.targets)
 
     def next_page(self):
         """Show the next page of narration, keeping the last line of this one at the top for context."""
@@ -692,6 +698,19 @@ class WindowUI:
     async def show_party(self, party, active=None):
         await self.until_typed()
         self.mode, self.party, self.active = 'party', party, active
+
+    def music(self, name):
+        Slayer_Music.play(name)
+
+    def sting(self, name):
+        Slayer_Music.sting(name)
+
+    def draw_music_button(self):
+        """Top right: a small music on/off button (a click or tap toggles it)."""
+        label = '\u266a on' if Slayer_Music.on else '\u266a off'
+        pygame.draw.rect(self.screen, (40, 34, 30), self.music_rect, border_radius=4)
+        pygame.draw.rect(self.screen, DIM, self.music_rect, 1, border_radius=4)
+        self.blit_text(label, self.music_rect.center, 'small', GOLD if Slayer_Music.on else DIM, center=True)
 
     async def title_screen(self):
         await TitleAnimation(self).play()

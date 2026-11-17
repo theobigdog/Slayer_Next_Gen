@@ -16,6 +16,8 @@ It imports what it needs from here (from Slayer_UI import say, pause, ...) and a
     await title_screen()                               # the SLAYER opening
     await loser_banner()                               # the LOSER banner
     await effect('boom')                               # a quick flash: 'boom' = the Big Badda Boom keg
+    music('battle')                                    # loop a song (the window plays it; the terminal stays quiet)
+    sting('victory')                                   # a one-off over the top: 'victory' or 'defeat'
 
 say(), choose() and choose_target() take one line or a list of lines for the
 text, prompt and oops; with a list, one line is picked at random each time.
@@ -93,6 +95,17 @@ async def effect(name: str, target=None):
         await _backend.effect(name)
     else:
         await _backend.effect(name, target)
+
+
+def music(name: str):
+    """Loop a song from assets/music (see Slayer_Music). Not awaited: it just starts and the game carries on."""
+    if hasattr(_backend, 'music'):  # (a test bot's stand-in screen may not have one)
+        _backend.music(name)
+
+def sting(name: str):
+    """A one-off ('victory', 'defeat'); the looping song stops for it, and the next music() starts one again."""
+    if hasattr(_backend, 'sting'):
+        _backend.sting(name)
 
 
 def _or_default(oops):
@@ -235,6 +248,12 @@ class TerminalUI:
         await self.show_party(party, active)
 
     # The ASCII art openings live in Slayer_Graphics and stay terminal-only.
+
+    def music(self, name):
+        pass  # the command prompt has no soundtrack
+
+    def sting(self, name):
+        pass
 
     async def title_screen(self):
         import Slayer_Graphics
