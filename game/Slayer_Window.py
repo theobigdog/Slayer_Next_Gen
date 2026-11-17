@@ -259,6 +259,7 @@ class WindowUI:
             self.commit_number_if_done()
             if task.done() and self.mode != 'end':
                 self.finish(task)
+            Slayer_Music.update()  # (a song waiting for the last one to fade out)
             self.draw()
             self.draw_music_control()
             if acc.dev_mode():  # frames a second, top right: how smoothly this device is running the game
@@ -707,6 +708,9 @@ class WindowUI:
 
     def sting(self, name):
         Slayer_Music.sting(name)
+
+    def sound(self, name):
+        Slayer_Music.sound(name)
 
     def music_event(self, event, clicked) -> bool:
         """The music control: click the \u266a to turn it off/on; click or drag along the slider to set the volume."""
@@ -1799,7 +1803,20 @@ class AsciiArt:
 
 
 class TitleAnimation(AsciiArt):
-    """Slayer_Graphics.slayer_opening, frame for frame: letters flicker red at random, faster and faster."""
+    """Slayer_Graphics.slayer_opening, frame for frame: letters flicker red at random, faster and faster.
+    It sounds like a fluorescent tube that won't come on: a buzz that follows how many letters are lit, a crackle
+    each time it flashes on out of the dark, the starter clicking, and a thunk when it finally catches."""
+
+    lit = 0.0
+
+    def flicker(self, colors):
+        lit = sum(c == self.gr.r for c in colors.values()) / len(colors)
+        if lit and not self.lit:
+            Slayer_Music.sound('zap', 0.5 + 0.5 * lit)
+        elif lit != self.lit and random.random() < 0.3:
+            Slayer_Music.sound('tink', 0.5)
+        Slayer_Music.tube(0.1 + 0.6 * lit if lit else 0.03)  # dark: just the ballast humming to itself
+        self.lit = lit
 
     async def play(self):
         gr, window = self.gr, self.window
@@ -1823,10 +1840,13 @@ class TitleAnimation(AsciiArt):
         for top_end, colors_list in ((40, gr.colors_), (25, gr.colors_s), (27, gr.colors_sl), (31, gr.colors_sla), (27, gr.colors_slay), (25, gr.colors_slaye)):
             for _ in range(1, top_end):
                 state['colors'] = random.choice(colors_list)
+                self.flicker(state['colors'])
                 await self.beat(gap)
                 gap = gap / (0.0125 + divisor)
                 divisor = divisor + 0.0005
         state['colors'] = gr.colors_slayer[0]
+        Slayer_Music.sound('catch')  # it finally comes on, and buzzes away until the music starts
+        Slayer_Music.tube(0.45)
         await asyncio.sleep(0.35)
         state['version'] = True
         await asyncio.sleep(0.85)

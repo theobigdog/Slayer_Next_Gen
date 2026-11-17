@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party, music, sting
+from Slayer_UI import pause, say, wait, yes_no, clear, show_battle, show_party, music, sting, sound
 import Slayer_Combat as combat
 import Slayer_Dwarf
 import Slayer_Kobolds
@@ -77,6 +77,8 @@ async def play_game(party_dict: dict) -> dict:
         await pause() # read his answer before anything replaces it (Ted, Nov 10: on a later run it flashed past)
         if party_dict['narration']: # a yes on any run plays the story, not just the first (the luck gift in intro is still first-run only)
             party_dict = await nar.intro(party_dict)
+            sound('door') # in through the creaky door: the jig dies away and the seedy tavern waltz creeps in
+            music('seedy')
             await nar.happy_intro(party_dict)
 
     party_dict = await tavern(party_dict)

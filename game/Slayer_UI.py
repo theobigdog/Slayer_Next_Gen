@@ -18,6 +18,7 @@ It imports what it needs from here (from Slayer_UI import say, pause, ...) and a
     await effect('boom')                               # a quick flash: 'boom' = the Big Badda Boom keg
     music('battle')                                    # loop a song (the window plays it; the terminal stays quiet)
     sting('victory')                                   # a one-off over the top: 'victory' or 'defeat'
+    sound('door')                                      # a sound effect over the music
 
 say(), choose() and choose_target() take one line or a list of lines for the
 text, prompt and oops; with a list, one line is picked at random each time.
@@ -106,6 +107,11 @@ def sting(name: str):
     """A one-off ('victory', 'defeat'); the looping song stops for it, and the next music() starts one again."""
     if hasattr(_backend, 'sting'):
         _backend.sting(name)
+
+def sound(name: str):
+    """A sound effect from assets/sounds ('door'), over whatever music is playing."""
+    if hasattr(_backend, 'sound'):
+        _backend.sound(name)
 
 
 def _or_default(oops):
@@ -253,6 +259,9 @@ class TerminalUI:
         pass  # the command prompt has no soundtrack
 
     def sting(self, name):
+        pass
+
+    def sound(self, name):
         pass
 
     async def title_screen(self):

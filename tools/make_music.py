@@ -60,14 +60,17 @@ def envelope(n, attack, release_n, hold_n):
     return env
 
 
-def additive(f, dur, weights, attack=0.02, release=0.12, vib=(5.5, 0.0, 0.0), bright=None):
-    """A sum of harmonics. vib = (rate Hz, depth, delay s): vibrato that swells in after the delay."""
+def additive(f, dur, weights, attack=0.02, release=0.12, vib=(5.5, 0.0, 0.0), bright=None, scoop=None):
+    """A sum of harmonics. vib = (rate Hz, depth, delay s): vibrato that swells in after the delay.
+    scoop = (how flat, seconds): the note starts that much flat and slides up into tune."""
     hold = int(dur * RATE)
     n = hold + int(release * RATE)
     t = np.arange(n) / RATE
     rate, depth, delay = vib
     swell = np.clip((t - delay) / 0.3, 0, 1) if depth else 0
     inst_f = f * (1 + depth * swell * np.sin(2 * np.pi * rate * t + rng.uniform(0, 6)))
+    if scoop:
+        inst_f = inst_f * (1 - scoop[0] * np.clip(1 - t / scoop[1], 0, 1) ** 2)
     phase = 2 * np.pi * np.cumsum(inst_f) / RATE
     out = np.zeros(n)
     for k, w in enumerate(weights, start=1):
@@ -162,8 +165,43 @@ def cello_pizz(f, dur, vel):
     return pluck(f, dur, vel, decay=0.998, bright=0.3)
 
 
+def reed(f, dur, vel):
+    """A wheezy, sleazy clarinet that scoops up into every note."""
+    w = [1, 0.08, 0.55, 0.06, 0.35, 0.05, 0.22, 0.04, 0.12, 0.03, 0.07]
+    note = additive(f, dur, w, attack=0.06, release=0.15, vib=(4.5, 0.008, 0.25), scoop=(0.04, 0.12))
+    breath = np.convolve(rng.normal(0, 1, len(note)), np.ones(5) / 5, 'same') * 0.035
+    return (note * 0.4 + breath * envelope(len(note), 0.06, 0, len(note))) * vel
+
+
+def squeezebox(f, dur, vel):
+    """A tired old accordion: three reeds a little out of tune with each other."""
+    w = [1, 0.7, 0.5, 0.45, 0.3, 0.25, 0.18, 0.12, 0.1, 0.07]
+    out = 0
+    for cents in (-12, 0, 14):
+        out = out + additive(f * 2 ** (cents / 1200), dur, w, attack=0.03, release=0.08)
+    return out * 0.11 * vel
+
+
+def tuba(f, dur, vel):
+    return additive(f, dur, [1, 0.6, 0.32, 0.18, 0.1, 0.05], attack=0.04, release=0.12,
+                    vib=(4.0, 0.002, 0.3), scoop=(0.025, 0.06)) * 0.6 * vel
+
+
+def honky(f, dur, vel):
+    """A beat-up tavern piano: two strings per note, neither of them in tune."""
+    secs = max(dur + 0.5, 1.0)
+    a = pluck(f * 2 ** (-10 / 1200), dur, vel, decay=0.997, bright=0.85, seconds=secs)
+    b = pluck(f * 2 ** (13 / 1200), dur, vel, decay=0.997, bright=0.85, seconds=secs)
+    return (a + b) * 0.55
+
+
+def lowpass(x, k):
+    return np.convolve(x, np.ones(k) / k, 'same')
+
+
 def drum(kind, vel):
-    length = {'k': 0.4, 'b': 0.45, 'x': 0.06, 's': 0.25, 'h': 0.06, 't': 0.6, 'g': 3.5}.get(kind, 0.2)
+    length = {'k': 0.4, 'b': 0.45, 'x': 0.06, 's': 0.25, 'h': 0.06, 't': 0.6, 'g': 3.5, 'c': 0.7,
+              'w': 0.3}.get(kind, 0.2)
     n = int(length * RATE)
     t = np.arange(n) / RATE
     noise = rng.normal(0, 1, n)
@@ -190,13 +228,26 @@ def drum(kind, vel):
         out += hiss * 0.15 * np.exp(-t * 3)
         out[:80] *= np.linspace(0, 1, 80)
         out *= 0.35
+    elif kind == 'c':  # two glasses clinking somewhere across the room
+        out = np.zeros(n)
+        for delay, amp in ((0.0, 1.0), (rng.uniform(0.05, 0.12), 0.5)):
+            f0 = rng.uniform(2200, 3200)
+            tt = np.clip(t - delay, 0, None)
+            ring = sum(a * np.sin(2 * np.pi * f0 * r * tt) * np.exp(-tt * d)
+                       for r, a, d in ((1, 1, 9), (2.41, 0.5, 14), (3.93, 0.3, 22)))
+            out += amp * ring * (t >= delay)
+        out *= 0.12
+    elif kind == 'w':  # a brush swished across the snare
+        env = np.clip(t / 0.03, 0, 1) * np.exp(-t * 14)
+        out = lowpass(hiss, 3) * 0.3 * env
     else:
         out = np.zeros(n)
     return out * vel
 
 
 INSTRUMENTS = {'fiddle': fiddle, 'whistle': whistle, 'drone': drone, 'brass': brass, 'strings': strings,
-               'choir': choir, 'bell': bell, 'lute': lute, 'pizz': cello_pizz}
+               'choir': choir, 'bell': bell, 'lute': lute, 'pizz': cello_pizz, 'reed': reed,
+               'squeezebox': squeezebox, 'tuba': tuba, 'honky': honky}
 
 
 # ---------- putting a song together ----------
@@ -245,6 +296,56 @@ def reverb(buf, seconds, wet, looping):
     return out
 
 
+def wobbly(n, sr, every, low=0.0, high=1.0):
+    """A slow random wander between low and high, a new target every `every` seconds."""
+    points = rng.uniform(low, high, int(n / sr / every) + 3)
+    return np.interp(np.arange(n) / sr / every, np.arange(len(points)), points)
+
+
+def murmur(n, voices=7):
+    """A room full of low talk: pitched 'voices' babbling through shifting vowels, no words in them.
+    Worked out at 8 kHz (talk has nothing up high), then stretched to RATE. Loops: the end fades into the start."""
+    sr, fade = 8000, 8000
+    m = n * sr // RATE + fade
+    t = np.arange(m) / sr
+    vowels = np.array([(730, 1090), (530, 1840), (300, 870), (570, 840), (440, 1020), (660, 1700)])
+    out = np.zeros((m, 2))
+    for _ in range(voices):
+        f0 = rng.uniform(85, 165) * (1 + 0.07 * (wobbly(m, sr, 0.12) - 0.5) + 0.05 * (wobbly(m, sr, 1.5) - 0.5))
+        phase = 2 * np.pi * np.cumsum(f0) / sr
+        syll = rng.integers(0, len(vowels), int(m / sr / 0.16) + 3)
+        pos = t / 0.16
+        f1 = np.interp(pos, np.arange(len(syll)), vowels[syll, 0])
+        f2 = np.interp(pos, np.arange(len(syll)), vowels[syll, 1])
+        voice = np.zeros(m)
+        for k in range(1, 18):
+            fk = k * f0
+            amp = np.exp(-((fk - f1) / 140) ** 2) + 0.6 * np.exp(-((fk - f2) / 220) ** 2) + 0.15 / k
+            voice += amp * np.sin(k * phase) * (fk < sr * 0.45)
+        # syllables, and a voice that talks for a few seconds then listens for a few
+        gate = np.clip(np.sin(np.pi * pos) ** 2 * 1.3, 0, 1) * (wobbly(m, sr, 0.16, 0.2, 1.0))
+        talking = np.clip((wobbly(m, sr, 2.5, -1, 1.6)) * 3, 0, 1)
+        voice *= gate * talking
+        pan = rng.uniform(-0.8, 0.8)
+        out[:, 0] += voice * np.sqrt(0.5 * (1 - pan))
+        out[:, 1] += voice * np.sqrt(0.5 * (1 + pan))
+    ramp = np.linspace(0, 1, fade)[:, None]
+    out[:fade] = out[:fade] * np.sqrt(ramp) + out[-fade:] * np.sqrt(1 - ramp)   # the tail fades into the start
+    out = out[:m - fade]
+    big = np.stack([np.interp(np.arange(n) * sr / RATE, np.arange(len(out)), out[:, ch]) for ch in range(2)], 1)
+    big = np.stack([lowpass(big[:, ch], 3) for ch in range(2)], 1)
+    return big / np.sqrt((big ** 2).mean()) * 0.17
+
+
+def wow(buf, cents, cycles):
+    """A seasick wobble in pitch, like a warped old record: `cycles` slow wobbles per loop (so it still loops)."""
+    n = len(buf)
+    i = np.arange(n)
+    depth = 2 ** (cents / 1200) - 1
+    pos = (i + depth * n / (2 * np.pi * cycles) * np.sin(2 * np.pi * cycles * i / n)) % n
+    return np.stack([np.interp(pos, np.arange(n + 1), np.append(buf[:, ch], buf[0, ch])) for ch in range(2)], 1)
+
+
 def render(song):
     spb = song.get('steps', 2)
     bar_steps = song.get('beats', 4) * spb
@@ -256,8 +357,9 @@ def render(song):
     for part in song['parts']:
         vol, pan = part.get('vol', 0.5), part.get('pan', 0.0)
         gains = vol * np.sqrt(0.5 * (1 - pan)), vol * np.sqrt(0.5 * (1 + pan))
+        sway = part.get('sway', 0.0)  # seconds of drunken slop in when each note lands
         for step, length, pitches, vel in parse(part, song['bars'], bar_steps):
-            start = int(round(step * step_s * RATE))
+            start = int(round((step * step_s + abs(rng.normal(0, sway))) * RATE))
             for p in pitches:
                 if part['inst'] == 'drums':
                     note = drum(p, vel)
@@ -271,7 +373,11 @@ def render(song):
                     idx, note = idx[keep], note[keep]
                 np.add.at(buf[:, 0], idx, note * gains[0])
                 np.add.at(buf[:, 1], idx, note * gains[1])
+    if song.get('murmur'):
+        buf += murmur(n) * song['murmur']
     buf = reverb(buf, song.get('reverb', 1.6), song.get('wet', 0.25), looping)
+    if song.get('wow'):
+        buf = wow(buf, *song['wow'])
     # Match loudness between songs, then a soft limiter so peaks round off instead of clipping.
     rms = np.sqrt((buf ** 2).mean())
     buf *= 0.17 / rms
@@ -292,8 +398,39 @@ TAVERN_TUNE = [
 TAVERN_CHORDS = ["d3+a3", "g3+d4", "d3+a3", "a2+e3", "d3+a3", "d3+a3", "c3+g3", "d3+a3",
                  "d3+a3", "d3+a3", "c3+g3", "c3+g3", "d3+a3", "c3+g3", "d3+a3", "d3+a3"]
 
+# Inside the Devil's Brew: A minor, a drunk 3/4 waltz.
+SEEDY_CHORDS = ['Am', 'Am', 'E7', 'E7', 'Am', 'Am', 'Dm', 'E7', 'Dm', 'Dm', 'Am', 'Am', 'F', 'E7', 'Am', 'E7']
+SEEDY_BASS = {'Am': ('a1', 'e2'), 'E7': ('e2', 'b1'), 'Dm': ('d2', 'a1'), 'F': ('f1', 'c2')}
+SEEDY_VOICING = {'Am': 'a3+c4+e4', 'E7': 'g#3+b3+d4', 'Dm': 'a3+d4+f4', 'F': 'a3+c4+f4'}
+SEEDY_TUNE = [
+    "e4 - a4 - b4 c5", "b4 - a4 - - .", "g#4 - b4 - d5 -", "c5 b4 - - . .",
+    "e4 - a4 - b4 c5", "e5 - d5 c5 b4 a4", "f4 - a4 - d5 c5", "b4 - g#4 - e4 .",
+    "d5 - f5 - e5 d5", "c5 - a4 - - .", "c5 - e5 - d5 c5", "b4 - a4 - - .",
+    "a4 - c5 - f5 e5", "d5 - b4 - g#4 -", "a4 - - e4 a4 -", "b4 - g#4 - e4 -",
+]
+REST3 = '. . . . . .'
+
 SONGS = {
-    # The tavern (and the title and party screens): a rowdy jig for Happy and his drunk mates.
+    # Happy's grimy tavern, from the moment the party walks in: a lurching drunk waltz on a wheezy clarinet,
+    # an accordion and a tuba, then a busted piano, under a room full of muttering and clinking glasses.
+    # The whole thing wobbles like a warped record.
+    'seedy': {
+        'bpm': 80, 'beats': 3, 'steps': 2, 'bars': 32, 'wet': 0.3, 'reverb': 1.8, 'murmur': 0.22, 'wow': (9, 24),
+        'parts': [
+            {'inst': 'reed', 'vol': 0.85, 'pan': 0.2, 'sway': 0.015, 'bars': SEEDY_TUNE + [REST3] * 16},
+            {'inst': 'honky', 'vol': 0.75, 'pan': -0.15, 'sway': 0.02, 'bars': [REST3] * 16 + SEEDY_TUNE},
+            {'inst': 'reed', 'vol': 0.35, 'pan': 0.3, 'oct': -1, 'sway': 0.015, 'bars': [REST3] * 16 + SEEDY_TUNE},
+            {'inst': 'tuba', 'vol': 0.8, 'pan': 0.0, 'sway': 0.01,
+             'bars': [f"{SEEDY_BASS[c][i % 2]}! - . . . ." for i, c in enumerate(SEEDY_CHORDS)]},
+            {'inst': 'squeezebox', 'vol': 0.6, 'pan': -0.35, 'sway': 0.02,
+             'bars': [f". . {SEEDY_VOICING[c]} . {SEEDY_VOICING[c]}' ." for c in SEEDY_CHORDS]},
+            {'inst': 'drums', 'vol': 0.45, 'pan': 0.1, 'bars': [". . w . w' .", ". . w . w' w'"]},
+            {'inst': 'drums', 'vol': 0.6, 'pan': 0.5,
+             'bars': [REST3, ". . . . c' .", REST3, REST3, ". c' . . . .", REST3, REST3, REST3, ". . . c .",
+                      REST3, REST3]},
+        ]},
+
+    # The title and the party screens (and the loot after the Happy fight): a rowdy jig.
     # D mixolydian, 6/8, fiddle with a bagpipe drone, a lute strumming and a bodhran.
     'tavern': {
         'bpm': 116, 'beats': 2, 'steps': 3, 'bars': 32, 'wet': 0.18, 'reverb': 1.2,
@@ -372,17 +509,120 @@ SONGS = {
 }
 
 
+# ---------- sound effects (assets/sounds) ----------
+
+def stutter(n, chunk_s, chance):
+    """On/off in random little chunks: a contact that won't make up its mind."""
+    chunks = (rng.random(int(n / (chunk_s * RATE)) + 2) < chance).astype(float)
+    return lowpass(np.repeat(chunks, int(chunk_s * RATE))[:n], 40)
+
+
+def tube_buzz(n):
+    """A fluorescent tube's ballast: a nasty 120 Hz buzz with a rattle in it."""
+    t = np.arange(n) / RATE
+    s = np.sin(2 * np.pi * 120 * t)
+    hum = np.sign(s) * np.abs(s) ** 0.3 * 0.5 + 0.35 * np.sin(2 * np.pi * 240 * t + 0.5)
+    hiss = np.diff(rng.normal(0, 1, n), prepend=0)
+    rattle = hiss * 0.3 * (0.5 + 0.5 * np.sin(2 * np.pi * 120 * t)) ** 6
+    return lowpass(hum, 3) + rattle
+
+
+def sfx_buzz():
+    """The tube buzzing, exactly one second long (120 whole cycles) so it loops without a seam."""
+    n = RATE
+    crackle = np.zeros(n)
+    crackle[rng.integers(0, n, 25)] = rng.uniform(-1, 1, 25)
+    crackle = np.convolve(crackle, np.exp(-np.arange(200) / 30), 'same')
+    return tube_buzz(n) + crackle * 0.4
+
+
+def sfx_zap():
+    """The tube flashing on for an instant: a crackling buzz that stutters and dies."""
+    n = int(0.16 * RATE)
+    t = np.arange(n) / RATE
+    hiss = np.diff(rng.normal(0, 1, n), prepend=0)
+    out = (tube_buzz(n) * 1.3 + hiss * 0.5 * np.exp(-t * 40)) * np.exp(-t * 18) * stutter(n, 0.008, 0.7)
+    out[:40] *= np.linspace(0, 1, 40)
+    return out
+
+
+def sfx_tink():
+    """The starter clicking: a tiny metallic tick."""
+    n = int(0.08 * RATE)
+    t = np.arange(n) / RATE
+    f0 = rng.uniform(3400, 4200)
+    return sum(a * np.sin(2 * np.pi * f0 * r * t) * np.exp(-t * d)
+               for r, a, d in ((1, 1, 70), (1.62, 0.6, 110), (2.5, 0.4, 160))) * 0.5
+
+
+def sfx_catch():
+    """The tube finally catching: a thunk from the ballast and the buzz swelling to full."""
+    n = int(1.2 * RATE)
+    t = np.arange(n) / RATE
+    thunk = np.sin(2 * np.pi * np.cumsum(60 + 50 * np.exp(-t * 30)) / RATE) * np.exp(-t * 12)
+    thunk += lowpass(rng.normal(0, 1, n), 10) * 0.4 * np.exp(-t * 35)
+    swell = np.clip(t / 0.08, 0, 1) * (0.45 + 0.75 * np.exp(-t * 4)) * np.clip((1.2 - t) / 0.3, 0, 1)
+    return thunk * 0.9 + tube_buzz(n) * swell + sfx_tink_at(n, 0.0)
+
+
+def sfx_tink_at(n, at):
+    out = np.zeros(n)
+    tink = sfx_tink()
+    i = int(at * RATE)
+    out[i:i + len(tink)] = tink[:n - i]
+    return out
+
+
+def sfx_door():
+    """A heavy old tavern door: a long creak, then it thuds shut behind you and the latch drops."""
+    creak_s, n = 1.5, int(2.6 * RATE)
+    t = np.arange(n) / RATE
+    # the hinge sticking and slipping: little bumps, faster and slower as the door swings
+    rate = 35 + 70 * wobbly(n, RATE, 0.25) + 25 * np.sin(np.pi * np.clip(t / creak_s, 0, 1))
+    ticks = np.diff(np.floor(np.cumsum(rate) / RATE), prepend=0) > 0
+    loud = np.sin(np.pi * np.clip(t / creak_s, 0, 1)) ** 0.6 * wobbly(n, RATE, 0.15, 0.5, 1.0)
+    bumps = ticks * loud * rng.uniform(0.6, 1.0, n)
+    ir_t = np.arange(int(0.06 * RATE)) / RATE
+    wood = sum(a * np.sin(2 * np.pi * f * ir_t) * np.exp(-ir_t * d)
+               for f, a, d in ((320, 1, 45), (650, 0.8, 55), (1150, 0.55, 70), (1900, 0.35, 90), (2750, 0.2, 120)))
+    creak = np.convolve(bumps, wood, 'full')[:n] * 0.35
+    # the slam: a low thud through the floorboards, then the latch
+    at = 1.75
+    tt = np.clip(t - at, 0, None)
+    thud = (np.sin(2 * np.pi * np.cumsum(55 + 45 * np.exp(-tt * 25)) / RATE) * np.exp(-tt * 9)
+            + lowpass(rng.normal(0, 1, n), 14) * 0.5 * np.exp(-tt * 25)) * (t >= at)
+    latch = sfx_tink_at(n, at + 0.17) * 0.8
+    out = creak + thud * 0.8 + latch
+    return out
+
+
+SOUNDS = {'buzz': sfx_buzz, 'zap': sfx_zap, 'tink': sfx_tink, 'catch': sfx_catch, 'door': sfx_door}
+SOUND_OUT = OUT.parent / 'sounds'
+
+
+def write_ogg(path, audio):
+    # Written a little at a time: libsndfile's Vorbis encoder overflows its stack on one big write.
+    with soundfile.SoundFile(str(path), 'w', RATE, audio.shape[1], format='OGG', subtype='VORBIS') as f:
+        for i in range(0, len(audio), 4096):
+            f.write(audio[i:i + 4096])
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    wanted = sys.argv[1:] or list(SONGS)
+    SOUND_OUT.mkdir(parents=True, exist_ok=True)
+    wanted = sys.argv[1:] or list(SONGS) + list(SOUNDS)
     for name in wanted:
+        if name in SOUNDS:
+            audio = SOUNDS[name]()
+            audio = (audio / np.abs(audio).max() * 0.8).astype(np.float32)[:, None]
+            path = SOUND_OUT / f'{name}.ogg'
+            write_ogg(path, audio)
+            print(f'{name}: {len(audio) / RATE:.2f} s -> {path.relative_to(OUT.parent.parent)}')
+            continue
         song = SONGS[name]
         audio = render(song)
         path = OUT / f'{name}.ogg'
-        # Written a little at a time: libsndfile's Vorbis encoder overflows its stack on one big write.
-        with soundfile.SoundFile(str(path), 'w', RATE, 2, format='OGG', subtype='VORBIS') as f:
-            for i in range(0, len(audio), 4096):
-                f.write(audio[i:i + 4096])
+        write_ogg(path, audio)
         print(f'{name}: {len(audio) / RATE:.1f} s, peak {np.abs(audio).max():.2f}, '
               f'{path.stat().st_size // 1024} KB -> {path.relative_to(OUT.parent.parent)}')
 

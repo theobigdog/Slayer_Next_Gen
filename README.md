@@ -22,9 +22,10 @@ while a narrator who's only *pretending* to be an asshole heckles every move you
 - **Loot, a stash and a forge:** gear, potions and trinkets drop after fights. Keep the overflow in The Stash
   and bring upgrade kits to the forge out back of the Devil's Brew.
 - **Heroines who grow:** every won fight makes them a little better, and saved parties keep it across runs.
-- **Its own soundtrack** (in the game window): a rowdy fiddle-and-bagpipe jig in Happy's tavern, a creeping
-  dungeon, a galloping battle march, and a hurrah or a gong when a fight ends. A volume slider in the top-right
-  corner sets how loud it is (and remembers it), and clicking the ♪ turns it off and on.
+- **Its own soundtrack** (in the game window): a rowdy fiddle-and-bagpipe jig to start, a seedy, lurching waltz
+  once the tavern door creaks shut behind you, a creeping dungeon, a galloping battle march, and a hurrah or a gong
+  when a fight ends. The title buzzes and crackles like a fluorescent tube that won't come on. A volume slider in
+  the top-right corner sets how loud it all is (and remembers it), and clicking the ♪ turns it off and on.
 - **Play it your way:** a game window (Windows, Mac or Linux), the original command-prompt version, or in a
   web browser, tablets included.
 
@@ -96,14 +97,15 @@ After editing them, `python tools\check_data.py` checks for typos and anything t
 
 The narrator's lines are in `game/Slayer_Narration.py`. Art and fonts go in `assets/`, and `assets/README.md` explains
 how to drop in your own sprites. The music is written as notes in `tools/make_music.py`, which renders it into
-`assets/music/*.ogg` (it needs `pip install numpy soundfile`, for whoever changes the music; players don't).
+`assets/music/*.ogg` (and the sound effects into `assets/sounds/`) (it needs `pip install numpy soundfile`, for whoever changes the music; players don't).
 `tools/balance/` has the simulations used to balance the classes and fights.
 
 ## Credits
 
 - Made by **theobigdog**, in collaboration with Claude (Anthropic).
 - Fonts: New Rocker and Fondamento (SIL Open Font License) and DejaVu. Their licenses are in `assets/fonts/`.
-- Music: original, composed and synthesized in `tools/make_music.py` (no samples), under the same licence as the art.
+- Music and sound effects: original, composed and synthesized in `tools/make_music.py` (no samples), under the same
+  licence as the art.
 
 ## License
 
