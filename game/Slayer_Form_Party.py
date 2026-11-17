@@ -150,8 +150,20 @@ async def show_the_list():
     names = acc.saved_party_names()
     if names:
         await say(f"[narr]Fiiine.  Here's The List:[/]  {',  '.join(names)}")
+        await say("[narr](To start a name over, type delete and the name.)[/]")
     else:
         await say("[narr]The List is empty.  Nobody's on it.  Not even you.  Especially not you.[/]")
+
+async def delete_from_the_list(name : str):
+    """Typing "delete <name>": deletes that saved party for good, after a yes. DRAFT lines, for Ted to rewrite."""
+    if name not in acc.saved_party_names():
+        await say(f"[narr]There's no {name} on [/][thelist]The List[/][narr].  Can't delete what was never there.[/]")
+        return
+    if await yes_no(f"[narr]Delete {name} for good?  Every hero, every scrap of loot, gone.  No take-backs.[/]  "):
+        acc.delete_party(name)
+        await say(f"[narr]Done.  {name} is off [/][thelist]The List[/][narr].  The name's up for grabs again.[/]")
+    else:
+        await say(f"[narr]Fine.  {name} lives to disappoint another day.[/]")
 
 async def offer_checkpoint(name : str):
     """If this name's last run never finished (Slayer_Accessory.save_checkpoint), offer to pick it up at the next
@@ -186,8 +198,13 @@ async def get_party() -> dict:
         await say('[narr]Hmmmm.....[/]')
         await wait(1)
         name = (await ask_text("[narr]I don't recognize you, and I don't think you're on [/][thelist]The List[/][narr].[/]\n[narr]What was that name again?[/]  ")).title()
-        while name.strip().lower() in ('the list', 'list'): # the secret way to see every saved party (in the window, click The List)
-            await show_the_list()
+        # The secret ways in: "the list" shows every saved party (in the window, click The List), and "delete <name>"
+        # deletes one for good, so that name can start a fresh party (in the window, The List has delete buttons too).
+        while name.strip().lower() in ('the list', 'list') or name.strip().lower().startswith('delete '):
+            if name.strip().lower().startswith('delete '):
+                await delete_from_the_list(name.strip()[len('delete '):].strip().title())
+            else:
+                await show_the_list()
             name = (await ask_text("[narr]So.  Which one are you?[/]  ")).title()
         name = await acc.check_bad_name(name)
         resumed = await offer_checkpoint(name)

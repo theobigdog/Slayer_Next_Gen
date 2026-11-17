@@ -190,6 +190,8 @@ class WindowUI:
         self.links = []             # (rect, what) for clickable words in the narration (The List)
         self.list_open = False      # The List's panel of saved parties is showing
         self.list_rects = []        # (rect, name) rows in that panel
+        self.list_deletes = []      # (rect, name, action) delete buttons in it: 'ask', 'yes' or 'no'
+        self.list_confirm = None    # the saved party whose delete button was clicked, waiting on "for good?"
         self.waiting = None         # (kind, future, extra) while the game waits on the player
         self.waiting_since = 0.0    # when the current wait began (a double-click can't skip the next line)
         self.now = pygame.time.get_ticks() / 1000
@@ -335,9 +337,18 @@ class WindowUI:
                     if rect.collidepoint(event.pos):
                         return self.press_key(key)
             if clicked:
+                for rect, name, action in (self.list_deletes if self.list_open else []):
+                    if rect.collidepoint(event.pos):  # delete, then "for good?" on the same row
+                        if action == 'ask':
+                            self.list_confirm = name
+                        else:
+                            if action == 'yes':
+                                acc.delete_party(name)
+                            self.list_confirm = None
+                        return
                 for rect, name in (self.list_rects if self.list_open else []):
                     if rect.collidepoint(event.pos):
-                        self.typed, self.list_open = name, False  # a saved name, typed in for you
+                        self.typed, self.list_open, self.list_confirm = name, False, None  # a saved name, typed in for you
                         return
                 if any(rect.collidepoint(event.pos) for rect, _ in self.links):
                     self.list_open = not self.list_open
@@ -904,23 +915,44 @@ class WindowUI:
             self.scroll_buttons.append((rect, lines))
 
     def draw_the_list(self):
-        """The List: every saved party, newest first. Clicking a name types it in."""
+        """The List: every saved party, newest first. Clicking a name types it in. Each row has a delete button, so
+        a name can start a fresh party (Ted, Nov 16); it asks "for good?" on the same row first."""
         area = self.menu_area()
         area.height -= 66  # stops above the typing field
         if self.keyboard_on():
             area.height = self.keyboard_rect().top - 60 - area.y  # and above the on-screen keyboard
         self.panel(area, LIST_RED)
         self.blit_text('The List', (area.x + 16, area.y + 10), 'menu_title', LIST_RED)
-        self.list_rects = []
+        self.list_rects, self.list_deletes = [], []
         names = acc.saved_party_names()
         if not names:
             self.blit_text('Nobody yet.', (area.x + 16, area.y + 50), 'menu', DIM)
         mouse = pygame.mouse.get_pos()
         for i, name in enumerate(names[:(area.height - 50) // 34]):
-            rect = pygame.Rect(area.x + 10, area.y + 44 + i * 34, area.width - 20, 30)
+            row = pygame.Rect(area.x + 10, area.y + 44 + i * 34, area.width - 20, 30)
+            if self.list_confirm == name:
+                pygame.draw.rect(self.screen, (70, 30, 30), row, border_radius=6)
+                no = pygame.Rect(row.right - 66, row.y + 2, 62, 26)
+                yes = pygame.Rect(no.x - 70, row.y + 2, 64, 26)
+                question = f'Delete {name} for good?'
+                if self.fonts['menu'].size(question)[0] > yes.x - row.x - 16:
+                    question = 'Delete for good?'  # a long name would run under the buttons
+                self.blit_text(question, (row.x + 10, row.y + 3), 'menu', TEXT)
+                for rect, label, action in ((yes, 'Yes', 'yes'), (no, 'Keep', 'no')):
+                    pygame.draw.rect(self.screen, (58, 50, 42) if rect.collidepoint(mouse) else (40, 35, 30), rect, border_radius=6)
+                    pygame.draw.rect(self.screen, LIST_RED if action == 'yes' else PANEL_EDGE, rect, 2, border_radius=6)
+                    self.blit_text(label, rect.center, 'small', TEXT, center=True)
+                    self.list_deletes.append((rect, name, action))
+                continue
+            delete = pygame.Rect(row.right - 70, row.y + 2, 66, 26)
+            rect = pygame.Rect(row.x, row.y, row.width - 74, row.height)
             pygame.draw.rect(self.screen, (58, 50, 42) if rect.collidepoint(mouse) else (40, 35, 30), rect, border_radius=6)
             self.blit_text(name, (rect.x + 10, rect.y + 3), 'menu', TEXT)
             self.list_rects.append((rect, name))
+            pygame.draw.rect(self.screen, (58, 50, 42) if delete.collidepoint(mouse) else (40, 35, 30), delete, border_radius=6)
+            pygame.draw.rect(self.screen, LIST_RED, delete, 1, border_radius=6)
+            self.blit_text('delete', delete.center, 'small', LIST_RED, center=True)
+            self.list_deletes.append((delete, name, 'ask'))
 
     def draw_menu(self):
         kind, _, extra = self.waiting

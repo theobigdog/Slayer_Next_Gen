@@ -300,6 +300,26 @@ def saved_party_names() -> list:
     saves = sorted(save_dir.glob('*.sav'), key=lambda path: path.stat().st_mtime, reverse=True)
     return [path.stem for path in saves]
 
+def delete_party(name : str) -> bool:
+    """Delete a saved party for good, so the name can start fresh: its .sav, any leftover checkpoint, and on the
+    web its copy in the browser (or it would come back next time the page loads). True if there was one to delete."""
+    name = name.title()
+    path = save_dir / f'{name}.sav'
+    existed = path.exists()
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as error:
+        print('Slayer: could not delete the save:', error)
+        return False
+    clear_checkpoint(name)
+    storage = browser_storage()
+    if storage is not None:
+        try:
+            storage.removeItem(BROWSER_SAVE_PREFIX + name)
+        except Exception as error:
+            print('Slayer: could not delete the save from the browser:', error)
+    return existed
+
 def load_party(name : str) -> dict:
     with open(save_dir / f'{name.title()}.sav', encoding='ascii') as f: # a missing save raises FileNotFoundError, which get_party relies on
         return party_from_data(json.loads(unscramble(f.read())))
