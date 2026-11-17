@@ -227,7 +227,11 @@ class WindowUI:
         self.caps = True            # the on-screen keyboard's next letter is a capital
         self.key_rects = []         # (rect, key) for the on-screen keyboard
         self.kb_button = None       # the Keyboard button in the typing field
-        self.music_rect = pygame.Rect(SCREEN_W - 132, 3, 66, 20)  # the music on/off button, top right
+        # Music, top right: the ♪ turns it off and on, and the slider beside it sets the volume.
+        self.music_icon = pygame.Rect(SCREEN_W - 236, 2, 24, 22)
+        self.music_slider = pygame.Rect(SCREEN_W - 212, 2, 144, 22)  # (the clickable strip; the bar is drawn inside it)
+        self.music_rect = self.music_icon.union(self.music_slider)
+        self.music_drag = False     # the slider's knob is being dragged
 
     # ---------- the frame loop -------------------------------------------------
 
@@ -256,7 +260,7 @@ class WindowUI:
             if task.done() and self.mode != 'end':
                 self.finish(task)
             self.draw()
-            self.draw_music_button()
+            self.draw_music_control()
             if acc.dev_mode():  # frames a second, top right: how smoothly this device is running the game
                 self.blit_text(f'{self.frame_rate:.0f} fps', (SCREEN_W - 58, 4), 'small', DIM)
             pygame.display.flip()
@@ -302,9 +306,8 @@ class WindowUI:
             self.touch_seen = True  # a phone or tablet: typing gets the on-screen keyboard (the tap itself arrives as a click)
             return
         clicked = event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-        if clicked and self.music_rect.collidepoint(event.pos):
-            Slayer_Music.toggle()  # the music button: nothing else happens with this click
-            return
+        if self.music_event(event, clicked):
+            return  # the music control took it: nothing else happens with this click or drag
         if clicked:
             for rect, lines in self.scroll_buttons:  # the touch-screen scroll arrows: they scroll, nothing else
                 if rect.collidepoint(event.pos):
@@ -705,12 +708,39 @@ class WindowUI:
     def sting(self, name):
         Slayer_Music.sting(name)
 
-    def draw_music_button(self):
-        """Top right: a small music on/off button (a click or tap toggles it)."""
-        label = '\u266a on' if Slayer_Music.on else '\u266a off'
+    def music_event(self, event, clicked) -> bool:
+        """The music control: click the \u266a to turn it off/on; click or drag along the slider to set the volume."""
+        if clicked and self.music_icon.collidepoint(event.pos):
+            Slayer_Music.toggle()
+            return True
+        if clicked and self.music_slider.collidepoint(event.pos):
+            self.music_drag = True
+        if self.music_drag and event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
+            bar = self.music_bar()
+            Slayer_Music.set_volume((event.pos[0] - bar.left) / bar.width, save=False)
+            return True
+        if self.music_drag and event.type == pygame.MOUSEBUTTONUP:
+            self.music_drag = False
+            Slayer_Music.set_volume(Slayer_Music.volume)  # let go: remember it for next time
+            return True
+        return False
+
+    def music_bar(self):
+        return self.music_slider.inflate(-16, 0)
+
+    def draw_music_control(self):
+        """Top right: \u266a and a volume slider (gold = on, dim = off)."""
+        on = Slayer_Music.on()
         pygame.draw.rect(self.screen, (40, 34, 30), self.music_rect, border_radius=4)
         pygame.draw.rect(self.screen, DIM, self.music_rect, 1, border_radius=4)
-        self.blit_text(label, self.music_rect.center, 'small', GOLD if Slayer_Music.on else DIM, center=True)
+        self.blit_text('\u266a', self.music_icon.center, 'small', GOLD if on else DIM, center=True)
+        bar = self.music_bar()
+        y = bar.centery
+        pygame.draw.line(self.screen, DIM, (bar.left, y), (bar.right, y), 3)
+        knob_x = bar.left + round(bar.width * Slayer_Music.volume)
+        if on:
+            pygame.draw.line(self.screen, GOLD, (bar.left, y), (knob_x, y), 3)
+        pygame.draw.circle(self.screen, GOLD if on else DIM, (knob_x, y), 6)
 
     async def title_screen(self):
         await TitleAnimation(self).play()

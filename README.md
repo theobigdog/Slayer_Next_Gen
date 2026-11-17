@@ -23,8 +23,8 @@ while a narrator who's only *pretending* to be an asshole heckles every move you
   and bring upgrade kits to the forge out back of the Devil's Brew.
 - **Heroines who grow:** every won fight makes them a little better, and saved parties keep it across runs.
 - **Its own soundtrack** (in the game window): a rowdy fiddle-and-bagpipe jig in Happy's tavern, a creeping
-  dungeon, a galloping battle march, and a hurrah or a gong when a fight ends. The ♪ button in the top-right corner
-  turns it off and on.
+  dungeon, a galloping battle march, and a hurrah or a gong when a fight ends. A volume slider in the top-right
+  corner sets how loud it is (and remembers it), and clicking the ♪ turns it off and on.
 - **Play it your way:** a game window (Windows, Mac or Linux), the original command-prompt version, or in a
   web browser, tablets included.
 
