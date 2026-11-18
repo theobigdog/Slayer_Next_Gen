@@ -20,7 +20,7 @@ import Slayer_Accessory as acc
 
 FOLDER = acc.root_dir / 'assets' / 'music'
 SOUND_FOLDER = acc.root_dir / 'assets' / 'sounds'
-DEFAULT_VOLUME = 0.25   # Ted, Nov 17: 0.5 was "so fucking loud"
+DEFAULT_VOLUME = 0.1    # Ted, Nov 17: 0.5 was "so fucking loud", and 0.25 still too much
 STING_BOOST = 1.3       # stings play a little louder than the loop
 SFX_BOOST = 1.2         # and so do the effects
 FADE_MS = 900           # a new song fading in
