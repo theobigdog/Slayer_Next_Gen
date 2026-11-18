@@ -207,6 +207,12 @@ def catch_up_save(party_dict : dict) -> dict:
             heroine.kits = [k for k in heroine.kits if k in kits]
         if getattr(heroine, 'wielding', None) not in kits:
             heroine.wielding = None
+    for heroine in party_dict['party']: # a move her class can't use any more (Nov 18: Comforting Grooming went from the
+        for name in [x for x in heroine.inv if x in ABILITIES and not can_use(heroine, get_item(x))]: # Cleric to the Shifter)
+            heroine.inv.remove(name)
+            learner = next((x for x in party_dict['party'] if can_use(x, get_item(name)) and name not in x.inv), None)
+            if learner:
+                learner.inv.append(name)
     for entry in [e for e in party_dict.get('stash', []) if e['item'] in ABILITIES]: # a move can't sit in The Stash: someone who
         learner = next((x for x in party_dict['party'] if can_use(x, get_item(entry['item'])) and entry['item'] not in x.inv), None) # can use it learns it
         if learner:
@@ -504,7 +510,7 @@ EFFECT_WORDS = {
     'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
     'taunt': 'no attack: enemies come at her until her next turn', 'daze': 'may stun a lesser enemy',
     'cackle': 'lesser enemies may freeze for a turn', 'snare': 'a beast loses two turns',
-    'charge': 'that enemy comes at her next', 'garrote': 'no dodging it',
+    'charge': 'that enemy comes at her next', 'garrote': 'hard to dodge',
     'mark': 'everyone hits that enemy harder', 'quick': "harder to land, can't be dodged or shrugged off",
 }
 INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}
@@ -882,7 +888,7 @@ async def visit_stash(party_dict : dict) -> dict:
     while True:
         stash = party_dict['stash']
         what = await choose(f"The Stash: {stash_label(party_dict)}.  What'll it be?  ",
-                            ['Gear up a heroine', 'Put something in The Stash', 'Look through The Stash', "Done, let's go"],
+                            ['Gear up a Heroine', 'Put something in The Stash', 'Look through The Stash', "Done, let's go"],
                             "One of THOSE numbers, please:  ")
         if what == 3:
             if await packed_right(party_dict):

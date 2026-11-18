@@ -48,8 +48,9 @@ DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows
 #   cackle     - Evil Cackle (Witch): no damage, can't be dodged; each lesser mob loses its next turn CACKLE_CHANCE% of the time
 #   snare      - Snare Trap (Hunter): beasts only (BEASTS); the one she picks loses its next SNARE_TURNS turns
 #   charge     - Charge (Warrior): a hit; the mob's next single-target attack has to come at her (if it can reach her)
-#   garrote    - Garrote (Sapper): only on the turn right after Hide; nothing dodges it
-#   mark       - Hunter's Mark: no damage, never misses; every heroine's hit on that mob does MARK_BONUS more, rest of
+#   garrote    - Garrote (Sapper): only on the turn right after Hide; the mob's dodge is cut to GARROTE_DODGE of itself
+#                (Ted, Nov 18: not undodgeable. A future mob that can dodge anything once a round still can)
+#   mark       - Hunter's Mark: no damage; it rolls to hit and can be dodged like a shot (Ted, Nov 18). On a hit every heroine's hit on that mob does MARK_BONUS more, rest of
 #                the fight. One mark at a time: marking another moves it
 #   quick      - Quick Shot (Hunter): QUICK_HIT_PENALTY less hit, but no dodging it and no toughness; on a hit, another
 #                QUICK_LUCK% shot at a lucky extra turn. (Ted, Nov 18: it also slips past the wolves' bodyguards, and the
@@ -66,6 +67,7 @@ COUNTER_DAMAGE = (5, 10)
 MARK_BONUS = 0.25
 QUICK_HIT_PENALTY = 20
 QUICK_LUCK = 25
+GARROTE_DODGE = 0.25 # a Garrote from the dark: the mob keeps only a quarter of its dodge
 BEASTS = {'Pack Wolf', 'Alpha Wolf'} # four legs: a Snare Trap works on these (the Alpha shrugs it off, like a stun)
 BLEED_DAMAGE = (4, 6)      # Ted floated 5-8; it never stops, so over a 10-round fight 4-6 is already about 50 hp from one stab
 HIDE_DODGE = 95
@@ -435,7 +437,7 @@ async def use_hail_mary(heroine : object, item : dict, party_dict : dict, mobs :
         chosen = fallen[0]
     elif fallen:
         chosen = await choose_target(
-            f"\nThe Token hums in {heroine.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
+            f"\nThe Token hums in {heroine.name}'s hand.  Choose the fallen Heroine you're gambling on.  ",
             fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     blown_up = any(getattr(x, 'blown_up', False) for x in party_dict['party'])
     await token_roll(heroine, item, chosen, party_dict, blown_up)
@@ -457,7 +459,7 @@ async def token_between_battles(party_dict : dict) -> dict:
     user = holders[0] if len(holders) == 1 else await choose_target(
         "\nWho's holding the Token for this one?  ", holders, [], "\nOne of THOSE numbers, please:  ")
     chosen = fallen[0] if len(fallen) == 1 else await choose_target(
-        f"\nThe Token hums in {user.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
+        f"\nThe Token hums in {user.name}'s hand.  Choose the fallen Heroine you're gambling on.  ",
         fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     item = acc.get_item('token_of_the_wise_witch')
     spend_token(item, party_dict)
@@ -620,13 +622,21 @@ async def heroine_taunt(heroine : object, item : dict, party_dict : dict, mobs :
     return (party_dict, mobs, False)
 
 async def heroine_mark(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
-    """Hunter's Mark (Ted, Nov 18): no damage, never misses. Every heroine's hit on that mob does MARK_BONUS more for
-    the rest of the fight; marking another moves it. DRAFT lines."""
+    """Hunter's Mark (Ted, Nov 18): no damage. It rolls to hit and the mob can dodge it (Ted, Nov 18: never missing was
+    too much). On a hit every heroine's hit on that mob does MARK_BONUS more for the rest of the fight; marking another
+    moves it. DRAFT lines."""
     target = await get_target_choice(mobs, [], prompt=f"Who gets the {item['item_desc']}?  ")
+    rolls = get_heroine_rolls(heroine, attacking=True)
+    await blessed_line(heroine, rolls)
+    tally(heroine, 'attacks')
+    if not rolls['hit'] or (get_mob_rolls(target)['dodge'] and not rolls['expertise']):
+        miss_sound()
+        await say(f"{heroine.name} tries to pick out {target.name}'s weak spot, but it never holds still long enough.  [narr]Keep looking, sweetie.[/]")
+        await pause()
+        return (party_dict, mobs, False)
     for mob in mobs:
         status(mob).pop('marked', None)
     status(target)['marked'] = True
-    tally(heroine, 'attacks')
     await say(f"{heroine.name} studies {target.name} for a long, cold second and calls it out to the whole party: the limp, the soft spot, "
               f"the bad knee.  [narr]Everybody hits that one harder now.[/]")
     await pause()
@@ -905,8 +915,10 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
     if target.is_mob:  # an attack on a mob
         damage_w_crit_mult = marked(target, damage_w_crit_mult) # a Hunter's Mark on it
         tough = mob_rolls['toughness'] and which != 'quick' # a Quick Shot is in before it can brace
-        if which in ('quick', 'garrote'):
-            mob_rolls = {**mob_rolls, 'dodge': False} # too fast to see / from behind, out of the dark
+        if which == 'quick':
+            mob_rolls = {**mob_rolls, 'dodge': False} # too fast to see
+        elif which == 'garrote' and mob_rolls['dodge']:
+            mob_rolls = {**mob_rolls, 'dodge': acc.roll_percent(GARROTE_DODGE * 100)} # from behind, out of the dark: a quarter of its dodge
         if tough:
             damage = damage_w_crit_mult / 2
         else:
@@ -931,6 +943,11 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         if not heroine_rolls['hit']:
             miss_sound()
             await say(f"[narr]Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.[/]")
+            await pause()
+            return (party_dict, mobs, False)
+        if mob_rolls['dodge'] and not heroine_rolls['expertise'] and which == 'garrote':
+            miss_sound()
+            await say(f"{heroine.name} loops the wire from the dark, but {target.name} gets a hand up under it just in time and tears free.  [narr]Somebody's got a sixth sense.[/]") # DRAFT line
             await pause()
             return (party_dict, mobs, False)
         if mob_rolls['dodge'] and not heroine_rolls['expertise']:
