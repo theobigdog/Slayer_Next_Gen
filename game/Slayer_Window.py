@@ -1262,7 +1262,7 @@ class WindowUI:
         if seen and seen[0] is entity and seen[2] == top and seen[1] != hp: # a new max HP (Happy's enrage) isn't a heal
             delta = hp - seen[1]
             stacked = sum(1 for f in self.floaters if f['entity'] is entity)
-            self.floaters.append({'entity': entity, 'text': f'{delta:+d}', 'color': HEAL_BLUE if delta > 0 else DAMAGE_RED,
+            self.floaters.append({'entity': entity, 'text': str(abs(delta)), 'color': HEAL_BLUE if delta > 0 else DAMAGE_RED,
                                   'x': rect.centerx, 'y': rect.y + rect.height * 0.62 - stacked * 28, 'born': self.now})  # rises up through the box, clear of the Round heading
         self.health_seen[id(entity)] = (entity, hp, top)
 

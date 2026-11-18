@@ -3,7 +3,7 @@
 Game code never calls print(), input(), pause(), cls() or time.sleep() directly.
 It imports what it needs from here (from Slayer_UI import say, pause, ...) and awaits it:
 
-    await say("Muffy slams Gassy for 8 hp.")          # print a line
+    await say("Muffy slams Gassy for 8 damage.")          # print a line
     await wait(0.5)                                    # dramatic pause (was time.sleep)
     await pause()                                      # wait for Enter / a click
     await clear()                                      # clear the screen (was cls)
@@ -28,7 +28,7 @@ Colors go inside the text as tags, so no colorama codes end up in game code:
 Tags: [red], [magenta], [green], [white], and [/] to go back to normal.
 [narr]...[/] is the narrator's own voice: his jokes and comments aimed at YOU, as opposed to
 what's happening in the fight. It gets its own color (cyan in the terminal, teal in the window):
-    await say(f"{heroine.name} heals {mob.name} for 6 hp.  [narr]What were you thinking?[/]")
+    await say(f"{heroine.name} heals {mob.name} for 6 healing.  [narr]What were you thinking?[/]")
 Don't put another tag inside a [narr] part: [/] always goes back to normal text.
 
 Which screen all of this lands on is picked once, at startup:
