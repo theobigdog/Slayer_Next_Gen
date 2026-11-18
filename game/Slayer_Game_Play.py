@@ -132,7 +132,9 @@ async def dungeon(party_dict: dict, start: int = 0) -> dict:
         if scene_song:
             music(scene_song)
         await appear(party_dict, mobs)
+        standing = [h for h in party_dict['party'] if not h.is_dead]
         party_dict = await battle(party_dict, mobs, round_end, after_turn, fight_song)
+        party_dict['just_fell'] = [h.name for h in standing if h.is_dead] # only these get named afterwards (Ted, Nov 18)
         if party_dict['wiped']:
             party_dict['run_result'] = 'wiped'
             acc.clear_checkpoint(party_dict['name']) # the run's over, properly

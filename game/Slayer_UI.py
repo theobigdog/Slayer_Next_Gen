@@ -131,12 +131,13 @@ def _pick(lines) -> str:
 
 # What's on a combatant right now, one word each, for both screens (Slayer_Combat keeps it all in entity.status).
 STATUS_WORDS = [('poisoned', 'Poisoned'), ('bleeding', 'Bleeding'), ('intoxicated', 'Drunk'), ('stunned', 'Stunned'), ('confused', 'Confused'),
-                ('hunted', 'Hunted'), ('marked', 'Marked'), ('provoked', 'Provoked'), ('hidden', 'Hidden'), ('taunting', 'Taunting'), ('blessed', 'Blessed'), ('strong', 'Strong'), ('gassed', 'Retching'), ('cowed', 'Frozen'), ('junked', 'Sore'), ('hissed', 'Rattled')]
+                ('hunted', 'Hunted'), ('marked', 'Marked'), ('provoked', 'Provoked'), ('hidden', 'Hidden'), ('taunting', 'Aggro'), ('aggro', 'Aggro'), ('blessed', 'Blessed'), ('strong', 'Strong'), ('gassed', 'Retching'), ('cowed', 'Frozen'), ('junked', 'Sore'), ('hissed', 'Rattled')]
 
 def status_words(entity) -> list:
     """['Poisoned', 'Drunk'] for a living combatant with those on it; [] for anyone dead or clean."""
     status = getattr(entity, 'status', None) or {}
-    return [] if entity.is_dead else [word for key, word in STATUS_WORDS if status.get(key)]
+    words = [] if entity.is_dead else [word for key, word in STATUS_WORDS if status.get(key)]
+    return list(dict.fromkeys(words)) # a Battle Cry and a Charge both say Aggro: once is plenty
 
 
 class TerminalUI:
@@ -246,7 +247,7 @@ class TerminalUI:
         print('Enemy')
         for mob in mobs:
             print()
-            print(f"Name: {mob.name}{'   <-- its turn' if mob is active else ''}")
+            print(f"Name: {mob.name}{'   <-- his turn' if mob is active else ''}")
             print(f"Class: {getattr(mob, 'label', mob.mob_class)}{' (enraged)' if mob.enraged and not getattr(mob, 'is_boss', False) else ''}")
             print(f"Current Health: {self.health_text(mob)}" + (f"  ({', '.join(status_words(mob))})" if status_words(mob) else ''))
         print()

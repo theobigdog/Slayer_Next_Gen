@@ -98,11 +98,11 @@ class Pack:
         self.linked = False
         dead = [k for k in self.members if k.is_dead]
         one = len(saved) == 1
-        await say(f"The purple flicker in the Kobolds' eyes flares blinding white.  When the smoke clears, {names_list(saved)} {'is' if one else 'are'} somehow still on {'its' if one else 'their'} feet: scorched, smoking, and hanging on by 1 hp{'' if one else ' each'}.")
+        await say(f"The purple flicker in the Kobolds' eyes flares blinding white.  When the smoke clears, {names_list(saved)} {'is' if one else 'are'} somehow still on {'his' if one else 'their'} feet: scorched, smoking, and hanging on by 1 hp{'' if one else ' each'}.")
         await say("[narr]WHAT?!  These little shits are LINKED, and the link just ate the whole blast for them!  But it's fried: no more sharing health, no more popping back up." + (f"  {names_list(dead)} {'stays' if len(dead) == 1 else 'stay'} dead." if dead else "") + "  Finish them![/]")
         self.explained = True
         self.rage_for_good() # Ted, Nov 10: whoever lives through the Boom is enraged for the rest of the fight
-        await say(f"[red]And now {'it is' if one else 'they are'} PISSED.  That is not wearing off.[/]")
+        await say(f"[red]And now {'he is' if one else 'they are'} PISSED.  That is not wearing off.[/]")
 
 
 class Krazy_Kobold:

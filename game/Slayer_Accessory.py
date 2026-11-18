@@ -417,7 +417,7 @@ def generic_wipe_taunts() -> list:
 
 def item_specific_wipe_taunts() -> list:
     return [
-        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", they scream!!\n[narr]Jesus Christ, what a CUNT!![/]",
+        "\n{mob} walks over to pick up {victim}'s {item}, immediately hurling it into {victim2}'s remains.  \"Take That!!\", he screams!!\n[narr]Jesus Christ, what a CUNT!![/]",
         "\n{mob} immediately starts cackling, eyeing {victim}'s {item}.  \"What a pathetic little garbage weapon that was!  No wonder they wiped!!\"\n[narr]I hope you come back and teach these bitches a lesson!![/]",
         "\n{mob} sneers at {victim}'s dead body.  \"{item}?  Really?  You thought you could take ME down with your {item}??!!!\"\n[narr]Now was that really necessary.  Don't take their shit!![/]",
         "\nWith her last dying breath, {victim} makes one more attempt with her {item}, completely missing {mob}, who begins to chuckle.  \"Guess I'd try the same, but, that was kinda sad....\"\n[narr]Don't let them get away with that.  Come back and take them down next time!![/]",
@@ -447,6 +447,7 @@ AFFLICTIONS = {
 # Starting gear can be stashed or dropped too; it doesn't come back next run unless it was only used up.
 GEAR_SLOTS, POTION_SLOTS = 6, 1
 ABILITIES = {row['item'] for row in items_table if row.get('ability')} # the ability column in items.csv: part of her body
+ABILITIES_BY_DESC = {row['item_desc'] for row in items_table if row.get('ability')} # the same, by the name she sees
     # (or her magic), not something she carries: no bag slot, and she can't stash or drop them (Ted, Nov 15: the Sapper
     # started 8/6; Nov 18: every class gets abilities, anything that uses her body as the attack)
 MAX_USES = 4 # a bottle (or a pouch of bombs) holds this many uses at most, whatever it came with (Ted, Nov 10).
@@ -508,9 +509,9 @@ EFFECT_WORDS = {
     'poison': 'poisons', 'bleed': 'leaves them bleeding all fight', 'hide': 'no attack: nearly impossible to hit until her next turn',
     'blessing': 'improved aim/crits', 'strength': 'increased damage',   # Ted, Nov 17: short, no "someone's next..."
     'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
-    'taunt': 'no attack: enemies come at her until her next turn', 'daze': 'may stun a lesser enemy',
+    'taunt': 'pulls aggro', 'daze': 'may stun a lesser enemy',
     'cackle': 'lesser enemies may freeze for a turn', 'snare': 'a beast loses two turns',
-    'charge': 'that enemy comes at her next', 'garrote': 'hard to dodge',
+    'charge': "pulls that one's aggro", 'garrote': 'hard to dodge',
     'mark': 'everyone hits that enemy harder', 'quick': "harder to land, can't be dodged or shrugged off",
 }
 INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}

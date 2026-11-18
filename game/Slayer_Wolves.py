@@ -116,17 +116,17 @@ class Alpha_Wolf:
         if not wolves or not acc.roll_percent(min(GUARD_MAX, GUARD_EACH * len(wolves))):
             return self
         wolf = random.choice(wolves)
-        await say(f"{heroine.name} goes for {self.name}, but {wolf.name} hurls itself into the way!  [narr]Loyal little bastard.[/]")
+        await say(f"{heroine.name} goes for {self.name}, but {wolf.name} hurls himself into the way!  [narr]Loyal little bastard.[/]")
         return wolf
 
     async def on_death(self, mobs : list):
         """The Alpha's down: the fight's over, and whoever's left runs (no loot from those)."""
         runners = self.pack.standing()
         for wolf in runners:
-            wolf.is_dead, wolf.fled, wolf.label = True, True, 'Pack Wolf (ran off)'
+            wolf.is_dead, wolf.fled = True, True # the box says 'ran off' instead of 'dead' (Ted, Nov 18)
         if runners:
             one = len(runners) == 1
-            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {acc.number_word(len(runners))} wolves'} {'takes' if one else 'take'} one look, {'tucks its tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out!  ...they took their loot with them, though.[/]")
+            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {acc.number_word(len(runners))} wolves'} {'takes' if one else 'take'} one look, {'tucks his tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out![/]")
 
 
 def party_scale(party_size : int) -> tuple:
