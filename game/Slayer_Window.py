@@ -321,6 +321,9 @@ class WindowUI:
         kind, future, extra = self.waiting
         if self.more and kind in ('choose', 'choose_target', 'yes_no'):
             return  # the question is still on the next page: read it first
+        if kind in ('choose', 'choose_target', 'yes_no') and (enter or (clicked and not self.on_control(event.pos))) and not self.typed_out():
+            self.revealed = max(self.revealed, min(self.total_chars(), self.page_limit()))
+            return  # a click while the question's still typing finishes it (the menu isn't up yet)
 
         if kind in ('pause', 'close'):
             if (clicked or enter) and self.now - self.waiting_since > 0.15:
@@ -846,9 +849,9 @@ class WindowUI:
         self.draw_text_box()
         if self.list_open and self.waiting and self.waiting[0] == 'text':
             self.draw_the_list()
-        if self.menu_open() and not self.more:  # the menu shows once its question is on screen
-            self.draw_menu()
-        elif self.more:
+        if self.menu_open() and not self.more and self.typed_out():  # the menu shows once its question is on screen
+            self.draw_menu()   # (not while the lines before it are still typing: Ted, Nov 17, the loot menu flashed up mid-speech)
+        elif self.more or self.menu_open():
             self.buttons, self.targets = [], []
         self.draw_floaters()
         self.draw_puffs()
@@ -927,7 +930,9 @@ class WindowUI:
                 self.draw_keyboard()
             caret = '|' if (pygame.time.get_ticks() // 500) % 2 == 0 else ' '
             self.blit_text(self.typed + caret, (field.x + 10, field.y + 6))
-        elif kind == 'yes_no' and not self.more:  # the buttons show once the question is on screen
+        elif kind == 'yes_no' and (self.more or not self.typed_out()):
+            self.buttons = []
+        elif kind == 'yes_no':  # the buttons show once the question is on screen
             self.buttons = []
             mouse = pygame.mouse.get_pos()
             for i, (label, value) in enumerate((('Yes  (Y)', True), ('No  (N)', False))):

@@ -23,11 +23,15 @@ while a narrator who's only *pretending* to be an asshole heckles every move you
   and bring upgrade kits to the forge out back of the Devil's Brew.
 - **Heroines who grow:** every won fight makes them a little better, and saved parties keep it across runs.
 - **Its own soundtrack** (in the game window): a rowdy fiddle-and-bagpipe jig to start, a seedy, lurching waltz
-  once the tavern door creaks shut behind you, a creeping dungeon, a galloping battle march, and a hurrah or a gong
-  when a fight ends. The title buzzes and crackles like a fluorescent tube that won't come on. In a fight, misses
-  whoosh, fire roars, lightning thunders, a Shifter's specials growl, dwarves grunt when hit (Kobolds squeak, wolves
-  yelp), heroines groan when hit and squeal happily when healed. A volume slider in
-  the top-right corner sets how loud it all is (and remembers it), and clicking the ♪ turns it off and on.
+  once the tavern door creaks shut behind you, a galloping battle march for Happy (faster and angrier once he's
+  enraged), something tender and magical while he brings you back, a jolly oom-pah for the loot, scratching and
+  giggling in the dark as the Kobolds close in, then their own goofy, spooky fight music, a creeping dungeon, and a
+  grim, driving one for the wolves. The title buzzes and crackles like a fluorescent tube that won't come on. In a
+  fight, weapons make a sound as you pick them (steel, a bow drawn, a spell gathering...), misses go SHWOOP, fire
+  roars (Fire Rain is a whole firestorm), lightning cracks and thunders, a Shifter's specials roar and snarl,
+  vomit gets a gag, dwarves grunt (Kobolds squeak, wolves yelp) and heroines cry out when hit, a killing blow gets
+  a death cry, a scared heroine screams, a heal makes her squeal, and a group heal plays a harp and a choir. A volume
+  slider in the top-right corner sets how loud it all is (and remembers it), and clicking the ♪ turns it off and on.
 - **Play it your way:** a game window (Windows, Mac or Linux), the original command-prompt version, or in a
   web browser, tablets included.
 

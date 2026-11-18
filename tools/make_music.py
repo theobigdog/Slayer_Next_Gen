@@ -15,7 +15,8 @@ How a song is written (see SONGS at the bottom):
     "bars": one string per bar, repeated in order to fill the song. Each token is one step:
         d5 = a note (also f#4, bb3)   d3+a3 = a chord   - = keep holding   . = rest
         a "!" on the end = accent, a "'" = soft
-    Drum letters: k kick, b bodhran (frame drum), x its rim tap, s snare, h hat, t low tom, g gong.
+    Drum letters: k kick, b bodhran (frame drum), x its rim tap, s snare, h hat, t low tom, g gong,
+    c clinking glasses, w brush, p and q timpani (on D and A).
 Looping songs are exactly their bars long; note tails and the reverb wrap round to the start,
 so the loop has no seam.
 """
@@ -195,13 +196,36 @@ def honky(f, dur, vel):
     return (a + b) * 0.55
 
 
+def harp(f, dur, vel):
+    """A harp: a bright pluck that rings a long time."""
+    return pluck(f, dur, vel, decay=0.9985, bright=0.5, seconds=max(dur + 1.2, 1.6)) * 0.8
+
+
+def xylo(f, dur, vel):
+    """A xylophone: a hard mallet on a wooden bar, dry and plinky."""
+    n = int(0.5 * RATE)
+    t = np.arange(n) / RATE
+    out = sum(a * np.sin(2 * np.pi * f * r * t) * np.exp(-t * d) for r, a, d in ((1, 1, 11), (3.93, 0.4, 28), (9.2, 0.15, 60)))
+    out[:30] *= np.linspace(0, 1, 30)
+    return out * 0.4 * vel
+
+
+def saw(f, dur, vel):
+    """Section strings played hard and short (the wolves' sawing): quick to speak, unlike the slow 'strings' pad."""
+    out = 0
+    for cents in (-6, 6):
+        out = out + additive(f * 2 ** (cents / 1200), dur, [1 / k for k in range(1, 14)], attack=0.012, release=0.07,
+                             vib=(5.5, 0.002, 0.15))
+    return out * 0.16 * vel
+
+
 def lowpass(x, k):
     return np.convolve(x, np.ones(k) / k, 'same')
 
 
 def drum(kind, vel):
     length = {'k': 0.4, 'b': 0.45, 'x': 0.06, 's': 0.25, 'h': 0.06, 't': 0.6, 'g': 3.5, 'c': 0.7,
-              'w': 0.3}.get(kind, 0.2)
+              'w': 0.3, 'p': 1.6, 'q': 1.6}.get(kind, 0.2)
     n = int(length * RATE)
     t = np.arange(n) / RATE
     noise = rng.normal(0, 1, n)
@@ -237,6 +261,11 @@ def drum(kind, vel):
                        for r, a, d in ((1, 1, 9), (2.41, 0.5, 14), (3.93, 0.3, 22)))
             out += amp * ring * (t >= delay)
         out *= 0.12
+    elif kind in 'pq':  # timpani: p on D, q on the A below
+        f0 = 73.4 if kind == 'p' else 55.0
+        out = sum(a * np.sin(2 * np.pi * f0 * r * t) * np.exp(-t * d) for r, a, d in ((1, 1, 2.2), (1.5, 0.5, 3), (1.99, 0.3, 4)))
+        out += lowpass(noise, 6) * 0.3 * np.exp(-t * 40)
+        out *= 0.9
     elif kind == 'w':  # a brush swished across the snare
         env = np.clip(t / 0.03, 0, 1) * np.exp(-t * 14)
         out = lowpass(hiss, 3) * 0.3 * env
@@ -247,14 +276,14 @@ def drum(kind, vel):
 
 INSTRUMENTS = {'fiddle': fiddle, 'whistle': whistle, 'drone': drone, 'brass': brass, 'strings': strings,
                'choir': choir, 'bell': bell, 'lute': lute, 'pizz': cello_pizz, 'reed': reed,
-               'squeezebox': squeezebox, 'tuba': tuba, 'honky': honky}
+               'squeezebox': squeezebox, 'tuba': tuba, 'honky': honky, 'harp': harp, 'xylo': xylo, 'saw': saw}
 
 
 # ---------- putting a song together ----------
 
-def parse(part, bars, bar_steps):
+def parse(part, bars, bar_steps, transpose=0):
     events, last, drums = [], None, part['inst'] == 'drums'
-    shift = 12 * part.get('oct', 0)
+    shift = 12 * part.get('oct', 0) + transpose
     for b in range(bars):
         tokens = part['bars'][b % len(part['bars'])].split()
         for s in range(bar_steps):
@@ -302,8 +331,9 @@ def wobbly(n, sr, every, low=0.0, high=1.0):
     return np.interp(np.arange(n) / sr / every, np.arange(len(points)), points)
 
 
-def murmur(n, voices=7):
+def murmur(n, voices=7, syllable=0.16, pitch=(85, 165), talking=True):
     """A room full of low talk: pitched 'voices' babbling through shifting vowels, no words in them.
+    syllable: seconds each; talking=False: they never stop to listen (Happy's runes).
     Worked out at 8 kHz (talk has nothing up high), then stretched to RATE. Loops: the end fades into the start."""
     sr, fade = 8000, 8000
     m = n * sr // RATE + fade
@@ -311,10 +341,10 @@ def murmur(n, voices=7):
     vowels = np.array([(730, 1090), (530, 1840), (300, 870), (570, 840), (440, 1020), (660, 1700)])
     out = np.zeros((m, 2))
     for _ in range(voices):
-        f0 = rng.uniform(85, 165) * (1 + 0.07 * (wobbly(m, sr, 0.12) - 0.5) + 0.05 * (wobbly(m, sr, 1.5) - 0.5))
+        f0 = rng.uniform(*pitch) * (1 + 0.07 * (wobbly(m, sr, 0.12) - 0.5) + 0.05 * (wobbly(m, sr, 1.5) - 0.5))
         phase = 2 * np.pi * np.cumsum(f0) / sr
-        syll = rng.integers(0, len(vowels), int(m / sr / 0.16) + 3)
-        pos = t / 0.16
+        syll = rng.integers(0, len(vowels), int(m / sr / syllable) + 3)
+        pos = t / syllable
         f1 = np.interp(pos, np.arange(len(syll)), vowels[syll, 0])
         f2 = np.interp(pos, np.arange(len(syll)), vowels[syll, 1])
         voice = np.zeros(m)
@@ -324,8 +354,8 @@ def murmur(n, voices=7):
             voice += amp * np.sin(k * phase) * (fk < sr * 0.45)
         # syllables, and a voice that talks for a few seconds then listens for a few
         gate = np.clip(np.sin(np.pi * pos) ** 2 * 1.3, 0, 1) * (wobbly(m, sr, 0.16, 0.2, 1.0))
-        talking = np.clip((wobbly(m, sr, 2.5, -1, 1.6)) * 3, 0, 1)
-        voice *= gate * talking
+        talks = np.clip((wobbly(m, sr, 2.5, -1, 1.6)) * 3, 0, 1) if talking else 1
+        voice *= gate * talks
         pan = rng.uniform(-0.8, 0.8)
         out[:, 0] += voice * np.sqrt(0.5 * (1 - pan))
         out[:, 1] += voice * np.sqrt(0.5 * (1 + pan))
@@ -352,13 +382,13 @@ def render(song):
     step_s = 60.0 / song['bpm'] / spb
     looping = song.get('loop', True)
     frames = int(round(song['bars'] * bar_steps * step_s * RATE))
-    n = frames if looping else frames + int(3.5 * RATE)
+    n = frames if looping else frames + int(song.get('tail', 3.5) * RATE)
     buf = np.zeros((n, 2))
     for part in song['parts']:
         vol, pan = part.get('vol', 0.5), part.get('pan', 0.0)
         gains = vol * np.sqrt(0.5 * (1 - pan)), vol * np.sqrt(0.5 * (1 + pan))
         sway = part.get('sway', 0.0)  # seconds of drunken slop in when each note lands
-        for step, length, pitches, vel in parse(part, song['bars'], bar_steps):
+        for step, length, pitches, vel in parse(part, song['bars'], bar_steps, song.get('transpose', 0)):
             start = int(round((step * step_s + abs(rng.normal(0, sway))) * RATE))
             for p in pitches:
                 if part['inst'] == 'drums':
@@ -375,12 +405,18 @@ def render(song):
                 np.add.at(buf[:, 1], idx, note * gains[1])
     if song.get('murmur'):
         buf += murmur(n) * song['murmur']
+    level = 0.17 * song.get('level', 1.0)   # how loud it sits; 1 = like every other song
+    if song.get('extra'):   # sounds that aren't notes (giggles, scratching, Happy's runes), at a set level over the music
+        buf *= level / np.sqrt((buf ** 2).mean())
+        buf += song['extra'](n, looping)
     buf = reverb(buf, song.get('reverb', 1.6), song.get('wet', 0.25), looping)
     if song.get('wow'):
         buf = wow(buf, *song['wow'])
+    if song.get('grit'):    # driven hard, like an amp turned up too far
+        buf = np.tanh(buf / np.sqrt((buf ** 2).mean()) * 0.17 * song['grit'])
     # Match loudness between songs, then a soft limiter so peaks round off instead of clipping.
-    rms = np.sqrt((buf ** 2).mean())
-    buf *= 0.17 / rms
+    if not song.get('fixed'):   # (the basin's two halves keep the level set before the reverb, so they match)
+        buf *= level / np.sqrt((buf ** 2).mean())
     buf = np.tanh(buf * 1.2) / 1.2
     return buf.astype(np.float32)
 
@@ -507,6 +543,226 @@ SONGS = {
             {'inst': 'drums', 'vol': 0.8, 'bars': ["t! . . . . . . .", "g . . . . . . ."]},
         ]},
 }
+
+# ---------- the songs added Nov 17 (Ted's notes) ----------
+
+def arps(chords, pattern, steps):
+    """A bar of broken chord per chord: pattern picks chord tones by index (0 = the lowest), '.' rests."""
+    bars = []
+    for c in chords:
+        notes = c.split('+')
+        bars.append(' '.join(notes[int(p)] if p != '.' else '.' for p in pattern.split()))
+        assert len(pattern.split()) == steps
+    return bars
+
+
+def oompah(chords, low, high):
+    """Tuba roots on the beat, the squeezebox chord off it: 'oom-pah oom-pah'."""
+    return ([f"{low[c][0]}! . {low[c][1]} . {low[c][0]}! . {low[c][1]} ." for c in chords],
+            [f". {high[c]} . {high[c]}' . {high[c]} . {high[c]}'" for c in chords])
+
+
+# Happy's resurrection: D major, slow and tender, a harp rippling under a whistle, strings, a choir coming in,
+# and under it all Happy muttering his runes.
+RES_CHORDS = ['D', 'Bm', 'G', 'A', 'D', 'F#m', 'G', 'A', 'Bm', 'G', 'D', 'A', 'G', 'A', 'D', 'D']
+RES_TRIADS = {'D': 'd3+a3+d4+f#4+a4', 'Bm': 'b2+f#3+b3+d4+f#4', 'G': 'g2+d3+g3+b3+d4', 'A': 'a2+e3+a3+c#4+e4',
+              'F#m': 'f#2+c#3+f#3+a3+c#4'}
+RES_PAD = {'D': 'd4+f#4+a4', 'Bm': 'd4+f#4+b4', 'G': 'd4+g4+b4', 'A': 'c#4+e4+a4', 'F#m': 'c#4+f#4+a4'}
+RES_TUNE = ["f#5 - - - e5 - d5 -", "d5 - - - - - b4 -", "b4 - d5 - g5 - f#5 -", "e5 - - - - - . .",
+            "f#5 - - - a5 - f#5 -", "e5 - - - c#5 - a4 -", "b4 - - - d5 - e5 -", "e5 - - - - - . .",
+            "d5 - - - f#5 - b5 -", "a5 - - - g5 - d5 -", "f#5 - - - e5 - d5 -", "c#5 - - - - - e5 -",
+            "d5 - - - b4 - d5 -", "e5 - - - f#5 - e5 -", "d5 - - - - - - -", ". . . . . . . ."]
+REST4 = '. . . . . . . .'
+
+# The loot, The Stash, the forge and the stat raises, until the party drops down the hole: a jolly oom-pah.
+JOLLY_CHORDS = ['G', 'G', 'D', 'D', 'G', 'G', 'C', 'D', 'G', 'G', 'C', 'C', 'G', 'D', 'G', 'G']
+JOLLY_LOW = {'G': ('g2', 'd2'), 'D': ('d2', 'a1'), 'C': ('c2', 'g1')}
+JOLLY_HIGH = {'G': 'g3+b3+d4', 'D': 'f#3+a3+d4', 'C': 'g3+c4+e4'}
+JOLLY_TUNE = ["d5 - b4 d5 g5 - d5 -", "b4 - g4 b4 d5 - - -", "c5 - a4 c5 f#5 - e5 -", "d5 - c5 - a4 - - -",
+              "d5 - b4 d5 g5 - b5 -", "a5 g5 f#5 g5 d5 - - -", "e5 - g5 - c5 - e5 -", "a4 - f#4 - d4 - - -",
+              "g5 - - f#5 g5 - d5 -", "b4 - d5 - g5 - - -", "e5 - - d5 e5 - g5 -", "c5 - e5 - g5 - - -",
+              "b4 - d5 - g5 - b4 -", "a4 - c5 - f#5 - a5 -", "g5 - d5 - b4 - d5 -", "g5 - - - g4 - . ."]
+
+# The Krazy Kobolds: E minor, a skittering xylophone and plucked bass, goofy but creepy, with a sneaky
+# bassoon, a ghostly choir and giggling in the dark.
+KOB_CHORDS = ['Em', 'Em', 'Am', 'B', 'Em', 'Em', 'C', 'B', 'Am', 'Am', 'Em', 'Em', 'C', 'B', 'Em', 'Em']
+KOB_BASS = {'Em': "e2 . b2 . e2 . b2 .", 'Am': "a2 . e3 . a2 . e3 .", 'B': "b1 . f#2 . b1 . d#2 .",
+            'C': "c2 . g2 . c2 . g2 ."}
+KOB_PAD = {'Em': 'e4+g4+b4', 'Am': 'e4+a4+c5', 'B': 'd#4+f#4+b4', 'C': 'e4+g4+c5'}
+KOB_TUNE = ["e5 . g5 . b5 . a#5 b5", "g5 . e5 . . . d#5 e5", "c6 . a5 . e5 . a5 c6", "b5 . . a5 f#5 . d#5 .",
+            "e5 . g5 . b5 . a#5 b5", "e6 . b5 . g5 . e5 .", "e5 f5 e5 d#5 e5 . g5 .", "f#5 . d#5 . b4 . . .",
+            "a5 . c6 . a5 . e5 .", "f5 . e5 . d#5 . e5 .", "g5 . b5 . e6 . b5 .", "g5 a5 g5 f#5 e5 . . .",
+            "e5 . g5 . c6 . b5 .", "a5 . f#5 . d#5 . b4 .", "e5 . . . b4 . . .", "e5 g5 b5 e6 . . . ."]
+
+# The wolves: D minor, driving and grim: low strings sawing away in sixteenths, horns, timpani, a choir.
+WOLF_CHORDS = ['Dm', 'Dm', 'Bb', 'A', 'Dm', 'Dm', 'Gm', 'A', 'Bb', 'C', 'Dm', 'A', 'Gm', 'A', 'Dm', 'A']
+WOLF_LOW = {'Dm': ('d2', 'f2', 'a2'), 'Bb': ('bb1', 'd2', 'f2'), 'A': ('a1', 'c#2', 'e2'), 'Gm': ('g1', 'bb1', 'd2'),
+            'C': ('c2', 'e2', 'g2')}
+WOLF_HIGH = {'Dm': 'd5+e5+f5+a5+d6', 'Bb': 'd5+f5+g5+bb5+d6', 'A': 'c#5+e5+g5+a5+c#6', 'Gm': 'd5+g5+a5+bb5+d6',
+             'C': 'c5+e5+f5+g5+c6'}
+WOLF_PAD = {'Dm': 'd4+f4+a4', 'Bb': 'd4+f4+bb4', 'A': 'c#4+e4+a4', 'Gm': 'd4+g4+bb4', 'C': 'e4+g4+c5'}
+WOLF_HORNS = ["d4 - - - - - - - a3 - - - d4 - - -", "f4 - - - e4 - - - d4 - - - c#4 - - -",
+              "d4 - - - - - - - bb3 - - - - - - -", "a3 - - - - - - - c#4 - - - e4 - - -",
+              "a4 - - - - - - - f4 - - - d4 - - -", "a4 - - - bb4 - - - a4 - - - f4 - - -",
+              "g4 - - - - - - - d4 - - - bb3 - - -", "a3 - - - c#4 - - - e4 - - - a4 - - -",
+              "f4 - - - - - - - d4 - - - f4 - - -", "g4 - - - - - - - e4 - - - c4 - - -",
+              "a4 - - - - - - - d5 - - - c5 - - -", "c#5 - - - - - - - - - - - . . . .",
+              "bb4 - - - a4 - - - g4 - - - d4 - - -", "e4 - - - f4 - - - g4 - - - c#4 - - -",
+              "d4 - - - - - - - - - - - - - - -", "a3 - - - - - - - c#4 - - - e4 - - -"]
+REST16 = ' '.join(['.'] * 16)
+
+
+def wolf_saw(c):
+    r, third, fifth = WOLF_LOW[c]
+    return ' '.join([f'{r}!', r, fifth, r, third, r, fifth, r] * 2)
+
+
+def wolf_run(c):
+    n = WOLF_HIGH[c].split('+')
+    return ' '.join(n + n[::-1][1:] + n[1:] + n[::-1][1:4])
+
+
+NEW_SONGS = {
+    # Happy enraged: the battle march, a half step up, faster, with low brass hammering and toms pounding.
+    'enraged': {
+        'bpm': 184, 'beats': 4, 'steps': 2, 'bars': 16, 'wet': 0.14, 'reverb': 1.2, 'transpose': 1, 'grit': 2.2,
+        'parts': SONGS['battle']['parts'] + [
+            {'inst': 'brass', 'vol': 0.65, 'pan': -0.1, 'bars': [
+                f"{r}! . {r}! . {r}! {r}! {r}! ." for r in ('e2', 'e2', 'c2', 'd2', 'e2', 'e2', 'a1', 'b1')]},
+            {'inst': 'choir', 'vol': 0.55, 'bars': [f"{c} - - - - - - -" for c in (
+                'e4+g4+b4', 'e4+g4+b4', 'e4+g4+c5', 'd4+f#4+a4', 'e4+g4+b4', 'e4+g4+b4', 'e4+a4+c5', 'd#4+f#4+b4')]},
+            {'inst': 'drums', 'vol': 0.7, 'pan': -0.2, 'bars': ["t! . t . t! . t .", "t! . t . t! t t t"]},
+        ]},
+
+    # While Happy brings them back: tender and magical, his runes muttered underneath.
+    'resurrection': {
+        'bpm': 63, 'beats': 4, 'steps': 2, 'bars': 16, 'wet': 0.45, 'reverb': 3.0,
+        'extra': lambda n, looping: np.stack([mutter(n)] * 2, 1) * 0.2,
+        'parts': [
+            {'inst': 'harp', 'vol': 0.7, 'pan': -0.3, 'bars': arps([RES_TRIADS[c] for c in RES_CHORDS], "0 1 2 3 4 3 2 1", 8)},
+            {'inst': 'strings', 'vol': 0.55, 'pan': 0.1, 'bars': [f"{RES_PAD[c]} - - - - - - -" for c in RES_CHORDS]},
+            {'inst': 'whistle', 'vol': 0.7, 'pan': 0.2, 'bars': RES_TUNE},
+            {'inst': 'choir', 'vol': 0.5, 'bars': [REST4] * 8 + [f"{RES_PAD[c]} - - - - - - -" for c in RES_CHORDS[8:]]},
+            {'inst': 'bell', 'vol': 0.3, 'pan': 0.6, 'bars': [
+                ". . . . . . a6' .", REST4, ". . f#6' . . . . .", REST4, ". . . . . . d7' .", REST4,
+                ". . . . b6' . . .", REST4]},
+        ]},
+
+    # The goodies: a jolly oom-pah, from Happy's loot right down the hole.
+    'goodies': {
+        'bpm': 132, 'beats': 4, 'steps': 2, 'bars': 32, 'wet': 0.16, 'reverb': 1.1,
+        'parts': [
+            {'inst': 'fiddle', 'vol': 0.8, 'pan': 0.15, 'bars': JOLLY_TUNE},
+            {'inst': 'whistle', 'vol': 0.45, 'pan': -0.3, 'oct': 1, 'bars': [REST4] * 16 + JOLLY_TUNE},
+            {'inst': 'tuba', 'vol': 0.75, 'bars': oompah(JOLLY_CHORDS, JOLLY_LOW, JOLLY_HIGH)[0]},
+            {'inst': 'squeezebox', 'vol': 0.55, 'pan': -0.35, 'bars': oompah(JOLLY_CHORDS, JOLLY_LOW, JOLLY_HIGH)[1]},
+            {'inst': 'bell', 'vol': 0.25, 'pan': 0.5, 'bars': [REST4] * 16 + [
+                "g6' . . . d6' . . .", REST4, "f#6' . . . a6' . . .", REST4]},
+            {'inst': 'drums', 'vol': 0.55, 'bars': ["k . s h k . s h", "k . s h k k s s'"]},
+        ]},
+
+    # Down in the basin: near silence, a drip, then scratching (louder and closer all the time) and giggles.
+    # Plays once (72 s), then 'lurk_loop' carries on at full creep until the Kobolds attack (Slayer_Music.THEN).
+    'lurk': {
+        'bpm': 60, 'beats': 4, 'steps': 2, 'bars': 18, 'loop': False, 'tail': 0.2, 'wet': 0.5, 'reverb': 3.2,
+        'level': 0.45, 'fixed': True, 'extra': lambda n, looping: haunt(n, looping, (0.06, 1.0), 0.35),
+        'parts': [
+            {'inst': 'strings', 'vol': 0.5, 'bars': ["d2+a2 - - - - - - -", "d2+a2 - - - - - - -", "eb2+a2 - - - - - - -",
+                                                    "d2+a2 - - - - - - -"]},
+            {'inst': 'bell', 'vol': 0.35, 'pan': 0.6, 'bars': [". . . . . . d6' .", REST4, ". . a5' . . . . .", REST4,
+                                                              REST4, ". eb6' . . . . . .", REST4, REST4]},
+            {'inst': 'pizz', 'vol': 0.5, 'pan': -0.3, 'bars': ["d2 . . . . . . .", REST4, REST4, ". . . . eb2 . . ."]},
+        ]},
+    'lurk_loop': {
+        'bpm': 60, 'beats': 4, 'steps': 2, 'bars': 8, 'wet': 0.5, 'reverb': 3.2,
+        'level': 0.45, 'fixed': True, 'extra': lambda n, looping: haunt(n, looping, (1.0, 1.0), 0.0),
+        'parts': [
+            {'inst': 'strings', 'vol': 0.5, 'bars': ["d2+a2 - - - - - - -", "d2+a2 - - - - - - -", "eb2+a2 - - - - - - -",
+                                                    "d2+a2 - - - - - - -"]},
+            {'inst': 'bell', 'vol': 0.35, 'pan': 0.6, 'bars': [". . . . . . d6' .", REST4, ". . a5' . . . . .", REST4,
+                                                              REST4, ". eb6' . . . . . .", REST4, REST4]},
+            {'inst': 'pizz', 'vol': 0.5, 'pan': -0.3, 'bars': ["d2 . . . . . . .", REST4, REST4, ". . . . eb2 . . ."]},
+            {'inst': 'drums', 'vol': 0.35, 'bars': ["t . . t' . . . .", REST4]},   # a heartbeat, now
+        ]},
+
+    # The Krazy Kobold fight.
+    'kobolds': {
+        'bpm': 138, 'beats': 4, 'steps': 2, 'bars': 32, 'wet': 0.3, 'reverb': 2.0,
+        'extra': lambda n, looping: giggles(n, looping, 5, 0.3),
+        'parts': [
+            {'inst': 'xylo', 'vol': 0.85, 'pan': 0.25, 'bars': KOB_TUNE},
+            {'inst': 'pizz', 'vol': 0.9, 'pan': -0.2, 'bars': [KOB_BASS[c] for c in KOB_CHORDS]},
+            {'inst': 'reed', 'vol': 0.5, 'pan': -0.35, 'oct': -2, 'bars': [REST4] * 16 + KOB_TUNE},
+            {'inst': 'choir', 'vol': 0.35, 'pan': 0.4, 'bars': [f"{KOB_PAD[c]} - - - - - - -" for c in KOB_CHORDS]},
+            {'inst': 'whistle', 'vol': 0.3, 'pan': 0.6, 'oct': 1, 'bars': [REST4] * 7 + ["b5 - - - - - a#5 -"] + [REST4] * 7
+                                                                           + ["e5 - - - - - d#5 -"]},
+            {'inst': 'drums', 'vol': 0.6, 'bars': ["k . x x s' . x .", "k . x . s' x x x"]},
+        ]},
+
+    # The wolf pack.
+    'wolves': {
+        'bpm': 132, 'beats': 4, 'steps': 4, 'bars': 32, 'wet': 0.28, 'reverb': 2.2,
+        'parts': [
+            {'inst': 'saw', 'vol': 0.85, 'pan': -0.25, 'bars': [wolf_saw(c) for c in WOLF_CHORDS]},
+            {'inst': 'brass', 'vol': 0.8, 'pan': 0.15, 'bars': WOLF_HORNS},
+            {'inst': 'saw', 'vol': 0.5, 'pan': 0.35, 'bars': [REST16] * 16 + [wolf_run(c) for c in WOLF_CHORDS]},
+            {'inst': 'choir', 'vol': 0.5, 'bars': [REST16] * 16 + [f"{WOLF_PAD[c]} " + ' '.join(['-'] * 15) for c in WOLF_CHORDS]},
+            {'inst': 'drums', 'vol': 0.85, 'bars': [
+                "p! . . . . . . . q . . . p . p p", "p! . . . . . . . q . . . p . . .",
+                "p! . . . . . . . q . . . p . p p", "q! . . . q . . . q . q . q q q q",
+                "p! . . . . . . . q . . . p . p p", "p! . . . . . . . q . . . p . . .",
+                "p! . . . . . . . q . . . p . p p", "p p p p p p p p p p p p q! . . .",
+                "g . . . . . . . q . . . p . p p", "p! . . . . . . . q . . . p . . .",
+                "p! . . . . . . . q . . . p . p p", "q! . . . q . . . q . q . q q q q",
+                "p! . . . . . . . q . . . p . p p", "p! . . . . . . . q . . . p . . .",
+                "p! . . . . . . . q . . . p . p p", "p p p p p p p p p p p p q! . . ."]},
+        ]},
+}
+
+
+def scatter(n, looping, make, rate, seed, pan=0.8):
+    """Sounds dropped in at random, about rate(fraction of the way through) per second, each panned somewhere.
+    make(r, how far along) -> a mono sound. In a loop they wrap round to the start."""
+    r = np.random.default_rng(seed)
+    out = np.zeros((n, 2))
+    t = r.exponential(1 / max(rate(0), 0.05))
+    while t * RATE < n:
+        s = make(r, t * RATE / n)
+        p = r.uniform(-pan, pan)
+        idx = int(t * RATE) + np.arange(len(s))
+        if looping:
+            idx %= n
+        else:
+            keep = idx < n
+            idx, s = idx[keep], s[keep]
+        np.add.at(out[:, 0], idx, s * np.sqrt(0.5 * (1 - p)))
+        np.add.at(out[:, 1], idx, s * np.sqrt(0.5 * (1 + p)))
+        t += r.exponential(1 / max(rate(t * RATE / n), 0.05))
+    return out
+
+
+def haunt(n, looping, ramp, giggle_from):
+    """The basin: scratches that come more often and louder as `ramp` goes from its first value to its second, and
+    giggles once it's giggle_from of the way in."""
+    def level(x):   # slow at first, then closing in fast
+        return ramp[0] + (ramp[1] - ramp[0]) * x ** 1.8
+    scratches = scatter(n, looping, lambda r, x: scratch(r) * 0.24 * (0.15 + 0.85 * level(x)),
+                        lambda x: 0.035 + 0.6 * level(x) ** 1.5, 31)
+    laughs = scatter(n, looping, lambda r, x: giggle(r) * 0.13 * (0.4 + 0.6 * level(x)) * (x >= giggle_from),
+                     lambda x: 0.25 * level(x), 37)
+    return scratches + laughs
+
+
+def giggles(n, looping, per_minute, level):
+    return scatter(n, looping, lambda r, x: giggle(r) * level * 0.4, lambda x: per_minute / 60, 41)
+
+
+def mutter(n):
+    """Happy's runes: a low voice muttering fast, under his breath, the whole time."""
+    return murmur(n, voices=2, syllable=0.085, pitch=(90, 112), talking=False).mean(1)
+
+
+SONGS.update(NEW_SONGS)
 
 
 # ---------- sound effects (assets/sounds) ----------
@@ -642,28 +898,122 @@ def voice(seconds, pitch, vowels, scale=1.0, breath=0.1, rough=0.0, attack=0.01,
     return out * env
 
 
+def sweep_band(x, fc, q=2.0):
+    """x through a band-pass whose centre glides along fc (Hz, one per sample): a swish, a sweep, a 'shwoop'."""
+    f = 2 * np.sin(np.pi * np.clip(fc, 30, 5000) / RATE)
+    damp = 1 / q
+    low = bp = 0.0
+    out = np.empty(len(x))
+    for i in range(len(x)):
+        high = x[i] - low - damp * bp
+        bp += f[i] * high
+        low += f[i] * bp
+        out[i] = bp
+    return out
+
+
+def at(n, pieces):
+    """Lay sounds out on one track: pieces = [(start seconds, sound), ...]."""
+    out = np.zeros(n)
+    for start, s in pieces:
+        i = int(start * RATE)
+        if i < n:
+            out[i:i + len(s)] += s[:n - i]
+    return out
+
+
+def fade(x, inn=0.005, out=0.05):
+    t = np.arange(len(x)) / RATE
+    return x * np.clip(t / inn, 0, 1) * np.clip((t[-1] - t) / out, 0, 1)
+
+
+def norm(x):
+    return x / (np.abs(x).max() + 1e-9)
+
+
+def thud(seconds=0.5, low=55, drop=45, decay=9):
+    """Something heavy hitting the floor."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    return (np.sin(2 * np.pi * np.cumsum(low + drop * np.exp(-t * 25)) / RATE) * np.exp(-t * decay)
+            + lowpass(rng.normal(0, 1, n), 14) * 0.5 * np.exp(-t * 25))
+
+
+def fricative(seconds, lo=1200, hi=6000):
+    """The 'ff' on the end of OOF: breath through teeth."""
+    n = int(seconds * RATE)
+    return fade(band(rng.normal(0, 1, n), lo, hi), 0.02, seconds * 0.7)
+
+
+# Heroines and dwarves don't share a throat: the women sit about an octave up (300-600 Hz), with smaller
+# heads (formants scaled up), breathier and softer; the men are low, gravelly and more forward.
+WOMAN = dict(scale=1.22, breath=0.28, rough=0.02, tilt=1.15)
+MAN = dict(scale=0.92, breath=0.22, tilt=0.85)
+
+
 def ouch(kind, i):
     """One take of a voice. Each kind has a few takes, so the same noise doesn't come round every time."""
     r = np.random.default_rng(1000 * len(kind) + 17 * i + ord(kind[0]))
-    j = r.uniform(0.92, 1.08)
-    if kind == 'grunt':  # a dwarf taking a hit: UGH / OOF / HURK
-        v = [('uh', 'uh'), ('oh', 'oo'), ('ah', 'uh'), ('aw', 'mm')][i % 4]
-        return voice(r.uniform(0.2, 0.32), [(0, 150 * j), (0.25, 135 * j), (1, 85 * j)],
-                     [(0, v[0]), (0.6, v[0]), (1, v[1])], scale=0.95, breath=0.25, rough=0.12, release=0.06)
+    j = r.uniform(0.93, 1.07)
+
+    def P(pts):
+        return [(x, p * j) for x, p in pts]
+
+    if kind == 'grunt':  # a dwarf taking a hit: OOOF / UGGGH / HURK / OWF
+        if i == 0:
+            v = voice(0.3, P([(0, 140), (0.3, 128), (1, 95)]), [(0, 'oh'), (0.5, 'oo'), (1, 'oo')], rough=0.15,
+                      release=0.05, **MAN)
+            return np.concatenate([v, fricative(0.13) * 0.35])
+        if i == 1:
+            return voice(0.55, P([(0, 128), (0.2, 120), (1, 78)]), [(0, 'uh'), (0.7, 'uh'), (1, 'aw')], rough=0.4,
+                         release=0.15, **MAN)
+        if i == 2:
+            return voice(0.24, P([(0, 165), (0.5, 140), (1, 110)]), [(0, 'uh'), (1, 'aw')], rough=0.25,
+                         release=0.015, **MAN)
+        v = voice(0.32, P([(0, 150), (0.25, 135), (1, 90)]), [(0, 'aw'), (0.6, 'oh'), (1, 'oo')], rough=0.2,
+                  release=0.04, **MAN)
+        return np.concatenate([v, fricative(0.1) * 0.3])
+    if kind == 'dwarf_die':  # AAAARGH... and down he goes
+        secs = r.uniform(0.9, 1.1)
+        v = voice(secs, P([(0, 150), (0.25, 178), (0.6, 150), (1, 68)]),
+                  [(0, 'ah'), (0.5, 'ah'), (0.8, 'aw'), (1, 'uh')], rough=0.35, attack=0.03, release=0.3, **MAN)
+        return at(int((secs + 0.6) * RATE), [(0, v), (secs - 0.05, thud() * 0.8)])
     if kind == 'kobold':  # a Kobold: a squeaky little yip
         v = ['ee', 'eh', 'ah'][i % 3]
-        return voice(r.uniform(0.12, 0.18), [(0, 420 * j), (0.3, 520 * j), (1, 330 * j)],
+        return voice(r.uniform(0.12, 0.18), P([(0, 420), (0.3, 520), (1, 330)]),
                      [(0, v), (1, 'uh')], scale=1.3, breath=0.2, rough=0.05, release=0.04)
+    if kind == 'kobold_die':  # eeeeyaaaa...
+        return voice(r.uniform(0.45, 0.6), P([(0, 650), (0.25, 920), (1, 250)]), [(0, 'ee'), (0.4, 'ah'), (1, 'uh')],
+                     scale=1.35, breath=0.25, rough=0.06, release=0.15)
     if kind == 'yelp':  # a wolf: a sharp yelp
-        return voice(r.uniform(0.18, 0.26), [(0, 600 * j), (0.2, 1050 * j), (1, 520 * j)],
+        return voice(r.uniform(0.18, 0.26), P([(0, 600), (0.2, 1050), (1, 520)]),
                      [(0, 'ah'), (0.5, 'aw'), (1, 'oo')], scale=1.15, breath=0.35, rough=0.06, release=0.07)
-    if kind == 'groan':  # a heroine taking a hit: OW / UNNH / AH!
-        takes = [([(0, 300), (0.2, 330), (1, 210)], [(0, 'ah'), (0.5, 'aw'), (1, 'oo')]),
-                 ([(0, 250), (0.4, 240), (1, 185)], [(0, 'uh'), (0.6, 'uh'), (1, 'mm')]),
-                 ([(0, 360), (0.15, 390), (1, 260)], [(0, 'ah'), (1, 'ah')]),
-                 ([(0, 280), (0.3, 300), (1, 200)], [(0, 'eh'), (0.5, 'uh'), (1, 'mm')])][i % 4]
-        return voice(r.uniform(0.32, 0.45), [(x, p * j) for x, p in takes[0]], takes[1], scale=1.12,
-                     breath=0.3, rough=0.04, attack=0.02, release=0.12)
+    if kind == 'wolf_die':  # a yelp that trails off into a whimper
+        yelp = voice(0.2, P([(0, 650), (0.25, 1100), (1, 600)]), [(0, 'ah'), (1, 'oo')], scale=1.15, breath=0.35,
+                     release=0.03)
+        whine = voice(0.75, P([(0, 720), (0.3, 640), (0.6, 690), (1, 380)]), [(0, 'oo'), (1, 'mm')], scale=1.15,
+                      breath=0.45, rough=0.05, attack=0.05, release=0.3)
+        return np.concatenate([yelp, np.zeros(int(0.08 * RATE)), whine * 0.8])
+    if kind == 'groan':  # a heroine taking a hit: OW! / UNNH / AH! / EUGH
+        takes = [(0.28, [(0, 430), (0.25, 530), (1, 370)], [(0, 'ah'), (0.5, 'aw'), (1, 'oo')]),
+                 (0.33, [(0, 370), (0.4, 390), (1, 310)], [(0, 'uh'), (0.6, 'uh'), (1, 'mm')]),
+                 (0.24, [(0, 510), (0.2, 570), (1, 430)], [(0, 'ah'), (1, 'ah')]),
+                 (0.34, [(0, 410), (0.3, 450), (1, 330)], [(0, 'eh'), (0.5, 'uh'), (1, 'mm')])]
+        secs, pitch, vowels = takes[i % 4]
+        return voice(secs * r.uniform(0.95, 1.1), P(pitch), vowels, attack=0.015, release=0.1, **WOMAN)
+    if kind == 'heroine_die':  # a heroine going down for good: a falling cry, then the floor
+        secs = r.uniform(0.75, 0.95)
+        start = [520, 480, 560][i % 3]
+        v = voice(secs, P([(0, start), (0.2, start * 1.15), (1, start * 0.6)]),
+                  [(0, ['ah', 'eh', 'ah'][i % 3]), (0.5, 'aw'), (1, 'oh')], attack=0.02, release=0.3, **WOMAN)
+        return at(int((secs + 0.55) * RATE), [(0, v), (secs - 0.1, thud(low=70, drop=50) * 0.45)])
+    if kind == 'scream':  # a heroine too scared to move: a short, sharp scream
+        secs = r.uniform(0.45, 0.6)
+        top = [950, 1050, 880][i % 3]
+        v = voice(secs, P([(0, top * 0.75), (0.12, top), (0.75, top * 0.97), (1, top * 0.8)]),
+                  [(0, 'ah'), (0.6, ['ah', 'eh', 'ee'][i % 3]), (1, 'eh')], scale=1.25, breath=0.32, rough=0.04,
+                  attack=0.02, release=0.12, tilt=1.0)
+        return v * (1 + 0.12 * np.sin(2 * np.pi * 7 * np.arange(len(v)) / RATE))   # a nervous wobble in it
     if kind == 'squeal':  # a heroine healed: a happy little squeal
         if i % 3 == 2:  # a two-part "ee-hee!"
             a = voice(0.13, [(0, 560 * j), (1, 700 * j)], [(0, 'ee'), (1, 'ee')], scale=1.18, breath=0.15)
@@ -673,29 +1023,65 @@ def ouch(kind, i):
         rise = [(0, 480 * j), (0.6, 880 * j), (1, 960 * j)] if i % 3 == 0 else [(0, 600 * j), (0.4, 900 * j), (1, 700 * j)]
         return voice(r.uniform(0.3, 0.4), rise, [(0, 'eh'), (0.25, 'ee'), (1, 'ee')], scale=1.18, breath=0.15,
                      attack=0.02, release=0.1)
-    if kind == 'growl':  # a Shifter's special: something big and furry comes out of her
-        secs = r.uniform(0.9, 1.15)
-        g = voice(secs, [(0, 70 * j), (0.3, 95 * j), (0.8, 85 * j), (1, 60 * j)],
-                  [(0, 'mm'), (0.2, 'aw'), (0.7, 'ah'), (1, 'uh')], scale=0.8, breath=0.6, rough=0.25,
-                  attack=0.12, release=0.25, tilt=0.7)
-        n = len(g)
-        t = np.arange(n) / RATE
-        rumble = band(rng.normal(0, 1, n), 60, 500) * np.clip(t / 0.15, 0, 1) * np.clip((secs - t) / 0.25, 0, 1)
-        return g + 0.35 * rumble / np.abs(rumble).max()
+    if kind == 'growl':  # a Shifter's Savage Bite or Throat Rip: a vicious snarl
+        secs = r.uniform(0.8, 1.0)
+        g = voice(secs, P([(0, 85), (0.2, 120), (0.7, 105), (1, 70)]),
+                  [(0, 'mm'), (0.15, 'ah'), (0.7, 'aw'), (1, 'uh')],
+                  scale=0.85, breath=0.6, rough=0.5, attack=0.04, release=0.2, tilt=0.6)
+        t = np.arange(len(g)) / RATE
+        g = g * (1 - 0.45 * (0.5 + 0.5 * np.sin(2 * np.pi * 31 * t)))   # the rattle in the throat
+        return np.tanh(norm(g) * 2.5)
+    if kind == 'roar':  # the Bear Maul, the Honey Badger: something HUGE comes out of her
+        secs = r.uniform(1.5, 1.8)
+        n = int(secs * RATE)
+        g = voice(secs, P([(0, 70), (0.15, 125), (0.5, 140), (0.8, 110), (1, 60)]),
+                  [(0, 'oo'), (0.12, 'oh'), (0.3, 'ah'), (0.75, 'aw'), (1, 'uh')],
+                  scale=0.7, breath=0.7, rough=0.55, attack=0.08, release=0.4, tilt=0.55)
+        g = g * (1 - 0.4 * (0.5 + 0.5 * np.sin(2 * np.pi * np.cumsum(curve(n, [(0, 22), (0.5, 34), (1, 18)])) / RATE)))
+        chest = band(rng.normal(0, 1, n), 40, 400) * curve(n, [(0, 0), (0.1, 1), (0.6, 0.9), (1, 0)])
+        return np.tanh((norm(g) + 0.6 * norm(chest)) * 3.0)
+    if kind == 'gag':  # Happy hurling: two heaves, then BLEAGH, and the splatter
+        def heave(p):
+            return voice(0.16, [(0, p), (1, p * 0.75)], [(0, 'uh'), (1, 'aw')], rough=0.55, release=0.02, **MAN)
+        return _hurl([heave(150 * j), heave(140 * j)],
+                     voice(0.45, P([(0, 150), (0.3, 135), (1, 85)]), [(0, 'eh'), (0.3, 'ah'), (1, 'aw')], rough=0.55,
+                           breath=0.4, scale=0.92, tilt=0.85, release=0.1))
+    if kind == 'retch':  # a heroine with Happy's norovirus doing the same
+        def heave(p):
+            return voice(0.14, [(0, p), (1, p * 0.8)], [(0, 'uh'), (1, 'aw')], scale=1.2, breath=0.4, rough=0.3,
+                         release=0.02, tilt=1.1)
+        return _hurl([heave(330 * j), heave(310 * j)],
+                     voice(0.4, P([(0, 360), (0.3, 340), (1, 250)]), [(0, 'eh'), (0.3, 'ah'), (1, 'aw')], scale=1.2,
+                           breath=0.45, rough=0.3, release=0.1, tilt=1.1))
     raise ValueError(kind)
 
 
-def sfx_whoosh(i):
-    """A swing that finds only air."""
-    n = int(rng.uniform(0.32, 0.42) * RATE)
+def _hurl(heaves, bleagh):
+    """Two heaves, the big one, and what comes out of it hitting the floor."""
+    n = int(0.9 * RATE)
     t = np.arange(n) / RATE
+    gush = band(rng.normal(0, 1, n), 250, 3500) * np.exp(-t * 4) * (0.6 + 0.4 * wobbly(n, RATE, 0.03))
+    drops = np.zeros(n)
+    for p in rng.integers(int(0.1 * RATE), n - 2000, 22):   # chunks and drops landing: little rising blips
+        k = int(rng.integers(300, 900))
+        tt = np.arange(k) / RATE
+        f0 = rng.uniform(300, 900)
+        drops[p:p + k] += np.sin(2 * np.pi * np.cumsum(f0 + 3000 * tt) / RATE) * np.exp(-tt * 60) * rng.uniform(0.3, 1)
+    splash = norm(gush) * 0.7 + norm(drops) * 0.5
+    return at(int(1.9 * RATE), [(0.0, heaves[0]), (0.28, heaves[1]), (0.6, bleagh), (0.82, splash)])
+
+
+def sfx_whoosh(i):
+    """A swing that finds only air: SHWOOP. Noise through a band-pass that sweeps up and back down."""
+    secs = [0.3, 0.26, 0.36][i % 3]
+    n = int(secs * RATE)
+    peak = [0.4, 0.35, 0.45][i % 3]
+    fc = curve(n, [(0, 350), (peak, [2400, 3000, 2000][i % 3]), (1, 450)])
     noise = rng.normal(0, 1, n)
-    centre = curve(n, [(0, 350), (0.45, 1300 + 300 * i), (1, 500)])
-    out = np.zeros(n)
-    for lo, hi in ((200, 500), (400, 900), (800, 1600), (1400, 2600)):
-        mid = (lo + hi) / 2
-        out += band(noise, lo, hi) * np.exp(-((centre - mid) / (mid * 0.5)) ** 2)
-    return out * np.sin(np.pi * t / t[-1]) ** 2
+    tone = sweep_band(noise, fc, q=3.5)
+    air = sweep_band(noise, fc * 0.6, q=0.8)
+    env = curve(n, [(0, 0), (peak * 0.8, 0.6), (peak, 1), (min(1, peak + 0.25), 0.35), (1, 0)]) ** 1.3
+    return (norm(tone) + 0.5 * norm(air)) * env
 
 
 def crackles(n, per_s):
@@ -719,30 +1105,183 @@ def sfx_fire():
     return out * np.clip((secs - t) / 0.4, 0, 1)
 
 
+def fire_burst():
+    m = int(0.6 * RATE)
+    tt = np.arange(m) / RATE
+    return norm(band(rng.normal(0, 1, m), 50, 900) * np.clip(tt / 0.01, 0, 1) * np.exp(-tt * 9)) * rng.uniform(0.7, 1)
+
+
+def sfx_firestorm():
+    """Fire Rain: a howling firestorm, with fireballs streaking down and bursting all around."""
+    secs = 3.4
+    n = int(secs * RATE)
+    swell = curve(n, [(0, 0), (0.15, 0.8), (0.6, 1), (1, 0)])
+    storm = band(rng.normal(0, 1, n), 50, 2200) * (0.45 + 0.55 * wobbly(n, RATE, 0.05)) * swell
+    wind = sweep_band(rng.normal(0, 1, n), 500 + 700 * wobbly(n, RATE, 0.4), q=1.5) * swell
+    balls = []
+    for k in range(9):   # each fireball: a falling shriek, then a whump where it lands
+        start = 0.15 + k * 0.32 + rng.uniform(-0.08, 0.08)
+        m = int(0.35 * RATE)
+        fall = sweep_band(rng.normal(0, 1, m), curve(m, [(0, 3200), (1, 600)]), q=4) * curve(m, [(0, 0), (0.7, 1), (1, 0.2)])
+        balls += [(start, norm(fall) * 0.5), (start + 0.33, fire_burst())]
+    out = norm(storm) * 0.8 + norm(wind) * 0.35 + norm(crackles(n, 90) * swell) * 0.5 + at(n, balls)
+    return np.tanh(out * 1.3)
+
+
 def sfx_thunder():
-    """Lightning: a splitting crack right overhead, then thunder rolling away."""
-    secs = 3.2
+    """Lightning: a deafening crack right overhead, a BOOM you feel in your chest, then thunder rolling away."""
+    secs = 3.8
     n = int(secs * RATE)
     t = np.arange(n) / RATE
     crack = np.zeros(n)
-    for start in (0.0, 0.025, 0.06, 0.11):  # the bolt forks: several cracks almost on top of each other
+    for start in (0.0, 0.018, 0.04, 0.07, 0.12):  # the bolt forks: several cracks almost on top of each other
         tt = np.clip(t - start, 0, None)
-        crack += (np.diff(rng.normal(0, 1, n), prepend=0) * np.exp(-tt * rng.uniform(25, 45)) * (t >= start)
-                  * rng.uniform(0.5, 1))
-    rumble = band(rng.normal(0, 1, n), 25, 220)
-    rumble *= (0.4 + 0.6 * wobbly(n, RATE, 0.22) ** 2) * np.clip((t - 0.05) / 0.15, 0, 1) * np.exp(-t * 1.1)
-    crack = band(crack, 150, 6000)  # a crack, not a hiss
-    out = crack / np.abs(crack).max() * 0.8 + rumble / np.abs(rumble).max()
-    return out * np.clip((secs - t) / 0.6, 0, 1)
+        crack += (np.diff(rng.normal(0, 1, n), prepend=0) * np.exp(-tt * rng.uniform(18, 35)) * (t >= start)
+                  * rng.uniform(0.6, 1))
+    crack = band(crack, 120, 7000)
+    boom = band(rng.normal(0, 1, n), 25, 180) * np.clip((t - 0.04) / 0.02, 0, 1) * np.exp(-t * 2.2)
+    rumble = band(rng.normal(0, 1, n), 25, 260)
+    rumble *= (0.35 + 0.65 * wobbly(n, RATE, 0.18) ** 2) * np.clip((t - 0.15) / 0.3, 0, 1) * np.exp(-t * 0.75)
+    out = norm(crack) * 1.0 + norm(boom) * 1.1 + norm(rumble) * 0.9
+    return np.tanh(out * 2.2) * np.clip((secs - t) / 0.8, 0, 1)
 
 
-TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3}
+def sfx_holy():
+    """Deep Meditation: a harp sweeping up, a choir's 'aaah' and a shimmer of bells."""
+    n = int(3.0 * RATE)
+    notes = ['d4', 'f#4', 'a4', 'b4', 'd5', 'e5', 'f#5', 'a5', 'b5', 'd6', 'e6', 'f#6']
+    out = at(n, [(0.05 + k * 0.06, pluck(hz(midi(p)), 0.2, 0.8, decay=0.998, bright=0.45, seconds=1.6))
+                 for k, p in enumerate(notes)])
+    voices = sum(choir(hz(midi(p)), 2.0, 0.9) for p in ('d4', 'a4', 'd5', 'f#5'))
+    out += at(n, [(0.35, norm(voices) * 0.9)])
+    out += at(n, [(0.8 + k * 0.17, bell(hz(midi(p)), 1, 0.5)) for k, p in enumerate(['a6', 'f#6', 'd7', 'a6', 'e7'])]) * 0.6
+    stereo = reverb(np.stack([out, out], 1), 2.4, 0.5, False)
+    return fade(stereo.mean(1), 0.01, 0.6)
+
+
+def scratch(r, secs=None):
+    """Fingernails dragged down a steel guitar string: a metal string, rasped instead of plucked, sliding."""
+    secs = secs or r.uniform(0.4, 1.1)
+    n = int(secs * RATE)
+    rate = r.uniform(150, 320) * (0.7 + 0.6 * wobbly(n, RATE, 0.05))   # the nail catching on each winding
+    ticks = (np.diff(np.floor(np.cumsum(rate) / RATE), prepend=0) > 0) * r.uniform(0.4, 1.0, n)
+    p = int(RATE / r.uniform(170, 330))
+    y = np.zeros(n + p)
+    x = np.concatenate([np.zeros(p), ticks + rng.normal(0, 0.05, n)])
+    for start in range(p, n + p, p):   # a string: each period is the last one, a little duller, plus the rasping
+        end = min(start + p, n + p)
+        prev = y[start - p:end - p]
+        y[start:end] = x[start:end] + 0.985 * 0.5 * (prev + np.roll(prev, 1))
+    y = y[p:]
+    slide = curve(n, [(0, 1), (1, r.choice([0.82, 1.18, 0.9]))])   # the hand sliding along it
+    y = np.interp(np.clip(np.cumsum(slide), 0, n - 1), np.arange(n), y)
+    squeal = sweep_band(rng.normal(0, 1, n), r.uniform(2500, 3800) * slide, q=12)
+    out = norm(band(y, 300, 9000)) + 0.4 * norm(squeal) * (0.5 + 0.5 * norm(lowpass(ticks, 200)))
+    return fade(norm(out), 0.03, secs * 0.4)
+
+
+def giggle(r):
+    """A Kobold giggling somewhere in the dark: hee-hee-hee-hee."""
+    out = []
+    top = r.uniform(780, 1000)
+    for k in range(int(r.integers(4, 7))):
+        p = top * (1 - 0.06 * k)
+        out += [voice(r.uniform(0.06, 0.08), [(0, p * 1.08), (1, p * 0.9)], [(0, 'ee'), (1, 'eh')], scale=1.4,
+                      breath=0.5, rough=0.05, attack=0.008, release=0.03),
+                np.zeros(int(r.uniform(0.035, 0.06) * RATE))]
+    return np.concatenate(out)
+
+
+def sfx_pick(kind):
+    """A heroine getting her weapon (or spell, or potion) ready, as it's picked from the menu."""
+    if kind == 'blade':   # SHING: steel sliding out, then ringing
+        m = int(0.18 * RATE)
+        scrape = sweep_band(rng.normal(0, 1, m), curve(m, [(0, 1800), (1, 4800)]), q=6) * curve(m, [(0, 0), (0.8, 1), (1, 0.6)])
+        t = np.arange(int(0.9 * RATE)) / RATE
+        ring = sum(a * np.sin(2 * np.pi * f * t) * np.exp(-t * d) for f, a, d in
+                   ((2350, 1, 5), (3720, 0.7, 7), (5130, 0.5, 9), (6900, 0.3, 12)))
+        return at(int(1.1 * RATE), [(0, norm(scrape) * 0.8), (0.15, norm(ring) * 0.7)])
+    if kind == 'heavy':   # a big weapon hefted: WHOOMPH, and a clank
+        m = int(0.45 * RATE)
+        swing = sweep_band(rng.normal(0, 1, m), curve(m, [(0, 200), (0.6, 700), (1, 250)]), q=1.5) * curve(m, [(0, 0), (0.6, 1), (1, 0)])
+        t = np.arange(int(0.6 * RATE)) / RATE
+        clank = sum(a * np.sin(2 * np.pi * f * t) * np.exp(-t * d) for f, a, d in ((410, 1, 14), (1130, 0.6, 20), (2270, 0.3, 30)))
+        return at(int(1.0 * RATE), [(0, norm(swing)), (0.33, norm(clank) * 0.6)])
+    if kind == 'bow':   # an arrow nocked and the string drawn back: creak, creak, creeeak
+        n = int(0.7 * RATE)
+        t = np.arange(n) / RATE
+        rate = curve(n, [(0, 60), (1, 140)])
+        ticks = (np.diff(np.floor(np.cumsum(rate) / RATE), prepend=0) > 0) * rng.uniform(0.5, 1, n) * np.clip(t / 0.1, 0, 1)
+        ir_t = np.arange(int(0.03 * RATE)) / RATE
+        wood = sum(a * np.sin(2 * np.pi * f * ir_t) * np.exp(-ir_t * d) for f, a, d in ((620, 1, 70), (1400, 0.7, 90), (2600, 0.4, 120)))
+        return fade(np.convolve(ticks, wood, 'full')[:n], 0.01, 0.1)
+    if kind == 'magic':   # a spell gathering: a rising shimmer
+        n = int(0.8 * RATE)
+        out = at(n, [(k * 0.07, bell(hz(midi(p)), 1, 0.6)) for k, p in enumerate(['a5', 'c#6', 'e6', 'a6', 'c#7'])])
+        sparkle = sweep_band(rng.normal(0, 1, n), curve(n, [(0, 1500), (1, 4800)]), q=3) * curve(n, [(0, 0), (0.5, 1), (1, 0)])
+        return fade(norm(out) + 0.35 * norm(sparkle), 0.005, 0.2)
+    if kind == 'fists':   # cracking her knuckles
+        n = int(0.45 * RATE)
+        pops = np.zeros(n)
+        for s in (0.0, 0.09, 0.15, 0.26):
+            i = int(s * RATE)
+            pops[i:i + 260] += rng.normal(0, 1, 260) * np.exp(-np.arange(260) / 30) * rng.uniform(0.6, 1)
+        return band(pops, 900, 7000)
+    if kind == 'beast':   # an animal snort and huff
+        n = int(0.5 * RATE)
+        t = np.arange(n) / RATE
+        return band(rng.normal(0, 1, n), 250, 2200) * (np.exp(-((t - 0.08) / 0.05) ** 2) + 0.8 * np.exp(-((t - 0.3) / 0.08) ** 2))
+    if kind == 'potion':   # the cork popping and a glug-glug
+        n = int(0.7 * RATE)
+        t = np.arange(n) / RATE
+        pop = np.sin(2 * np.pi * np.cumsum(700 - 300 * t) / RATE) * np.exp(-t * 60) + rng.normal(0, 1, n) * 0.3 * np.exp(-t * 200)
+        m = int(0.09 * RATE)
+        tt = np.arange(m) / RATE
+        glug = np.sin(2 * np.pi * np.cumsum(220 + 900 * tt) / RATE) * np.exp(-tt * 25)
+        return norm(pop) + 0.6 * at(n, [(s, glug) for s in (0.25, 0.4, 0.53)])
+    if kind == 'tear':   # a bandage ripped off the roll
+        n = int(0.4 * RATE)
+        return band(crackles(n, 400) + rng.normal(0, 0.3, n), 600, 6000) * curve(n, [(0, 0), (0.1, 1), (0.8, 0.7), (1, 0)])
+    if kind == 'bomb':   # a fuse lit: the strike, then fizzing
+        n = int(0.8 * RATE)
+        t = np.arange(n) / RATE
+        strike = band(rng.normal(0, 1, n), 1500, 8000) * np.exp(-t * 25)
+        fizz = band(crackles(n, 300) + rng.normal(0, 0.4, n), 2500, 9000) * np.clip((t - 0.08) / 0.05, 0, 1)
+        return fade(norm(strike) * 0.7 + norm(fizz) * 0.5, 0.002, 0.15)
+    raise ValueError(kind)
+
+
+# Effects with several takes (grunt_1.ogg, grunt_2.ogg, ...). Keep in step with Slayer_Music.TAKES.
+TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3, 'roar': 2,
+         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3}
+PICKS = ['blade', 'heavy', 'bow', 'magic', 'fists', 'beast', 'potion', 'tear', 'bomb']
 
 SOUNDS = {'buzz': sfx_buzz, 'zap': sfx_zap, 'tink': sfx_tink, 'catch': sfx_catch, 'door': sfx_door,
-          'fire': sfx_fire, 'thunder': sfx_thunder,
+          'fire': sfx_fire, 'firestorm': sfx_firestorm, 'thunder': sfx_thunder, 'holy': sfx_holy,
+          **{f'pick_{kind}': (lambda kind=kind: sfx_pick(kind)) for kind in PICKS},
           **{f'{kind}_{i + 1}': (lambda kind=kind, i=i: sfx_whoosh(i) if kind == 'whoosh' else ouch(kind, i))
              for kind, takes in TAKES.items() for i in range(takes)}}
 SOUND_OUT = OUT.parent / 'sounds'
+
+# The title's tube and the door were balanced by ear against each other, so they keep plain peak levels.
+# The rest are set by how loud they SOUND (their loudest moment), times these: bigger is louder.
+PEAK_ONLY = {'buzz', 'zap', 'tink', 'catch', 'door'}
+LOUDNESS = {'thunder': 1.7, 'roar': 1.5, 'firestorm': 1.35, 'fire': 1.1, 'gag': 1.1, 'retch': 1.05, 'whoosh': 0.85,
+            'grunt': 1.15, 'dwarf_die': 1.2, 'heroine_die': 1.1, 'scream': 1.0, 'groan': 1.0, 'squeal': 0.85,
+            'growl': 1.25, 'holy': 0.9, 'kobold': 0.85, 'kobold_die': 0.95, 'yelp': 0.9, 'wolf_die': 0.95}
+PICK_LOUDNESS = 0.6
+
+
+def level_sound(name, audio):
+    """Peak-normalise the title sounds; set the rest by their loudest 150 ms, then round off the peaks."""
+    if name in PEAK_ONLY:
+        return audio / np.abs(audio).max() * 0.8
+    kind = name.rsplit('_', 1)[0] if name.rsplit('_', 1)[-1].isdigit() else name
+    gain = PICK_LOUDNESS if kind.startswith('pick_') else LOUDNESS.get(kind, 1.0)
+    w = int(0.15 * RATE)
+    power = np.convolve(audio ** 2, np.ones(w) / w, 'same')
+    audio = audio / np.sqrt(power.max() + 1e-12) * 0.26 * gain
+    return np.tanh(audio * 1.4) / 1.4 * 1.05
 
 
 def write_ogg(path, audio):
@@ -758,8 +1297,7 @@ def main():
     wanted = sys.argv[1:] or list(SONGS) + list(SOUNDS)
     for name in wanted:
         if name in SOUNDS:
-            audio = SOUNDS[name]()
-            audio = (audio / np.abs(audio).max() * 0.8).astype(np.float32)[:, None]
+            audio = level_sound(name, SOUNDS[name]()).astype(np.float32)[:, None]
             path = SOUND_OUT / f'{name}.ogg'
             write_ogg(path, audio)
             print(f'{name}: {len(audio) / RATE:.2f} s -> {path.relative_to(OUT.parent.parent)}')

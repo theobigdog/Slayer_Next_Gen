@@ -187,7 +187,7 @@ async def happy_resurrection(party_dict : dict) -> None:
     else:
         await say("As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  One by one, each heroine begins to slowly rouse, moaning painfully as they return to the land of the living.")
     await pause()
-    await say("[narr]Oh.  Oh my.  I just went from 6 to midnight....[/]")
+    await say("[narr]Oh.  Oh my.  I just went from six to midnight....[/]")
     await say(f"{h.name if solo else 'The final party member'} comes back to full consciousness, and Happy\'s face softens, the staccato runes slow down and eventually cease completely.")
     await say('\"Welcome Back!\" Happy booms.')
     await pause()

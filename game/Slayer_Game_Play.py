@@ -102,31 +102,37 @@ async def tavern(party_dict: dict) -> dict:
         await show_battle(party_dict['party'], mobs, 0) # the fight's over: Happy stays on screen for his scenes, the round counter doesn't
         party_dict = await happy.trigger_happy_wipe(party_dict, happy.is_dead, mobs)
         party_dict = acc.refresh_party(party_dict, False)
-    music('tavern') # back to the jig for the loot, The Stash and the forge
+    music('goodies') # (trigger_happy_wipe started it for the loot; it carries on through the secret entrance)
     return party_dict
 
 
 # The dungeon's fights in order: (who, make the mobs, the scene before the fight, what runs after each round,
-# what runs after each turn). 'who' is for the crash checkpoint's question ("pick up after the Krazy Kobolds?").
+# what runs after each turn, the music for the scene before it (None: what's playing carries on), the fight's
+# music). 'who' is for the crash checkpoint's question ("pick up after the Krazy Kobolds?").
 FIGHTS = [
-    ('the Krazy Kobolds', Slayer_Kobolds.make_pack, nar.kobolds_appear, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn),
-    ('the wolves', Slayer_Wolves.make_pack, nar.wolves_appear, Slayer_Wolves.round_end, None),
+    ('the Krazy Kobolds', Slayer_Kobolds.make_pack, nar.kobolds_appear, Slayer_Kobolds.round_end, Slayer_Kobolds.after_turn,
+     'lurk', 'kobolds'),   # the basin: scratching and giggling in the dark, building until they show up
+    ('the wolves', Slayer_Wolves.make_pack, nar.wolves_appear, Slayer_Wolves.round_end, None,
+     None, 'wolves'),
 ]
 
 async def dungeon(party_dict: dict, start: int = 0) -> dict:
     """Down through Happy's secret entrance: the Krazy Kobolds, then the wolf pack. A wipe ends the run; a win
     gets the between-battles step, a checkpoint, and the next fight. The wolves are as deep as it goes for now.
     start: the fight to begin at (a run picked back up after a crash skips the ones it already won)."""
-    music('dungeon')
     if start == 0:
-        await nar.secret_entrance(party_dict)
-    for number, (_, make_mobs, appear, round_end, after_turn) in enumerate(FIGHTS):
+        await nar.secret_entrance(party_dict) # (Happy's jolly music carries on until they drop down the hole)
+    else:
+        music('dungeon') # a crashed run picked back up, between fights
+    for number, (_, make_mobs, appear, round_end, after_turn, scene_song, fight_song) in enumerate(FIGHTS):
         if number < start:
             continue
         await between_fights(party_dict) # the last fight's mobs are off the screen
         mobs = make_mobs(len(party_dict['party']))
+        if scene_song:
+            music(scene_song)
         await appear(party_dict, mobs)
-        party_dict = await battle(party_dict, mobs, round_end, after_turn)
+        party_dict = await battle(party_dict, mobs, round_end, after_turn, fight_song)
         if party_dict['wiped']:
             party_dict['run_result'] = 'wiped'
             acc.clear_checkpoint(party_dict['name']) # the run's over, properly
@@ -166,12 +172,12 @@ async def between_battles(party_dict: dict, mobs: list) -> dict:
     return party_dict
 
 
-async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None) -> dict:
+async def battle(party_dict: dict, mobs: list, round_end=None, after_turn=None, song='battle') -> dict:
     """One fight, round after round, until the party wipes or every mob is down. round_end(party_dict, mobs,
     round_num) runs after every round that didn't end the fight (the Kobolds share out their HP there), and
-    after_turn(mobs) after every turn (the Kobolds' rage keeps track with it)."""
+    after_turn(mobs) after every turn (the Kobolds' rage keeps track with it). song: its music (Happy's is 'battle')."""
     combat.start_battle(party_dict['party']) # special weapons are ready again
-    music('battle')
+    music(song)
     party_dict['wipe_taunted'] = False # one wipe taunt per fight, from whichever mob gets there first
 
     round_num = 0

@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import say, pause, clear
+from Slayer_UI import say, pause, clear, music
 import Slayer_Narration as nar
 
 
@@ -22,6 +22,7 @@ class Disgruntled_Dwarf:
         await say("\"Och, lassies,\" he growls, \"ye really fucked up now!  Now?  NOW I'M ANGRY!!!!\"")
         self.is_dead = False # setting to True is necessary just in case the blow that caused Happy to enrage also "killed" him
         self.enraged = True
+        music('enraged') # the battle music, faster, angrier, a half step up (Ted, Nov 17)
         if acc.clear_head(self): # DRAFT line
             await say(f"{self.name} shakes his head like a wet dog, and everything you'd put on him is gone.  [narr]Well, shit.  You can always do it again.[/]")
         self.starting_health = self.stats['enraged_hp']
@@ -48,8 +49,10 @@ class Disgruntled_Dwarf:
             party_dict['party'][spot].is_dead, party_dict['party'][spot].health = True, 0
         self.is_dead, self.enraged = False, False # he always gets back up, and the rage is spent: calm Happy does the resurrecting
         self.starting_health = self.health = self.stats['starting_hp']
+        music('resurrection') # tender and magical, with his runes muttered underneath (Ted, Nov 17)
         await nar.happy_resurrection(party_dict)
         party_dict = acc.refresh_party(party_dict, False) # everyone's back on her feet (and on screen) once Happy's done
+        music('goodies') # a jolly oom-pah for the loot, The Stash, the forge and the stats, until they drop down the hole
         await nar.happy_loot(party_dict)
         party_dict = await acc.get_loot(self, party_dict, mobs, at_tavern=True) # Happy's loot, plus whatever his dead buddies dropped
         await nar.happy_back_room(party_dict) # The Stash menu is in the middle of this scene

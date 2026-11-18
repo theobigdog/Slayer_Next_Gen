@@ -149,28 +149,63 @@ def get_mob_rolls(mob: object, attacking : bool = False) -> dict:
     return roll_results
 
 # ---------- combat sounds (the window plays them; the command prompt stays quiet) ----------
-FIRE_ATTACKS = {'basic_fire_bolt', 'fire_rain', 'fire_bomb'}                  # flames when they land
-LIGHTNING_ATTACKS = {'small_lightning_strike', 'sparkstick', 'spark_flick'}   # thunder when they land
-VOICE_LEVEL = 0.8   # grunts, groans and squeals sit a little under the whooshes and the weather
+# The sound an attack makes when it lands (the grunt or groan of whoever it hit comes from update_health).
+LANDING_SOUNDS = {
+    'basic_fire_bolt': 'fire', 'fire_bomb': 'fire', 'fire_rain': 'firestorm',             # flames; Fire Rain is a whole storm
+    'small_lightning_strike': 'thunder', 'sparkstick': 'thunder', 'spark_flick': 'thunder',
+    'vomit': 'gag', 'happys_norovirus_regurgitation': 'retch',                          # Happy hurls; so does a heroine who caught it
+}
+# Picking a weapon from the menu: steel coming out, a bow drawn, a spell gathering... (Ted, Nov 17)
+PICK_SOUNDS = {
+    'blade': ['boot_knife', 'bastard_sword', 'battle_axe', 'throwing_knife', 'tooth_sharpened_dagger', 'jeweled_dagger',
+              'kobold_shiv'],
+    'heavy': ['thors_hammer', 'stone_breaker', 'thick_broom_handle'],
+    'bow': ['cat_gut_bow', 'maple_recurve'],
+    'magic': ['basic_fire_bolt', 'small_lightning_strike', 'fire_rain', 'sparkstick', 'intoxication_1', 'intoxication_2',
+              'intoxication_3', 'confusion', 'healing_wand', 'strength', 'blessing', 'deep_meditation',
+              'comforting_grooming', 'token_of_the_wise_witch'],
+    'fists': ['roundhouse_throat_kick', 'flying_fist_of_judah', 'happys_mithril_knuckles'],
+    'beast': ['squirrel_claws', 'kangaroo_kick', 'snake_bite', 'deep_scratch', 'angry_bite'],
+    'potion': ['half_finished_ale', 'happys_hangover_cure', 'glowing_mushroom'],
+    'tear': ['plain_bandage'],
+    'bomb': ['fire_bomb', 'big_badda_boom', 'stink_pouch', 'kobold_spore_pouch'],
+}
+PICK_SOUND = {name: kind for kind, names in PICK_SOUNDS.items() for name in names}
+ROARS = {'bear_maul', 'honey_badger_berserker'}   # a Shifter's specials: these two ROAR, the rest snarl
+_quiet_heals = False   # an area heal plays its own sound, instead of everybody squealing at once
 
 def attack_sound(item : dict):
-    """An attack just landed: fire and lightning get their own sound (the grunt or groan comes from update_health)."""
-    if item['item'] in FIRE_ATTACKS:
-        sound('fire')
-    elif item['item'] in LIGHTNING_ATTACKS:
-        sound('thunder')
+    """An attack just landed: fire, lightning and vomit get their own sound."""
+    if item['item'] in LANDING_SOUNDS:
+        sound(LANDING_SOUNDS[item['item']])
+
+def pick_sound(heroine : object, item : dict):
+    """She's picked what to use this turn. A Shifter's special: something big and furry comes out of her."""
+    if heroine.hero_class == 'Shifter' and item['special']:
+        sound('roar' if item['item'] in ROARS else 'growl')
+    elif item['item'] in PICK_SOUND:
+        sound('pick_' + PICK_SOUND[item['item']])
+    elif item['attack_type'] in ('heal', 'aoe_heal'):
+        sound('pick_magic')
 
 def miss_sound():
-    sound('whoosh', 0.9)
+    sound('whoosh')
+
+def scream():
+    sound('scream') # a heroine too scared to move
 
 def hurt_sound(who : object, before : int):
-    """Called by update_health: a mob grunts (a wolf yelps, a Kobold squeaks) and a heroine groans when hurt,
-    and a heroine squeals happily when she's healed."""
+    """Called by update_health: a mob grunts (a wolf yelps, a Kobold squeaks) and a heroine groans when hurt, a
+    killing blow gets a death cry instead, and a heroine squeals happily when she's healed."""
+    kind = getattr(who, 'mob_class', '')
+    voice = 'heroine' if not who.is_mob else 'wolf' if 'Wolf' in kind else 'kobold' if 'Kobold' in kind else 'dwarf'
     if who.health < before:
-        kind = getattr(who, 'mob_class', '')
-        sound('groan' if not who.is_mob else 'yelp' if 'Wolf' in kind else 'kobold' if 'Kobold' in kind else 'grunt', VOICE_LEVEL)
-    elif who.health > before and not who.is_mob:
-        sound('squeal', VOICE_LEVEL)
+        if who.is_dead:
+            sound(voice + '_die')
+        else:
+            sound({'heroine': 'groan', 'wolf': 'yelp', 'kobold': 'kobold', 'dwarf': 'grunt'}[voice])
+    elif who.health > before and not who.is_mob and not _quiet_heals:
+        sound('squeal')
 
 def update_health(to_update : object, delta : int) -> object:
     before = to_update.health
@@ -488,6 +523,9 @@ async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mob
         await say(f"[narr]Her junk still hurts, so it's a half-strength heal.[/]")
     helped = 0
     strong = strength_bonus(heroine) if heroine.hero_class == 'Cleric' else 0 # Strength on a Cleric: one of its uses, added to what each heroine gets
+    global _quiet_heals
+    sound('holy') # a harp, a choir and bells (Ted, Nov 17: a squeal each "sounded like a bunch of rats")
+    _quiet_heals = True
     for member in [x for x in party if not x.is_dead]:
         amount = int(-acc.multi_roll(item['damage_low'], item['damage_high']) * heroine_rolls['crit_mult'] * (0.5 if junked else 1)) + strong
         amount = min(max(1, amount), member.starting_health - member.health)
@@ -497,6 +535,7 @@ async def heroine_aoe_heal(heroine : object, item : dict, party_dict : dict, mob
         helped += 1
         await say(f"  {member.name} gets patched up for {amount} healing.")
         await cleanse(member, item)
+    _quiet_heals = False
     if not helped:
         await say("[narr]Nobody even needed it.  Very generous of you.[/]")
     await pause()
@@ -718,6 +757,7 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             await say(f"{heroine.name} takes one look at {target.name} and her stomach does a backflip.  [narr]Oh no.  Fear makes it come out FASTER.[/]") # DRAFT line
         elif mob_rolls['scare'] and heroine_rolls['fear']:
             tally(heroine, 'scared')
+            scream()
             await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  [narr]Honestly?  Fair.  That's a lost turn, though.[/]")
             await pause()
             return (party_dict, mobs, False)
@@ -846,8 +886,7 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
         heroine.cooldowns = {**getattr(heroine, 'cooldowns', {}), item['item']: item['recharge'] + 1}
     elif item['special']:
         heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss
-    if heroine.hero_class == 'Shifter' and item['special']:
-        sound('growl') # her special: something big and furry comes out of her
+    pick_sound(heroine, item)
     item_attack_type = item['attack_type']
     is_heal = item_attack_type == 'heal'
     which = item.get('effect')
@@ -1081,6 +1120,7 @@ async def mob_howl(mob : object, item : dict, party_dict : dict, mobs : list) ->
             status(heroine)['cowed'] = True
             scared.append(heroine.name)
     if scared:
+        scream()
         await say(f"  {acc.and_words(scared)} {'freezes' if len(scared) == 1 else 'freeze'} on the spot and will lose {'her' if len(scared) == 1 else 'their'} next turn.")
     else:
         await say("  Nobody flinches.  [narr]Ice in their veins, these ladies.[/]")

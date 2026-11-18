@@ -27,7 +27,12 @@ SFX_BOOST = 1.2         # and so do the effects
 FADE_MS = 900           # a new song fading in
 FADE_OUT_MS = 500       # the old one fading out first
 # Songs that take their time coming in: (fade the old one out, fade this one in), in ms.
-SLOW_FADES = {'seedy': (2500, 3500)}   # the jig dies away as the tavern door creaks shut behind the party
+SLOW_FADES = {'seedy': (2500, 3500),         # the jig dies away as the tavern door creaks shut behind the party
+              'resurrection': (500, 4000),   # creeping in under Happy's breakdown
+              'lurk': (2500, 3000),          # the jolly music dies away as they drop into the basin
+              'enraged': (250, 300)}         # NOW HE'S ANGRY: no waiting about
+# Songs that play once and then hand over to a loop: the basin's creeping build-up, then the creep at its worst.
+THEN = {'lurk': 'lurk_loop'}
 SAVE_FILE = acc.player_dir / 'music_volume.txt'     # (in the browser: localStorage, see _load/_save)
 BROWSER_KEY = 'slayer_music_volume'
 
@@ -83,7 +88,7 @@ def _start(name: str, fade_in: int):
     try:
         pygame.mixer.music.load(str(FOLDER / f'{name}.ogg'))
         pygame.mixer.music.set_volume(volume)
-        pygame.mixer.music.play(-1, fade_ms=fade_in)
+        pygame.mixer.music.play(0 if name in THEN else -1, fade_ms=fade_in)
         _current = name
     except (pygame.error, FileNotFoundError):
         _current = None
@@ -105,12 +110,15 @@ def play(name: str):
 
 
 def update():
-    global _pending
+    global _pending, _wanted
     if _pending and time.monotonic() >= _pending[1]:
         name, _, fade_in = _pending
         _pending = None
         if on() and _ready():
             _start(name, fade_in)
+    elif _current in THEN and not _pending and on() and _ready() and not pygame.mixer.music.get_busy():
+        _wanted = THEN[_current]   # a play-once song has finished: its loop takes over
+        _start(_wanted, 0)
 
 
 def stop():
@@ -143,7 +151,8 @@ def _sound(name: str):
 
 
 # Effects with several takes (grunt_1.ogg, grunt_2.ogg, ...): sound('grunt') picks one at random.
-TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3}
+TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3, 'roar': 2,
+         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3}
 PILE_UP = 2         # at most this many of the same effect at once (an area attack hits everybody at the same moment)
 PILE_UP_S = 0.25
 _recent = {}        # name -> when it last started, for PILE_UP

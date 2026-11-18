@@ -51,8 +51,8 @@ class Bot:
         pick = None
         if me is not None and me.hero_class == 'Cleric':
             hurt = sorted(allies, key=frac)
-            group = [h for h in heals if 'heals everyone' in h[2]]
-            single = [h for h in heals if 'heals everyone' not in h[2]]
+            group = [h for h in heals if 'group heal' in h[2]]
+            single = [h for h in heals if 'group heal' not in h[2]]
             if group and sum(frac(x) < 0.6 for x in allies) >= 2: pick = max(group)
             elif hurt and frac(hurt[0]) < 0.65 and single: pick = max(single)
             else:

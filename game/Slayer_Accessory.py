@@ -491,7 +491,7 @@ BONUS_WORDS = {
 # items.csv replaces these. (The effects themselves are in Slayer_Combat.)
 EFFECT_WORDS = {
     'poison': 'poisons', 'bleed': 'leaves them bleeding all fight', 'hide': 'no attack: nearly impossible to hit until her next turn',
-    'blessing': "someone's next attack: better aim, more crits", 'strength': "someone's next 2 attacks hit harder",
+    'blessing': 'improved aim/crits', 'strength': 'increased damage',   # Ted, Nov 17: short, no "someone's next..."
     'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
 }
 INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}
@@ -537,7 +537,7 @@ def describe_item(item : dict, left : int = None) -> str:
         if item['attack_type'] == 'aoe':
             parts.append('hits them all')
         elif item['attack_type'] == 'aoe_heal':
-            parts.append('heals everyone')
+            parts.append('group heal')
     if item['uses']: # 'doses' for something she drinks, 'uses' for a bomb. Carried: what's left / the most it holds
         unit = 'dose' if low < 0 else 'use'
         parts.append(f"{item['uses']} {unit}{'' if item['uses'] == 1 else 's'}" if left is None else f"{left}/{MAX_USES} {unit}s")
