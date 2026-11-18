@@ -108,10 +108,10 @@ def sting(name: str):
     if hasattr(_backend, 'sting'):
         _backend.sting(name)
 
-def sound(name: str):
-    """A sound effect from assets/sounds ('door'), over whatever music is playing."""
+def sound(name: str, level: float = 1.0):
+    """A sound effect from assets/sounds ('door', 'grunt', ...), over whatever music is playing. level: 0..1 of full."""
     if hasattr(_backend, 'sound'):
-        _backend.sound(name)
+        _backend.sound(name, level)
 
 
 def _or_default(oops):
@@ -261,7 +261,7 @@ class TerminalUI:
     def sting(self, name):
         pass
 
-    def sound(self, name):
+    def sound(self, name, level=1.0):
         pass
 
     async def title_screen(self):

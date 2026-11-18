@@ -709,8 +709,8 @@ class WindowUI:
     def sting(self, name):
         Slayer_Music.sting(name)
 
-    def sound(self, name):
-        Slayer_Music.sound(name)
+    def sound(self, name, level=1.0):
+        Slayer_Music.sound(name, level)
 
     def music_event(self, event, clicked) -> bool:
         """The music control: click the \u266a to turn it off/on; click or drag along the slider to set the volume."""

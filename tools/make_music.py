@@ -596,7 +596,152 @@ def sfx_door():
     return out
 
 
-SOUNDS = {'buzz': sfx_buzz, 'zap': sfx_zap, 'tink': sfx_tink, 'catch': sfx_catch, 'door': sfx_door}
+# ---------- combat sounds: voices (no words, just noises) and elements ----------
+
+VOWELS = {  # formants (F1, F2, F3) in Hz
+    'uh': (640, 1190, 2390), 'oh': (450, 800, 2830), 'oo': (330, 870, 2240), 'ah': (750, 1250, 2600),
+    'ee': (310, 2700, 3300), 'eh': (550, 1900, 2600), 'mm': (250, 900, 2200), 'aw': (600, 950, 2500),
+}
+
+
+def band(x, lo, hi):
+    """Keep only lo..hi Hz (a brick-wall filter done in one FFT)."""
+    spec = np.fft.rfft(x)
+    f = np.fft.rfftfreq(len(x), 1 / RATE)
+    spec[(f < lo) | (f > hi)] = 0
+    return np.fft.irfft(spec, len(x))
+
+
+def curve(n, points):
+    """A value gliding through points [(fraction of the way, value), ...]."""
+    xs, ys = zip(*points)
+    return np.interp(np.linspace(0, 1, n), xs, ys)
+
+
+def voice(seconds, pitch, vowels, scale=1.0, breath=0.1, rough=0.0, attack=0.01, release=0.08, tilt=1.0):
+    """A wordless voice: a buzzing throat (harmonics of the pitch) shaped by the mouth (vowel formants).
+    pitch and vowels are [(fraction, value), ...] glides; scale shifts the formants (smaller heads, higher)."""
+    n = int(seconds * RATE)
+    t = np.arange(n) / RATE
+    f0 = curve(n, pitch) * (1 + rough * (wobbly(n, RATE, 0.012) - 0.5))
+    phase = 2 * np.pi * np.cumsum(f0) / RATE
+    formants = [curve(n, [(x, VOWELS[v][i] * scale) for x, v in vowels]) for i in range(3)]
+    out = np.zeros(n)
+    for k in range(1, 60):
+        fk = k * f0
+        if fk.min() > RATE * 0.45:
+            break
+        amp = sum(a * np.exp(-((fk - F) / bw) ** 2)
+                  for F, a, bw in zip(formants, (1.0, 0.7, 0.35), (110, 160, 240)))
+        out += (amp + 0.04) / k ** tilt * np.sin(k * phase) * (fk < RATE * 0.45)
+    if rough:  # a gravelly throat: the level stutters quickly
+        out *= 1 - rough * 2 * wobbly(n, RATE, 1 / max(f0.mean() / 2, 20))
+    air = band(rng.normal(0, 1, n), formants[0].mean() * 0.8, formants[1].mean() * 1.6)
+    out = out / (np.abs(out).max() + 1e-9) + breath * air / (np.abs(air).max() + 1e-9)
+    env = np.clip(t / attack, 0, 1) * np.clip((seconds - t) / release, 0, 1)
+    return out * env
+
+
+def ouch(kind, i):
+    """One take of a voice. Each kind has a few takes, so the same noise doesn't come round every time."""
+    r = np.random.default_rng(1000 * len(kind) + 17 * i + ord(kind[0]))
+    j = r.uniform(0.92, 1.08)
+    if kind == 'grunt':  # a dwarf taking a hit: UGH / OOF / HURK
+        v = [('uh', 'uh'), ('oh', 'oo'), ('ah', 'uh'), ('aw', 'mm')][i % 4]
+        return voice(r.uniform(0.2, 0.32), [(0, 150 * j), (0.25, 135 * j), (1, 85 * j)],
+                     [(0, v[0]), (0.6, v[0]), (1, v[1])], scale=0.95, breath=0.25, rough=0.12, release=0.06)
+    if kind == 'kobold':  # a Kobold: a squeaky little yip
+        v = ['ee', 'eh', 'ah'][i % 3]
+        return voice(r.uniform(0.12, 0.18), [(0, 420 * j), (0.3, 520 * j), (1, 330 * j)],
+                     [(0, v), (1, 'uh')], scale=1.3, breath=0.2, rough=0.05, release=0.04)
+    if kind == 'yelp':  # a wolf: a sharp yelp
+        return voice(r.uniform(0.18, 0.26), [(0, 600 * j), (0.2, 1050 * j), (1, 520 * j)],
+                     [(0, 'ah'), (0.5, 'aw'), (1, 'oo')], scale=1.15, breath=0.35, rough=0.06, release=0.07)
+    if kind == 'groan':  # a heroine taking a hit: OW / UNNH / AH!
+        takes = [([(0, 300), (0.2, 330), (1, 210)], [(0, 'ah'), (0.5, 'aw'), (1, 'oo')]),
+                 ([(0, 250), (0.4, 240), (1, 185)], [(0, 'uh'), (0.6, 'uh'), (1, 'mm')]),
+                 ([(0, 360), (0.15, 390), (1, 260)], [(0, 'ah'), (1, 'ah')]),
+                 ([(0, 280), (0.3, 300), (1, 200)], [(0, 'eh'), (0.5, 'uh'), (1, 'mm')])][i % 4]
+        return voice(r.uniform(0.32, 0.45), [(x, p * j) for x, p in takes[0]], takes[1], scale=1.12,
+                     breath=0.3, rough=0.04, attack=0.02, release=0.12)
+    if kind == 'squeal':  # a heroine healed: a happy little squeal
+        if i % 3 == 2:  # a two-part "ee-hee!"
+            a = voice(0.13, [(0, 560 * j), (1, 700 * j)], [(0, 'ee'), (1, 'ee')], scale=1.18, breath=0.15)
+            b = voice(0.24, [(0, 640 * j), (0.4, 860 * j), (1, 760 * j)], [(0, 'eh'), (0.3, 'ee'), (1, 'ee')],
+                      scale=1.18, breath=0.15)
+            return np.concatenate([a, np.zeros(int(0.03 * RATE)), b])
+        rise = [(0, 480 * j), (0.6, 880 * j), (1, 960 * j)] if i % 3 == 0 else [(0, 600 * j), (0.4, 900 * j), (1, 700 * j)]
+        return voice(r.uniform(0.3, 0.4), rise, [(0, 'eh'), (0.25, 'ee'), (1, 'ee')], scale=1.18, breath=0.15,
+                     attack=0.02, release=0.1)
+    if kind == 'growl':  # a Shifter's special: something big and furry comes out of her
+        secs = r.uniform(0.9, 1.15)
+        g = voice(secs, [(0, 70 * j), (0.3, 95 * j), (0.8, 85 * j), (1, 60 * j)],
+                  [(0, 'mm'), (0.2, 'aw'), (0.7, 'ah'), (1, 'uh')], scale=0.8, breath=0.6, rough=0.25,
+                  attack=0.12, release=0.25, tilt=0.7)
+        n = len(g)
+        t = np.arange(n) / RATE
+        rumble = band(rng.normal(0, 1, n), 60, 500) * np.clip(t / 0.15, 0, 1) * np.clip((secs - t) / 0.25, 0, 1)
+        return g + 0.35 * rumble / np.abs(rumble).max()
+    raise ValueError(kind)
+
+
+def sfx_whoosh(i):
+    """A swing that finds only air."""
+    n = int(rng.uniform(0.32, 0.42) * RATE)
+    t = np.arange(n) / RATE
+    noise = rng.normal(0, 1, n)
+    centre = curve(n, [(0, 350), (0.45, 1300 + 300 * i), (1, 500)])
+    out = np.zeros(n)
+    for lo, hi in ((200, 500), (400, 900), (800, 1600), (1400, 2600)):
+        mid = (lo + hi) / 2
+        out += band(noise, lo, hi) * np.exp(-((centre - mid) / (mid * 0.5)) ** 2)
+    return out * np.sin(np.pi * t / t[-1]) ** 2
+
+
+def crackles(n, per_s):
+    out = np.zeros(n)
+    for p in rng.integers(0, n - 400, int(per_s * n / RATE)):
+        length = int(rng.integers(40, 300))
+        tt = np.arange(length) / RATE
+        out[p:p + length] += rng.normal(0, 1, length) * np.exp(-tt * rng.uniform(300, 1200)) * rng.uniform(0.2, 1.0)
+    return band(out, 900, 9000)
+
+
+def sfx_fire():
+    """Flames: a whump as it catches, a roar, and crackling."""
+    secs = 1.6
+    n = int(secs * RATE)
+    t = np.arange(n) / RATE
+    whump = band(rng.normal(0, 1, n), 60, 700) * np.clip(t / 0.03, 0, 1) * np.exp(-t * 6)
+    roar = band(rng.normal(0, 1, n), 80, 1400) * (0.5 + 0.5 * wobbly(n, RATE, 0.08)) * np.exp(-t * 1.2)
+    crack = crackles(n, 45) * np.exp(-t * 1.5)
+    out = whump / np.abs(whump).max() * 0.9 + roar / np.abs(roar).max() * 0.5 + crack / np.abs(crack).max() * 0.6
+    return out * np.clip((secs - t) / 0.4, 0, 1)
+
+
+def sfx_thunder():
+    """Lightning: a splitting crack right overhead, then thunder rolling away."""
+    secs = 3.2
+    n = int(secs * RATE)
+    t = np.arange(n) / RATE
+    crack = np.zeros(n)
+    for start in (0.0, 0.025, 0.06, 0.11):  # the bolt forks: several cracks almost on top of each other
+        tt = np.clip(t - start, 0, None)
+        crack += (np.diff(rng.normal(0, 1, n), prepend=0) * np.exp(-tt * rng.uniform(25, 45)) * (t >= start)
+                  * rng.uniform(0.5, 1))
+    rumble = band(rng.normal(0, 1, n), 25, 220)
+    rumble *= (0.4 + 0.6 * wobbly(n, RATE, 0.22) ** 2) * np.clip((t - 0.05) / 0.15, 0, 1) * np.exp(-t * 1.1)
+    crack = band(crack, 150, 6000)  # a crack, not a hiss
+    out = crack / np.abs(crack).max() * 0.8 + rumble / np.abs(rumble).max()
+    return out * np.clip((secs - t) / 0.6, 0, 1)
+
+
+TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3}
+
+SOUNDS = {'buzz': sfx_buzz, 'zap': sfx_zap, 'tink': sfx_tink, 'catch': sfx_catch, 'door': sfx_door,
+          'fire': sfx_fire, 'thunder': sfx_thunder,
+          **{f'{kind}_{i + 1}': (lambda kind=kind, i=i: sfx_whoosh(i) if kind == 'whoosh' else ouch(kind, i))
+             for kind, takes in TAKES.items() for i in range(takes)}}
 SOUND_OUT = OUT.parent / 'sounds'
 
 

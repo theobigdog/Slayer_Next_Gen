@@ -24,7 +24,9 @@ while a narrator who's only *pretending* to be an asshole heckles every move you
 - **Heroines who grow:** every won fight makes them a little better, and saved parties keep it across runs.
 - **Its own soundtrack** (in the game window): a rowdy fiddle-and-bagpipe jig to start, a seedy, lurching waltz
   once the tavern door creaks shut behind you, a creeping dungeon, a galloping battle march, and a hurrah or a gong
-  when a fight ends. The title buzzes and crackles like a fluorescent tube that won't come on. A volume slider in
+  when a fight ends. The title buzzes and crackles like a fluorescent tube that won't come on. In a fight, misses
+  whoosh, fire roars, lightning thunders, a Shifter's specials growl, dwarves grunt when hit (Kobolds squeak, wolves
+  yelp), heroines groan when hit and squeal happily when healed. A volume slider in
   the top-right corner sets how loud it all is (and remembers it), and clicking the ♪ turns it off and on.
 - **Play it your way:** a game window (Windows, Mac or Linux), the original command-prompt version, or in a
   web browser, tablets included.

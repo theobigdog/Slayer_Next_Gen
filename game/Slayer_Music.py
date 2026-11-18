@@ -4,7 +4,7 @@ The songs are .ogg files in assets/music/, the effects in assets/sounds/, all co
 tools/make_music.py (all original).
     play('tavern')     loop a song (the old one fades out, then the new one fades in; the same song again does nothing)
     sting('victory')   a one-off: the loop stops and the sting plays (the next play() starts music again)
-    sound('door')      a one-off effect over whatever is playing
+    sound('door')      a one-off effect over whatever is playing (combat: see Slayer_Combat.attack_sound/hurt_sound)
     tube(0.6)          the title's flickering fluorescent tube: its buzz at 0 (dark) .. 1 (lit); the next play() stops it
     set_volume(0.4)    0 = off .. 1 = full (the window's volume slider, for music and effects); remembered for next time
     toggle()           off, or back to the volume it was at (clicking the ♪ next to the slider)
@@ -12,6 +12,7 @@ tools/make_music.py (all original).
 Game code goes through Slayer_UI.music() / sting() / sound(), so the command-prompt version never loads pygame's mixer.
 If anything about sound fails (no speakers, no mixer, a missing file), the game carries on in silence.
 """
+import random
 import time
 
 import pygame
@@ -141,12 +142,24 @@ def _sound(name: str):
     return _sounds[name]
 
 
+# Effects with several takes (grunt_1.ogg, grunt_2.ogg, ...): sound('grunt') picks one at random.
+TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3}
+PILE_UP = 2         # at most this many of the same effect at once (an area attack hits everybody at the same moment)
+PILE_UP_S = 0.25
+_recent = {}        # name -> when it last started, for PILE_UP
+
+
 def sound(name: str, level: float = 1.0):
-    """A one-off effect ('door', 'zap', 'tink', 'catch'), at the slider's volume times level."""
+    """A one-off effect ('door', 'fire', 'thunder', 'grunt', ...), at the slider's volume times level."""
     if not on() or not _ready():
         return
+    now = time.monotonic()
+    recent = [t for t in _recent.get(name, []) if now - t < PILE_UP_S]
+    if len(recent) >= PILE_UP:
+        return
+    _recent[name] = recent + [now]
     try:
-        s = _sound(name)
+        s = _sound(f'{name}_{random.randint(1, TAKES[name])}' if name in TAKES else name)
         s.set_volume(min(1.0, volume * SFX_BOOST * level))
         s.play()
     except (pygame.error, FileNotFoundError):

@@ -1,5 +1,5 @@
 import Slayer_Accessory as acc
-from Slayer_UI import say, pause, choose, choose_target, yes_no, show_battle, effect
+from Slayer_UI import say, pause, choose, choose_target, yes_no, show_battle, effect, sound
 import random
 
 # Area attacks (attack_type aoe) hit every mob. Most can be dodged and toughness halves them, like any
@@ -148,7 +148,32 @@ def get_mob_rolls(mob: object, attacking : bool = False) -> dict:
     roll_results['scare'] = acc.roll_percent(mob_stats[prefix + 'scare'])
     return roll_results
 
+# ---------- combat sounds (the window plays them; the command prompt stays quiet) ----------
+FIRE_ATTACKS = {'basic_fire_bolt', 'fire_rain', 'fire_bomb'}                  # flames when they land
+LIGHTNING_ATTACKS = {'small_lightning_strike', 'sparkstick', 'spark_flick'}   # thunder when they land
+VOICE_LEVEL = 0.8   # grunts, groans and squeals sit a little under the whooshes and the weather
+
+def attack_sound(item : dict):
+    """An attack just landed: fire and lightning get their own sound (the grunt or groan comes from update_health)."""
+    if item['item'] in FIRE_ATTACKS:
+        sound('fire')
+    elif item['item'] in LIGHTNING_ATTACKS:
+        sound('thunder')
+
+def miss_sound():
+    sound('whoosh', 0.9)
+
+def hurt_sound(who : object, before : int):
+    """Called by update_health: a mob grunts (a wolf yelps, a Kobold squeaks) and a heroine groans when hurt,
+    and a heroine squeals happily when she's healed."""
+    if who.health < before:
+        kind = getattr(who, 'mob_class', '')
+        sound('groan' if not who.is_mob else 'yelp' if 'Wolf' in kind else 'kobold' if 'Kobold' in kind else 'grunt', VOICE_LEVEL)
+    elif who.health > before and not who.is_mob:
+        sound('squeal', VOICE_LEVEL)
+
 def update_health(to_update : object, delta : int) -> object:
+    before = to_update.health
     new_health = to_update.health - delta
     if new_health > to_update.starting_health:
         to_update.health = to_update.starting_health
@@ -157,6 +182,7 @@ def update_health(to_update : object, delta : int) -> object:
     else:
         to_update.health = 0
         to_update.is_dead = True
+    hurt_sound(to_update, before)
     return to_update
 
 async def check_tough(tough : bool, target : object) -> None:
@@ -369,6 +395,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
     else:
         await say(f"{heroine.name} unleashes her {item['item_desc']} on every enemy in sight!")
         if not heroine_rolls['hit']:
+            miss_sound()
             await say(f"[narr]...and somehow misses every single one of them.  That's almost impressive.[/]")
             await pause()
             return (party_dict, mobs, False)
@@ -379,10 +406,12 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         await say("[narr]The Cleric's Strength is behind this one.[/]")
     if spread < 1 and not item['special']: # Fire Rain (a special) just rains; no need to say it (Ted, Nov 8)
         await say(f"[narr]Spread across all {acc.number_word(standing)} of them, it's thinner on each one.[/]")
+    attack_sound(item) # Fire Rain, a Fire Bomb
     killed, shielded = [], []
     for mob in [m for m in mobs if not m.is_dead]:
         mob_rolls = get_mob_rolls(mob)
         if not rules['unavoidable'] and mob_rolls['dodge'] and not heroine_rolls['expertise']:
+            miss_sound()
             await say(f"  {mob.name} dives out of the way!")
             continue
         power = mob_roll()
@@ -531,6 +560,7 @@ async def heroine_hex(heroine : object, item : dict, party_dict : dict, mobs : l
             await say(f"  {mob.name} shrugs it off.{hint}")
             continue
         if get_mob_rolls(mob)['dodge'] and not heroine_rolls['expertise']:
+            miss_sound()
             await say(f"  {mob.name} dives out of the way!")
             continue
         landed += 1
@@ -693,13 +723,16 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             return (party_dict, mobs, False)
         tally(heroine, 'attacks') # a whiff still counts as practice
         if not heroine_rolls['hit']:
+            miss_sound()
             await say(f"[narr]Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.[/]")
             await pause()
             return (party_dict, mobs, False)
         if mob_rolls['dodge'] and not heroine_rolls['expertise']:
+            miss_sound()
             await say(f"{target.name} slips out of the way like a greased weasel.  {heroine.name}'s attack finds only air.")
             await pause()
             return (party_dict, mobs, False)
+        attack_sound(item)
         target = update_health(target, damage)
         if is_crit:
             tally(heroine, 'crits')
@@ -813,6 +846,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
         heroine.cooldowns = {**getattr(heroine, 'cooldowns', {}), item['item']: item['recharge'] + 1}
     elif item['special']:
         heroine.spent_specials = spent + [item['item']] # used up for the rest of this battle, hit or miss
+    if heroine.hero_class == 'Shifter' and item['special']:
+        sound('growl') # her special: something big and furry comes out of her
     item_attack_type = item['attack_type']
     is_heal = item_attack_type == 'heal'
     which = item.get('effect')
@@ -978,14 +1013,17 @@ async def mob_aoe(mob : object, item : dict, party_dict : dict, mobs : list, mob
     else:
         await say(f"{mob.name} unleashes {item['item_desc']} on the whole party!")
     if not mob_rolls['hit']:
+        miss_sound()
         await say("[narr]...and lands in an empty patch of dirt.  Graceful.[/]" if item.get('effect') == 'front' else "[narr]...and it splatters everywhere EXCEPT on anyone.  Lucky, lucky lassies.[/]")
         await pause()
         return (party_dict, mobs, False)
+    attack_sound(item)
     fallen = []
     for heroine in standing_targets(item, party):
         rolls = get_heroine_rolls(heroine)
         if rolls['dodge'] and not mob_rolls['expertise']:
             tally(heroine, 'dodges')
+            miss_sound()
             await say(f"  {heroine.name} ducks out of the way!")
             continue
         tally(heroine, 'hits_taken')
@@ -1113,13 +1151,16 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                     await say(f"{mob.name} blinks out in a puff of purple smoke, pops up behind {target.name}... and stabs the air a foot to her left.  [narr]Teleporting is hard.[/]")
                 else:
                     await say(f"{mob.name} attempts to attack {target.name} with their {item['item_desc']}, but misses widely.")
+                miss_sound()
                 await pause()
                 return (party_dict, mobs, False)
             if target_rolls['dodge'] and not mob_rolls['expertise']:
                 tally(target, 'dodges')
+                miss_sound()
                 await say(f"[narr]HELL YES![/]  {target.name} dodges {mob.name}'s attack like a goddamn ninja!")
                 await pause()
                 return (party_dict, mobs, False)
+            attack_sound(item)
             target = update_health(target, damage)
             tally(target, 'hits_taken')
             if tough:
