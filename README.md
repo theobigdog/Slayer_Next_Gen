@@ -1,5 +1,7 @@
 # SLAYER
 
+<img src="assets/icon.png" width="128" alt="Slayer icon: a red S with a bloody sword through it">
+
 *A profane parody dungeon crawler, written in Python.*
 
 <!-- DRAFT by Claude for Ted to review: rewrite anything, especially the voice. -->
