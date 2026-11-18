@@ -207,7 +207,11 @@ def catch_up_save(party_dict : dict) -> dict:
             heroine.kits = [k for k in heroine.kits if k in kits]
         if getattr(heroine, 'wielding', None) not in kits:
             heroine.wielding = None
-    party_dict['stash'] = [e for e in party_dict.get('stash', []) if e['item'] in items and e['item'] not in ABILITIES] # abilities went back to their owners (above)
+    for entry in [e for e in party_dict.get('stash', []) if e['item'] in ABILITIES]: # a move can't sit in The Stash: someone who
+        learner = next((x for x in party_dict['party'] if can_use(x, get_item(entry['item'])) and entry['item'] not in x.inv), None) # can use it learns it
+        if learner:
+            learner.inv.append(entry['item'])
+    party_dict['stash'] = [e for e in party_dict.get('stash', []) if e['item'] in items and e['item'] not in ABILITIES]
     for entry in party_dict['stash']:
         if entry.get('upgrade') not in kits:
             entry['upgrade'] = None
@@ -500,6 +504,8 @@ EFFECT_WORDS = {
     'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
     'taunt': 'no attack: enemies come at her until her next turn', 'daze': 'may stun a lesser enemy',
     'cackle': 'lesser enemies may freeze for a turn', 'snare': 'a beast loses two turns',
+    'charge': 'that enemy comes at her next', 'garrote': 'no dodging it',
+    'mark': 'everyone hits that enemy harder', 'quick': "harder to land, can't be dodged or shrugged off",
 }
 INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}
 
@@ -749,10 +755,35 @@ async def make_room(heroine : object, item : dict, party_dict : dict, at_tavern 
         return 'stashed'
     return 'back'
 
+async def learn_ability(item : dict, source : str, party : list):
+    """An ability that drops (Ted, Nov 18: the Shifter learns new moves instead of finding weapons). It's not a thing
+    anyone carries: someone who can use it and doesn't know it yet learns it, or nobody does. No slots, no Stash.
+    DRAFT lines."""
+    from Slayer_UI import choose
+    label = describe_item(item)
+    able = [x for x in party if can_use(x, item) and item['item'] not in x.inv and not outranked(x, item)]
+    if not able:
+        await say(f"From {source}: {label}.  [narr]Nobody here can learn that one.  Maybe next time.[/]")
+        return
+    await say(f"From {source}: {label}.  [narr]Not a thing you pick up.  Something you LEARN, from watching it up close.[/]")
+    if len(able) == 1:
+        who = able[0]
+    else:
+        names = [f"{x.name}  ({class_label(x.hero_class)})" for x in able]
+        who = able[await choose(f"Who learns {item['item_desc']}?  ", names, "One of THOSE numbers, please:  ")]
+    lower = family_item(who, item['item'])
+    add_item(who, item)
+    if lower:
+        await say(f"[narr]{who.name} learns {item['item_desc']}.  It replaces her {get_item(lower)['item_desc']}.[/]")
+    else:
+        await say(f"[narr]{who.name} learns {item['item_desc']}.  That's hers for good now.[/]")
+
 async def give_loot(item : dict, source : str, party_dict : dict, at_tavern : bool = False):
     """One piece of loot: the player picks who gets it (or stashes it at the tavern, or leaves it)."""
     from Slayer_UI import choose
     party = party_dict['party']
+    if item['item'] in ABILITIES:
+        return await learn_ability(item, source, party)
     able = [heroine for heroine in party if can_use(heroine, item)]
     kind = slot_kind(item)
     label = describe_item(item)
@@ -1272,7 +1303,7 @@ def restore_starting_items(heroine : object):
             heroine.inv.append(backup)
             heroine.dropped = [x for x in dropped if x != backup]
 
-MOB_DEBUFFS = ('poisoned', 'bleeding', 'intoxicated', 'stunned', 'confused')
+MOB_DEBUFFS = ('poisoned', 'bleeding', 'intoxicated', 'stunned', 'confused', 'marked', 'provoked')
 
 def clear_head(mob : object) -> bool:
     """A boss that enrages shakes off everything the heroines put on it (Ted, Nov 15), the way a Cleric's heal

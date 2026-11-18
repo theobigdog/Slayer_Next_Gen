@@ -1382,7 +1382,7 @@ class WindowUI:
         words = ui.status_words(entity)
         if not words:
             return
-        colors = {'Poisoned': POISON_EDGE, 'Bleeding': HP_CRIT, 'Hunted': HP_CRIT, 'Hidden': GOLD, 'Taunting': GOLD, 'Blessed': GOLD, 'Strong': GOLD,
+        colors = {'Poisoned': POISON_EDGE, 'Bleeding': HP_CRIT, 'Hunted': HP_CRIT, 'Marked': HP_CRIT, 'Provoked': (230, 140, 60), 'Hidden': GOLD, 'Taunting': GOLD, 'Blessed': GOLD, 'Strong': GOLD,
                   'Drunk': (230, 140, 60), 'Confused': (190, 130, 240), 'Stunned': (130, 190, 255), 'Frozen': (130, 190, 255),
                   'Retching': (160, 180, 70)}
         fnt = self.fonts['status']

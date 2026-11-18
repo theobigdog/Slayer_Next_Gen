@@ -42,7 +42,7 @@ class Bot:
         foes = [x for x in self.mobs if not x.is_dead]
         here = 'wolves' if foes and 'Wolf' in foes[0].mob_class else 'kobolds'
         boom_ok = BOOM in (here, 'any') and not self.boomed and len(foes) >= 3
-        ready = [(i, l) for i, l in enumerate(labels) if 'recharging' not in l.lower() and 'Token' not in l and ('Big Badda' not in l or boom_ok)]
+        ready = [(i, l) for i, l in enumerate(labels) if 'recharging' not in l.lower() and '(only' not in l and '(nothing' not in l and 'Token' not in l and ('Big Badda' not in l or boom_ok)]
         if boom_ok and any('Big Badda' in l for _, l in ready):
             self.boomed = True; self.last = 'Big Badda Boom'
             return next(i for i, l in ready if 'Big Badda' in l)
@@ -66,6 +66,12 @@ class Bot:
             cackle = [(i, l) for i, l in ready if l.startswith('Evil Cackle')]
             if cry and any(x.hero_class == 'Cleric' for x in allies) and random.random() < 0.4: pick = (0, *cry[0])
             elif cackle and len(foes) >= 3 and random.random() < 0.5: pick = (0, *cackle[0])
+            hide = [(i, l) for i, l in ready if l.startswith('Hide')]   # the Sapper: Hide, then the Garrote next turn
+            garrote = [h for h in hits if h[2].startswith('Garrote')]
+            if garrote: pick = garrote[0]
+            elif any(l.startswith("Hunter's Mark") for _, l in ready) and not any(getattr(m, 'status', {}).get('marked') for m in foes) and random.random() < 0.35:
+                pick = (0, *next((i, l) for i, l in ready if l.startswith("Hunter's Mark")))
+            elif hide and me is not None and me.hero_class == 'Sapper' and random.random() < 0.3: pick = (0, *hide[0])
         if pick is None: pick = (0, *random.choice(ready or list(enumerate(labels))))
         self.last = pick[2]
         return pick[1]

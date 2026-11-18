@@ -1053,7 +1053,45 @@ def ouch(kind, i):
         return _hurl([heave(330 * j), heave(310 * j)],
                      voice(0.4, P([(0, 360), (0.3, 340), (1, 250)]), [(0, 'eh'), (0.3, 'ah'), (1, 'aw')], scale=1.2,
                            breath=0.45, rough=0.3, release=0.1, tilt=1.1))
+    if kind == 'cackle':  # the Witch's Evil Cackle (Ted, Nov 18): a rising shriek, a run of "heh"s, a long wicked trill
+        return cackle(r, j, i)
     raise ValueError(kind)
+
+
+CRONE = dict(scale=1.1, breath=0.3, rough=0.22, tilt=0.85)   # an old witch: a bit lower and bigger than the heroines, raspy, nasal
+
+
+def cackle(r, j, i):
+    """eeEEEH... heh-heh-heh-heh-heh-heh... HAAAaaa-a-a-a. Each take differs in its pitches, how many heh's and their speed."""
+    top = [880, 960, 820][i % 3] * j
+    pieces, t = [], 0.0
+    rise = voice(0.38, [(0, top * 0.62), (0.7, top), (1, top * 1.05)], [(0, 'ee'), (0.6, 'eh'), (1, 'eh')],
+                 attack=0.04, release=0.05, **CRONE)
+    pieces.append((t, rise))
+    t += 0.38 + 0.05
+    hehs = [7, 9, 8][i % 3]
+    step = [0.125, 0.11, 0.135][i % 3]
+    for k in range(hehs):
+        p = top * (0.98 - 0.32 * k / hehs) * r.uniform(0.96, 1.04)   # each one a little lower
+        syl = voice(step * 0.72, [(0, p * 1.06), (1, p * 0.9)], [(0, 'eh' if k % 2 else 'ah'), (1, 'uh')],
+                    attack=0.006, release=0.03, **CRONE)
+        h = fricative(0.025, 900, 4000) * 0.5   # the "h" puff in front of each
+        pieces += [(t, h), (t + 0.02, syl)]
+        t += step
+    t += 0.06
+    trill_s = [0.9, 0.75, 1.0][i % 3]
+    trill = voice(trill_s, [(0, top * 0.85), (0.25, top * 1.12), (0.7, top * 0.95), (1, top * 0.55)],
+                  [(0, 'ah'), (0.5, 'ah'), (1, 'aw')], attack=0.03, release=0.3, **CRONE)
+    tt = np.arange(len(trill)) / RATE
+    trill = trill * (1 - 0.55 * (0.5 + 0.5 * np.sin(2 * np.pi * curve(len(trill), [(0, 11), (1, 7)]) * tt)))   # ha-a-a-a
+    pieces.append((t, trill))
+    dry = at(int((t + trill_s + 0.05) * RATE), pieces)
+    tail_n = int(0.7 * RATE)   # a stone room around her
+    ir = r.normal(0, 1, tail_n) * np.exp(-np.arange(tail_n) / RATE * 7)
+    ir[:int(0.02 * RATE)] = 0
+    n = len(dry) + tail_n
+    wet = np.convolve(dry, ir / np.sqrt((ir ** 2).sum()))[:n]
+    return norm(np.concatenate([dry, np.zeros(tail_n)]) + 0.35 * norm(np.pad(wet, (0, n - len(wet)))))
 
 
 def _hurl(heaves, bleagh):
@@ -1253,7 +1291,8 @@ def sfx_pick(kind):
 
 # Effects with several takes (grunt_1.ogg, grunt_2.ogg, ...). Keep in step with Slayer_Music.TAKES.
 TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3, 'roar': 2,
-         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3}
+         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3,
+         'cackle': 3}
 PICKS = ['blade', 'heavy', 'bow', 'magic', 'fists', 'beast', 'potion', 'tear', 'bomb']
 
 SOUNDS = {'buzz': sfx_buzz, 'zap': sfx_zap, 'tink': sfx_tink, 'catch': sfx_catch, 'door': sfx_door,
@@ -1268,7 +1307,8 @@ SOUND_OUT = OUT.parent / 'sounds'
 PEAK_ONLY = {'buzz', 'zap', 'tink', 'catch', 'door'}
 LOUDNESS = {'thunder': 1.7, 'roar': 1.5, 'firestorm': 1.35, 'fire': 1.1, 'gag': 1.1, 'retch': 1.05, 'whoosh': 0.85,
             'grunt': 1.15, 'dwarf_die': 1.2, 'heroine_die': 1.1, 'scream': 1.0, 'groan': 1.0, 'squeal': 0.85,
-            'growl': 1.25, 'holy': 0.9, 'kobold': 0.85, 'kobold_die': 0.95, 'yelp': 0.9, 'wolf_die': 0.95}
+            'growl': 1.25, 'holy': 0.9, 'kobold': 0.85, 'kobold_die': 0.95, 'yelp': 0.9, 'wolf_die': 0.95,
+            'cackle': 1.05}
 PICK_LOUDNESS = 0.6
 
 

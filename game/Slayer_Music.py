@@ -152,7 +152,8 @@ def _sound(name: str):
 
 # Effects with several takes (grunt_1.ogg, grunt_2.ogg, ...): sound('grunt') picks one at random.
 TAKES = {'grunt': 4, 'kobold': 3, 'yelp': 3, 'groan': 4, 'squeal': 3, 'growl': 2, 'whoosh': 3, 'roar': 2,
-         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3}
+         'scream': 3, 'gag': 2, 'retch': 2, 'dwarf_die': 2, 'kobold_die': 2, 'wolf_die': 2, 'heroine_die': 3,
+         'cackle': 3}
 PILE_UP = 2         # at most this many of the same effect at once (an area attack hits everybody at the same moment)
 PILE_UP_S = 0.25
 _recent = {}        # name -> when it last started, for PILE_UP
