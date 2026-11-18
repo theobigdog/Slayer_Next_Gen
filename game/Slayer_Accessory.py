@@ -191,7 +191,11 @@ def catch_up_save(party_dict : dict) -> dict:
         old_kit = list(heroine.starting_inv)
         kit_now = Slayer_Heroes.get_starting_inv(heroine.hero_class, items_table)
         heroine.inv = [x for x in heroine.inv if x in items]
+        heroine.inv = [x for x in heroine.inv if not (x in old_kit and x not in kit_now and not can_use(heroine, get_item(x)))] # starting gear her class has since swapped for something else (Nov 18: the Hunter's Throwing Knife became her Balanced Throwing Knives)
         heroine.inv += [x for x in kit_now if x not in old_kit and x not in heroine.inv and not family_item(heroine, x)] # new to her class since she was saved
+        heroine.inv += [x for x in kit_now if x in ABILITIES and x not in heroine.inv and not family_item(heroine, x)] # an ability she'd stashed or dropped back when it was gear: it's part of her now
+        if hasattr(heroine, 'dropped'):
+            heroine.dropped = [x for x in heroine.dropped if x not in ABILITIES]
         heroine.starting_inv = kit_now
         for name in ('dropped', 'spent_specials'):
             if hasattr(heroine, name):
@@ -203,7 +207,7 @@ def catch_up_save(party_dict : dict) -> dict:
             heroine.kits = [k for k in heroine.kits if k in kits]
         if getattr(heroine, 'wielding', None) not in kits:
             heroine.wielding = None
-    party_dict['stash'] = [e for e in party_dict.get('stash', []) if e['item'] in items]
+    party_dict['stash'] = [e for e in party_dict.get('stash', []) if e['item'] in items and e['item'] not in ABILITIES] # abilities went back to their owners (above)
     for entry in party_dict['stash']:
         if entry.get('upgrade') not in kits:
             entry['upgrade'] = None
@@ -432,8 +436,9 @@ AFFLICTIONS = {
 # stash; in the dungeon there's no stash, so a full slot means dropping something, and dropped is gone for good.
 # Starting gear can be stashed or dropped too; it doesn't come back next run unless it was only used up.
 GEAR_SLOTS, POTION_SLOTS = 6, 1
-ABILITIES = {'deep_scratch', 'angry_bite', 'hide'} # part of her, not something she carries: no bag slot, and she can't
-                                                  # stash or drop them (Ted, Nov 15: the Sapper started 8/6)
+ABILITIES = {row['item'] for row in items_table if row.get('ability')} # the ability column in items.csv: part of her body
+    # (or her magic), not something she carries: no bag slot, and she can't stash or drop them (Ted, Nov 15: the Sapper
+    # started 8/6; Nov 18: every class gets abilities, anything that uses her body as the attack)
 MAX_USES = 4 # a bottle (or a pouch of bombs) holds this many uses at most, whatever it came with (Ted, Nov 10).
               # The uses column in items.csv is how many a found one has in it: 1 to 3, so there's room to top it up.
 SLOT_NAMES = {'gear': 'bag', 'trinket': 'trinkets', 'potion': 'potion'}
@@ -493,6 +498,8 @@ EFFECT_WORDS = {
     'poison': 'poisons', 'bleed': 'leaves them bleeding all fight', 'hide': 'no attack: nearly impossible to hit until her next turn',
     'blessing': 'improved aim/crits', 'strength': 'increased damage',   # Ted, Nov 17: short, no "someone's next..."
     'stun': 'lesser enemies lose their next turn', 'confuse': 'a lesser enemy lashes out at random',
+    'taunt': 'no attack: enemies come at her until her next turn', 'daze': 'may stun a lesser enemy',
+    'cackle': 'lesser enemies may freeze for a turn', 'snare': 'a beast loses two turns',
 }
 INTOXICATE_WORDS = {1: "halves a lesser enemy's dodge", 2: "halves every lesser enemy's dodge", 3: "halves every enemy's dodge, bosses too"}
 

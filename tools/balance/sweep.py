@@ -62,6 +62,10 @@ class Bot:
             potion = [h for h in heals if 'dose' in h[2]]
             if me is not None and frac(me) < 0.3 and potion: pick = max(potion)
             elif hits: pick = max(hits)
+            cry = [(i, l) for i, l in ready if l.startswith('Battle Cry')]   # the class abilities with no damage number
+            cackle = [(i, l) for i, l in ready if l.startswith('Evil Cackle')]
+            if cry and any(x.hero_class == 'Cleric' for x in allies) and random.random() < 0.4: pick = (0, *cry[0])
+            elif cackle and len(foes) >= 3 and random.random() < 0.5: pick = (0, *cackle[0])
         if pick is None: pick = (0, *random.choice(ready or list(enumerate(labels))))
         self.last = pick[2]
         return pick[1]

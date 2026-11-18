@@ -112,7 +112,7 @@ class Alpha_Wolf:
     async def guard(self, heroine : object):
         """Slayer_Combat calls this when a heroine aims a single hit at him: returns who it actually lands on,
         him or a wolf that jumped in the way."""
-        wolves = self.pack.standing()
+        wolves = [w for w in self.pack.standing() if not (getattr(w, 'status', None) or {}).get('stunned')] # a snared or stunned wolf can't jump in the way
         if not wolves or not acc.roll_percent(min(GUARD_MAX, GUARD_EACH * len(wolves))):
             return self
         wolf = random.choice(wolves)

@@ -18,7 +18,7 @@ KIT_KINDS = ['melee', 'ranged', 'spell', 'bomb', 'heal']  # what an upgrade kit 
 MOB_ATTACK_TYPES = {'melee', 'range', 'both', 'aoe'}
 MOB_EFFECTS = {'gas', 'junk', 'hiss', 'blink', 'poison', 'front', 'howl'}  # special mob attacks (Slayer_Combat.MOB_EFFECTS)
 AI_LEVELS = {'easy', 'medium', 'normal', 'hard'}
-ITEM_EFFECTS = {'poison', 'bleed', 'intoxicate', 'stun', 'confuse', 'hide', 'blessing', 'strength'}  # what a heroine's item can do (Slayer_Combat, 'item effects')
+ITEM_EFFECTS = {'poison', 'bleed', 'intoxicate', 'stun', 'confuse', 'hide', 'blessing', 'strength', 'taunt', 'daze', 'cackle', 'snare'}  # what a heroine's item can do (Slayer_Combat, 'item effects')
 LOOT_SOURCES = {'Kobold Shaman'}  # loot tables that aren't a mob class of their own: the Kobold mini-boss (Slayer_Kobolds.BOSS_LOOT)
 PLANNED_MOBS = set()  # written into the CSVs ahead of time; no row in mobs.csv until their fight is built
 problems = []
@@ -190,6 +190,10 @@ for i, row in enumerate(items, start=2):
         problem('items.csv', i, f"effect '{row['effect']}' isn't one the game knows ({', '.join(sorted(ITEM_EFFECTS))}). Leave it blank and tell Claude what it should do.")
     if 'recharge' in row:
         number('items.csv', i, 'recharge', row['recharge'], int, 1, 50, blank_ok=True)
+    if 'per_battle' in row:
+        number('items.csv', i, 'per_battle', row['per_battle'], int, 1, 20, blank_ok=True)
+    if row.get('ability') and row['ability'] != 'TRUE':
+        problem('items.csv', i, f"'ability' should be TRUE (part of her body or her magic: no bag slot) or left blank, but it says '{row['ability']}'.")
     if 'drop_chance' in row:
         number('items.csv', i, 'drop_chance', row['drop_chance'], int, 0, 100, blank_ok=True)
         if (source in mob_classes or source in LOOT_SOURCES) and not row['drop_chance']:
