@@ -43,7 +43,10 @@ BOSS_NAMES = ['Grand Poobah', 'Big Skab', 'Chief Gristle', 'Mother Squeak']
 # 8 heroines winning 95% felt too easy). Tuned by simulation so every party size wins about as often.
 # Nov 10: damage went up for parties of 4, 6, 7 and 8 (it was 0.8, 0.78, 0.9, 1.15) after one Gas Release stopped
 # flattening the whole front line, which had made the big-party fights easier again.
-PARTY_SCALE = {1: (0.8, 0.35), 2: (0.75, 0.8), 3: (1.0, 0.82), 4: (1.1, 0.86), 5: (1.1, 0.84), 6: (1.15, 0.88), 7: (1.3, 1.0), 8: (1.4, 1.25)}
+# Nov 19 (Ted's target table): damage re-tuned so a typical fresh party (the menu's default, or a random one with a
+# Cleric) beats the Kobolds about 83% of the time as the sim bot plays it, a little under Ted's 85%. Parties of 2 got
+# easier (Warrior + Cleric was losing over half the time), 5-8 harder. Was 0.8, 0.82, 0.86, 0.84, 0.88, 1.0, 1.25.
+PARTY_SCALE = {1: (0.8, 0.35), 2: (0.75, 0.5), 3: (1.0, 0.76), 4: (1.1, 0.8), 5: (1.1, 0.89), 6: (1.15, 0.87), 7: (1.3, 1.06), 8: (1.4, 1.5)}
 
 # Ted: rename these freely (the game picks one per Kobold, no repeats, so keep at least 8).
 KOBOLD_NAMES = ['Snik', 'Grizzik', 'Tazzle', 'Pib', 'Skritch', 'Nibbles', 'Nipples', 'Kekk', 'Zib', 'Twitch', 'Yipyip', 'Squee', 'Krinkle']

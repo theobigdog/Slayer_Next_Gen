@@ -16,7 +16,7 @@ roundhouse_throat_kick,Roundhouse Throat-Kick,['Battle_Mage'],6,14,melee,FALSE,s
 stone_breaker,Stone Breaker,['Battle_Mage'],8,12,melee,FALSE,starting,,,,,,,,
 flying_fist_of_judah,Flying Fist of Judah,['Battle_Mage'],18,34,melee,TRUE,starting,,,,,,,TRUE,
 skull_bash,Skull Bash,['Battle_Mage'],6,12,melee,FALSE,starting,,,,,daze,2,TRUE,
-flurry_of_fists,Flurry of Fists,['Battle_Mage'],5,9,aoe,FALSE,starting,,,,,,5,TRUE,
+flurry_of_fists,Flurry of Fists,['Battle_Mage'],4,8,aoe,FALSE,starting,,,,,,5,TRUE,
 throwing_knife,Throwing Knife,['Sapper'],7,12,range,FALSE,starting,,,,,,,,
 cat_gut_bow,Cat-Gut Bow,['Hunter'],6,14,range,FALSE,starting,,,,,,,,
 maple_recurve,Maple Recurve,['Hunter'],22,30,range,TRUE,starting,,,,,,,,
