@@ -102,15 +102,18 @@ class NarrationFont:
         return getattr(self.words, name)
 
 
-RECHARGING = re.compile(r'  \(recharging(?:: (ready in \d+ turns?))?\)')
+RECHARGING = re.compile(r"  \((recharging(?:: ready in \d+ turns?)?|all thrown: recharging|only straight out of Hide|nothing here to snare|nothing within arm's reach)\)")
 
 def split_recharging(label : str) -> tuple:
     """('Thor's Hammer (22 - 30 damage)', 'Recharging') for a label Slayer_Combat marked '  (recharging)';
-    'Ready in 3 turns' when it says how long (an item with a recharge); (label, None) for anything ready."""
+    'Ready in 3 turns' when it says how long (an item with a recharge); (label, None) for anything ready.
+    The other can't-use-it-now notes show the same way, red and crossed out with the note in gold (Ted, Nov 18):
+    'All thrown', 'Only straight out of Hide', 'Nothing here to snare'."""
     match = RECHARGING.search(label)
     if not match:
         return label, None
-    return RECHARGING.sub('', label), (match.group(1).capitalize() if match.group(1) else 'Recharging')
+    note = match.group(1).replace('recharging: ', '').replace('all thrown: recharging', 'all thrown')
+    return RECHARGING.sub('', label), note[0].upper() + note[1:]
 
 
 def hp_color(entity) -> tuple:
@@ -1177,7 +1180,7 @@ class WindowUI:
         art = art_image is not None
         kind = class_key(entity)
         share = max(0.0, min(1.0, entity.health / entity.starting_health))
-        status = ('in pieces' if getattr(entity, 'blown_up', False) else 'dead') if dead else None
+        status = ('in pieces' if getattr(entity, 'blown_up', False) else 'ran off' if getattr(entity, 'fled', False) else 'dead') if dead else None
         labels = self.box_labels(rect.size, entity.name, label, status, art)
         if not art and kind == 'shifter' and not dead:
             image = self.motion.shifter_box(rect.size, box_color, share)  # a new picture every frame (she never holds still)
@@ -1245,7 +1248,7 @@ class WindowUI:
             for i, part in enumerate(label.replace('_', ' ').split(' (')):
                 rows.append((part if i == 0 else '(' + part, 'box_big' if big else 'box', DIM if dead else (205, 220, 214)))
             if dead:
-                rows.append((status, 'name', HP_CRIT))  # 'dead', or 'in pieces' for a Sapper after her Big Badda Boom
+                rows.append((status, 'name', DIM if status == 'ran off' else HP_CRIT))  # 'dead', 'in pieces' for a Sapper after her Big Badda Boom, 'ran off' for a wolf whose Alpha died
             heights = [self.fonts[f].get_linesize() - 2 for _, f, _ in rows]
             y = size[1] - sum(heights) - 6 if art else size[1] * 0.42 - sum(heights) / 2  # over art: along the bottom, off her face
             for (text, fnt, color), h in zip(rows, heights):
@@ -1382,7 +1385,7 @@ class WindowUI:
         words = ui.status_words(entity)
         if not words:
             return
-        colors = {'Poisoned': POISON_EDGE, 'Bleeding': HP_CRIT, 'Hunted': HP_CRIT, 'Marked': HP_CRIT, 'Provoked': (230, 140, 60), 'Hidden': GOLD, 'Taunting': GOLD, 'Blessed': GOLD, 'Strong': GOLD,
+        colors = {'Poisoned': POISON_EDGE, 'Bleeding': HP_CRIT, 'Hunted': HP_CRIT, 'Marked': HP_CRIT, 'Provoked': (230, 140, 60), 'Hidden': GOLD, 'Aggro': (230, 140, 60), 'Blessed': GOLD, 'Strong': GOLD,
                   'Drunk': (230, 140, 60), 'Confused': (190, 130, 240), 'Stunned': (130, 190, 255), 'Frozen': (130, 190, 255),
                   'Retching': (160, 180, 70)}
         fnt = self.fonts['status']

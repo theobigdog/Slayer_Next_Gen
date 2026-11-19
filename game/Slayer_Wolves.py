@@ -27,7 +27,11 @@ BLOOD = 0.25  # under this share of her HP, the pack smells blood
 # How tough the pack is, by party size: (the Alpha's HP, the wolves' HP, damage), each a multiplier on mobs.csv.
 # Damage re-tuned by simulation Nov 15 (after the Cleric nerf and the full heal between fights): a decent party with
 # one Cleric wins the wolves about 85% of the time at every size from 2 to 8, after the Kobolds.
-PARTY_SCALE = {1: (0.45, 0.6, 0.35), 2: (0.7, 0.8, 0.34), 3: (0.85, 0.9, 0.46), 4: (1.0, 1.0, 0.42), 5: (1.1, 1.0, 0.46), 6: (1.2, 1.0, 0.46), 7: (1.35, 1.1, 0.41), 8: (1.55, 1.2, 0.39)}
+# Nov 19 (Ted's target table: a brand-new party is still alive after the Kobolds 85%, after the wolves 70%): damage
+# re-tuned so a typical fresh party (the menu's default, or a random one with a Cleric) gets through both fights
+# about 68% of the time as the sim bot plays it, a little under 70% since a person plays better. Was 0.34, 0.46,
+# 0.42, 0.46, 0.46, 0.41, 0.39 for 2-8. Battle Mage parties still do better: she's the quiet powerhouse (Ted).
+PARTY_SCALE = {1: (0.45, 0.6, 0.35), 2: (0.7, 0.8, 0.36), 3: (0.85, 0.9, 0.46), 4: (1.0, 1.0, 0.5), 5: (1.1, 1.0, 0.63), 6: (1.2, 1.0, 0.71), 7: (1.35, 1.1, 0.74), 8: (1.55, 1.2, 0.5)}
 
 # Ted: rename these freely (one per wolf, no repeats, so keep at least 6).
 WOLF_NAMES = ['Mange', 'Scab', 'Drool', 'Fleabag', 'Snaggle', 'Gristle', 'Chewie', 'Ripper', 'Mutt', 'Yowler']
@@ -116,17 +120,17 @@ class Alpha_Wolf:
         if not wolves or not acc.roll_percent(min(GUARD_MAX, GUARD_EACH * len(wolves))):
             return self
         wolf = random.choice(wolves)
-        await say(f"{heroine.name} goes for {self.name}, but {wolf.name} hurls itself into the way!  [narr]Loyal little bastard.[/]")
+        await say(f"{heroine.name} goes for {self.name}, but {wolf.name} hurls himself into the way!  [narr]Loyal little bastard.[/]")
         return wolf
 
     async def on_death(self, mobs : list):
         """The Alpha's down: the fight's over, and whoever's left runs (no loot from those)."""
         runners = self.pack.standing()
         for wolf in runners:
-            wolf.is_dead, wolf.fled, wolf.label = True, True, 'Pack Wolf (ran off)'
+            wolf.is_dead, wolf.fled = True, True # the box says 'ran off' instead of 'dead' (Ted, Nov 18)
         if runners:
             one = len(runners) == 1
-            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {acc.number_word(len(runners))} wolves'} {'takes' if one else 'take'} one look, {'tucks its tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out!  ...they took their loot with them, though.[/]")
+            await say(f"{self.name} hits the dirt and doesn't get up.  The {'last wolf' if one else f'other {acc.number_word(len(runners))} wolves'} {'takes' if one else 'take'} one look, {'tucks his tail' if one else 'tuck their tails'}, and {'bolts' if one else 'bolt'} into the dark.  [narr]And stay out![/]")
 
 
 def party_scale(party_size : int) -> tuple:

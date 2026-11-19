@@ -84,7 +84,7 @@ async def create_new_party(name: str) -> list:
     await say()
     # A menu instead of typing a number (Ted, Nov 16: on the tablet the on-screen keyboard covered the class list,
     # and it took an extra tap to get past it). Number keys still work on a PC.
-    party_count = 1 + await choose("[narr]How many party members would you like to include?[/]  ", ['heroine'] + ['heroines'] * 7,  # the menu numbers them 1-8, so each reads '3  heroines'
+    party_count = 1 + await choose("[narr]How many party members would you like to include?[/]  ", ['Heroine'] + ['Heroines'] * 7,  # the menu numbers them 1-8, so each reads '3  Heroines' (capital H, Ted Nov 18)
                                    "[narr]1 to 8.  Pick one of the numbers, please.[/]  ")
     if party_count == 1:
         await say("[narr]One?  One.  You chose One.  One....  Ok, One it is....[/]")

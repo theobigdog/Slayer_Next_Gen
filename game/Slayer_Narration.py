@@ -63,14 +63,14 @@ async def intro(party_dict : dict) -> dict:
     else:
         h1, h2 = random.sample(party_dict['party'], 2) # two different heroines, picked at random
         await say(f"Investigating some of these dark pockets, {h1.name} recently beat the shit out of a rather suspicious character she met down a dark passageway.")
-        await say(f"\"Yeah, I remember that!\" squeals {h2.name}.  \"Remember, {h1.name}?  Once you had tightly gripped him by his shriveled cojones, he became the loudest rat I've ever heard!\"")
+        await say(f"\"Yeah, I remember that!\" squeals {h2.name}.  \"Remember, {h1.name}?  Once you had tightly gripped him by his shriveled cojones, he became the squeakiest rat I've ever heard!\"")
         await say(f"{h1.name} sneers, \"Right, the fucking 'Phallic Mountains.'  He kept talking about those Dick Hills or whatever.\"")
         await pause()
         await say("[narr]Now where else would it be?[/]")
     await pause()
     await clear()
     await say("[narr]Right.  So the Dick Hills have been calling to you, apparently?  Be honest, have you ever even heard of the \"Phallic Mountains\"?  No?[/]")
-    await say("[narr]Exactly, you've never heard of them, you know nothing of the secret tavern in the southwest foothills, shit, if it weren't for me rambling you wouldn't even know about....  Right.[/]")
+    await say("[narr]Exactly, you've never heard of them, you know nothing of the secret tavern in the southwest foothills, shit, if it weren't for me rambling you wouldn't even know about the fucking....  Right.[/]")
     await pause()
     await say("[narr]Well, then I guess it's off you go now, to the infamous Devil's Brew Tavern, found in the darkest depths of the Dick Hi...[/]")
     await say("[narr]Wait, what?  You're already here?[/]")
@@ -95,7 +95,7 @@ async def happy_intro(party_dict : dict) -> None:
     await pause()
     await say(f"Catching the eye of the proprietor, a somewhat-aged, dwarven tavern-keep, {h1.name} maneuvers past two semi-comatose dwarves, incoherently mumbling to each other, more in gurgles and pops than in any identifiable language.")
     await say(f"\"Tavern Keeper!\" yells {h1.name}, in a voice far too loud for such close quarters.  \"A word, please.\"")
-    await say("\"It is my understanding that this building is a front for the center of the Nocturnal Order of Males Against Authoritative Matriarchy (NO MAAM) movement.  You ARE familiar with this movement, no?\"")
+    await say("\"It is my understanding that this building is a front for the center of the Nocturnal Order of Males Against Authoritative Matriarchy movement.  You ARE familiar with this movement, no?\"")
     await say("The tavern keeper, carefully cleaning mugs, clearly stifling a sigh, begins, \"Look here, lass, I dinnae know where ye think ye are, but ye're no' in Vulvamora anymore, an' ye might want tae show a wee bit more respect.\"")
     await pause()
     item = threatening_item(h1) # a melee weapon if she has one (a Cleric makes do with her Healing Wand)
@@ -185,7 +185,7 @@ async def happy_resurrection(party_dict : dict) -> None:
     if solo:
         await say(f"As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  {h.name} begins to slowly rouse, moaning painfully as she returns to the land of the living.")
     else:
-        await say("As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  One by one, each heroine begins to slowly rouse, moaning painfully as they return to the land of the living.")
+        await say("As Happy begins to shake and visibly weaken, the un-fucking-thinkable happens:  One by one, each heroine begins to slowly rouse, moaning painfully as she returns to the land of the living.")
     await pause()
     await say("[narr]Oh.  Oh my.  I just went from six to midnight....[/]")
     await say(f"{h.name if solo else 'The final party member'} comes back to full consciousness, and Happy\'s face softens, the staccato runes slow down and eventually cease completely.")
@@ -398,9 +398,10 @@ async def rest_between_fights(party_dict : dict, patched : list) -> None:
     if patched:
         await say("\n[narr]Everyone catches their breath, slaps on some bandages, and passes the flask around.  Good as new.  Well.  The ones still breathing are.[/]" if fallen
                   else "\n[narr]Everyone catches their breath, slaps on some bandages, and passes the flask around.  Good as new.[/]")
-    if fallen:
-        names = fallen[0].name if len(fallen) == 1 else ', '.join(h.name for h in fallen[:-1]) + f' and {fallen[-1].name}'
-        await say(f"[narr]{names} {'stays' if len(fallen) == 1 else 'stay'} right where {'she' if len(fallen) == 1 else 'they'} fell, though.  No bandage fixes dead.[/]")
+    just_fell = [h for h in fallen if h.name in party_dict.get('just_fell', [h.name for h in fallen])] # only the ones who fell in THIS fight (Ted, Nov 18)
+    if just_fell:
+        names = just_fell[0].name if len(just_fell) == 1 else ', '.join(h.name for h in just_fell[:-1]) + f' and {just_fell[-1].name}'
+        await say(f"[narr]{names} {'stays' if len(just_fell) == 1 else 'stay'} right where {'she' if len(just_fell) == 1 else 'they'} fell, though.  No bandage fixes dead.[/]")
     await pause()
 
 async def dungeon_wipe(party_dict : dict, mobs : list) -> None:

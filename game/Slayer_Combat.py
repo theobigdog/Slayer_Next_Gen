@@ -19,6 +19,7 @@ AOE_RULES = {
     },
     'flurry_of_fists': {
         'melee_only': True,                         # the Battle Mage's fists only reach mobs that fight up close (all of them, today)
+        'full_targets': None,                       # every fist is its own punch: no spreading thinner (Ted, Nov 18: it did 0-2 a mob)
     },
 }
 # Every other area attack (Fire Bomb, Fire Rain, Stink Pouch) does full damage to up to full_targets mobs; with
@@ -48,8 +49,9 @@ DEFAULT_AOE = {'unavoidable': False, 'tough_cut': 0.5, 'party_share': {}, 'blows
 #   cackle     - Evil Cackle (Witch): no damage, can't be dodged; each lesser mob loses its next turn CACKLE_CHANCE% of the time
 #   snare      - Snare Trap (Hunter): beasts only (BEASTS); the one she picks loses its next SNARE_TURNS turns
 #   charge     - Charge (Warrior): a hit; the mob's next single-target attack has to come at her (if it can reach her)
-#   garrote    - Garrote (Sapper): only on the turn right after Hide; nothing dodges it
-#   mark       - Hunter's Mark: no damage, never misses; every heroine's hit on that mob does MARK_BONUS more, rest of
+#   garrote    - Garrote (Sapper): only on the turn right after Hide; the mob's dodge is cut to GARROTE_DODGE of itself
+#                (Ted, Nov 18: not undodgeable. A future mob that can dodge anything once a round still can)
+#   mark       - Hunter's Mark: no damage; it rolls to hit and can be dodged like a shot (Ted, Nov 18). On a hit every heroine's hit on that mob does MARK_BONUS more, rest of
 #                the fight. One mark at a time: marking another moves it
 #   quick      - Quick Shot (Hunter): QUICK_HIT_PENALTY less hit, but no dodging it and no toughness; on a hit, another
 #                QUICK_LUCK% shot at a lucky extra turn. (Ted, Nov 18: it also slips past the wolves' bodyguards, and the
@@ -66,6 +68,8 @@ COUNTER_DAMAGE = (5, 10)
 MARK_BONUS = 0.25
 QUICK_HIT_PENALTY = 20
 QUICK_LUCK = 25
+GUARD_SHARE = 0.25 # a Warrior who blocks a hit meant for the Cleric takes this much of it on her forearm
+GARROTE_DODGE = 0.25 # a Garrote from the dark: the mob keeps only a quarter of its dodge
 BEASTS = {'Pack Wolf', 'Alpha Wolf'} # four legs: a Snare Trap works on these (the Alpha shrugs it off, like a stun)
 BLEED_DAMAGE = (4, 6)      # Ted floated 5-8; it never stops, so over a 10-round fight 4-6 is already about 50 hp from one stab
 HIDE_DODGE = 95
@@ -84,10 +88,10 @@ def stun(mob : object, why : str, turns : int = 1):
     status(mob)['stunned'] = {'why': why, 'turns': turns}
 
 STUN_LINES = { # DRAFT lines
-    'fungus': "{name} is still digging fungus out of its eyes and loses its turn.  [narr]Gross.  Effective, but gross.[/]",
-    'cackle': "{name} is still frozen in place by that cackle and loses its turn.  [narr]Can't blame it.  I wet myself a little.[/]",
-    'daze': "{name} is still seeing stars from that Skull Bash and loses its turn.",
-    'snare': "{name} is still caught in the snare, chewing at the rope, and loses its turn.",
+    'fungus': "{name} is still digging fungus out of his eyes and loses his turn.  [narr]Gross.  Effective, but gross.[/]",
+    'cackle': "{name} is still frozen in place by that cackle and loses his turn.  [narr]Can't blame him.  I wet myself a little.[/]",
+    'daze': "{name} is still seeing stars from that Skull Bash and loses his turn.",
+    'snare': "{name} is still caught in the snare, chewing at the rope, and loses his turn.",
 }
 
 def strength_bonus(entity : object) -> int:
@@ -125,6 +129,24 @@ def no_target(item : dict, mobs : list, from_hide : bool = True) -> str:
     if AOE_RULES.get(item['item'], {}).get('melee_only') and not any(getattr(m, 'attack_style', 'melee') == 'melee' for m in standing):
         return "  (nothing within arm's reach)"
     return ''
+
+async def wasted_turn(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
+    """She picked something the menu said wouldn't work (no_target). The game lets her, and roasts her for it
+    (Ted, Nov 18: making her pick again isn't in the spirit of the thing). Nothing recharges. DRAFT lines."""
+    standing = [m for m in mobs if not m.is_dead]
+    if item.get('effect') == 'garrote':
+        mob = random.choice(standing)
+        await say(f"{heroine.name} strolls right up to {mob.name} in plain sight, Garrote stretched between her fists.  He just looks at her.  "
+                  f"She backs away slowly.  [narr]Hide FIRST, sweetheart.  That's the whole trick.[/]")
+    elif item.get('effect') == 'snare':
+        await say(f"{heroine.name} spends her whole turn carefully setting a {item['item_desc']}...  in a room with nothing on four legs.  "
+                  f"[narr]Very thorough, though.  Gold star.[/]")
+    else:
+        await say(f"{heroine.name} unleashes her {item['item_desc']} on the empty air.  Nothing's close enough to hit.  "
+                  f"[narr]The air had it coming.[/]")
+    miss_sound()
+    await pause()
+    return (party_dict, mobs, False)
 
 LAST_CLERIC_LINES = [
     "[narr]Well.... there went your only remaining healer.  This is getting tense!  I just peed a little![/]",
@@ -208,26 +230,50 @@ def get_mob_rolls(mob: object, attacking : bool = False) -> dict:
 # The sound an attack makes when it lands (the grunt or groan of whoever it hit comes from update_health).
 LANDING_SOUNDS = {
     'basic_fire_bolt': 'fire', 'fire_bomb': 'fire', 'fire_rain': 'firestorm',             # flames; Fire Rain is a whole storm
-    'small_lightning_strike': 'thunder', 'sparkstick': 'thunder', 'spark_flick': 'thunder',
+    'small_lightning_strike': 'shock', 'sparkstick': 'shock', 'spark_flick': 'shock',      # electricity, not thunder (Ted, Nov 18)
     'vomit': 'gag', 'happys_norovirus_regurgitation': 'retch',                          # Happy hurls; so does a heroine who caught it
 }
-# Picking a weapon from the menu: steel coming out, a bow drawn, a spell gathering... (Ted, Nov 17)
-PICK_SOUNDS = {
-    'blade': ['boot_knife', 'bastard_sword', 'battle_axe', 'throwing_knife', 'tooth_sharpened_dagger', 'jeweled_dagger',
-              'kobold_shiv'],
-    'heavy': ['thors_hammer', 'stone_breaker', 'thick_broom_handle'],
-    'bow': ['cat_gut_bow', 'maple_recurve'],
-    'magic': ['basic_fire_bolt', 'small_lightning_strike', 'fire_rain', 'sparkstick', 'intoxication_1', 'intoxication_2',
-              'intoxication_3', 'confusion', 'healing_wand', 'strength', 'blessing', 'deep_meditation',
-              'comforting_grooming', 'token_of_the_wise_witch'],
-    'fists': ['roundhouse_throat_kick', 'flying_fist_of_judah', 'happys_mithril_knuckles'],
-    'beast': ['squirrel_claws', 'kangaroo_kick', 'snake_bite', 'deep_scratch', 'angry_bite'],
-    'potion': ['half_finished_ale', 'happys_hangover_cure', 'glowing_mushroom'],
-    'tear': ['plain_bandage'],
-    'bomb': ['fire_bomb', 'big_badda_boom', 'stink_pouch', 'kobold_spore_pouch'],
-}
-PICK_SOUND = {name: kind for kind, names in PICK_SOUNDS.items() for name in names}
-ROARS = {'bear_maul', 'honey_badger_berserker'}   # a Shifter's specials: these two ROAR, the rest snarl
+# Picking what she uses this turn: one sound per FAMILY of thing, not per item (Ted, Nov 18: too many item sounds
+# gets overwhelming). sound_family() decides; these lists only cover what can't be told from the item's row.
+BLADES = {'boot_knife', 'bastard_sword', 'battle_axe', 'throwing_knife', 'balanced_throwing_knives', 'tooth_sharpened_dagger',
+          'jeweled_dagger', 'kobold_shiv'}                                          # steel: a sword sliding into its sheath
+BLUNT = {'thors_hammer', 'stone_breaker', 'thick_broom_handle'}                     # staves, hammers: WHOOMPH, clank
+FISTS = {'roundhouse_throat_kick', 'flying_fist_of_judah', 'happys_mithril_knuckles', 'skull_bash', 'flurry_of_fists'}  # a punch
+SPLASH = {'fire_bomb', 'stink_pouch'}                                               # thrown bottles: breaking glass
+ROARS = {'bear_maul', 'honey_badger_berserker'}   # a Shifter's two biggest: these ROAR, everything else she attacks with growls
+
+def sound_family(heroine : object, item : dict):
+    """Which family of sound this pick makes (Ted, Nov 18), or None for a quiet one (Hide, Battle Cry, a Snare, a
+    Mark). Families: blade, heavy (blunt), growl / roar (a Shifter's attacks), fists, magic (anything cast), bow (a
+    Hunter's shot), potion (a guzzle), glass (a splash potion), angelic (every Cleric move and every heal),
+    beast (the Sapper's claws and teeth), bomb (the Boom's fuse), cackle."""
+    name, kind, effect = item['item'], item['attack_type'], item.get('effect')
+    if effect == 'cackle':
+        return 'cackle'
+    if acc.slot_kind(item) == 'potion':
+        return 'potion'
+    if heroine.hero_class == 'Cleric' or kind in ('heal', 'aoe_heal'):
+        return 'angelic'
+    if name == 'big_badda_boom':
+        return 'bomb'
+    if name in SPLASH:
+        return 'glass'
+    if heroine.hero_class == 'Shifter':
+        return 'roar' if name in ROARS else 'growl'
+    if name in BLADES:
+        return 'blade'
+    if name in BLUNT:
+        return 'heavy'
+    if name in FISTS:
+        return 'fists'
+    if heroine.hero_class == 'Hunter' and kind == 'range' and effect not in ('mark', 'snare'):
+        return 'bow'
+    if heroine.hero_class == 'Witch' or kind == 'hail_mary':
+        return 'magic'
+    if name in ('deep_scratch', 'angry_bite'):
+        return 'beast'
+    return None
+
 _quiet_heals = False   # an area heal plays its own sound, instead of everybody squealing at once
 
 def attack_sound(item : dict):
@@ -235,16 +281,47 @@ def attack_sound(item : dict):
     if item['item'] in LANDING_SOUNDS:
         sound(LANDING_SOUNDS[item['item']])
 
+# A plain hit, worded for what she hit with (Ted, Nov 18: "Alberta slams Happy with her Snake Bite" sounds weird, and
+# the same line every time gets old). {h} her, {t} the target, {w} the item's name, {d} the damage. DRAFT lines.
+HIT_LINES = {
+    'blade': ["{h} slashes {t} with her {w} for {d} damage.", "{h} gets her {w} into {t} for {d} damage.",
+              "{h} carves a piece out of {t} with her {w}, for {d} damage.", "{h}'s {w} bites into {t} for {d} damage."],
+    'heavy': ["{h} slams {t} with her {w} for {d} damage.", "{h} brings her {w} down on {t} for {d} damage.",
+              "{h} cracks {t} upside the head with her {w}, for {d} damage.", "{h} wallops {t} with her {w} for {d} damage."],
+    'fists': ["{h} drills {t} with {a} for {d} damage.", "{h} lands {a} square on {t}, for {d} damage.",
+"{h} plants {a} on {t} for {d} damage."],
+    'growl': ["{h} lunges and lands {a} on {t}, for {d} damage.", "{h} tears into {t} with {a}, for {d} damage.",
+"{h} comes in snarling with {a}: {d} damage to {t}."],
+    'beast': ["{h} lands {a} on {t} for {d} damage.", "{h} goes at {t} with {a}, for {d} damage.",
+              "{h} lands {a} on {t}, hard, for {d} damage."],
+    'bow': ["{h} puts one into {t} with her {w}, for {d} damage.", "{h}'s {w} finds {t} for {d} damage.",
+            "{h} lets fly with her {w}.  It takes {t} for {d} damage."],
+    'magic': ["{h}'s {w} hits {t} for {d} damage.", "{h} hurls {a} at {t} for {d} damage.",
+              "{t} takes {a} from {h}, full in the face, for {d} damage."],
+}
+HIT_LINES['roar'] = HIT_LINES['growl']
+DEFAULT_HIT_LINES = ["{h} slams {t} with her {w} for {d} damage.", "{h} hits {t} with her {w} for {d} damage."]
+
+def hit_line(heroine : object, target : object, item : dict, damage : int) -> str:
+    """A plain hit's line, picked at random from her item's family (see HIT_LINES, sound_family)."""
+    family = sound_family(heroine, item)
+    if item.get('effect') == 'charge':
+        return f"{heroine.name} barrels shoulder-first into {target.name} for {damage} damage."
+    name = item['item_desc']
+    if name in acc.ABILITIES_BY_DESC and not name.endswith('s'): # a move: 'a Snake Bite', 'an Angry Bite'
+        a = ('an ' if name[0] in 'AEIOU' else 'a ') + name
+    else: # a thing she carries (or a plural move): 'her Mithril Knuckles', 'her Squirrel Claws'
+        a = 'her ' + name
+    line = random.choice(HIT_LINES.get(family, DEFAULT_HIT_LINES))
+    return line.format(h=heroine.name, t=target.name, w=name, a=a, d=damage)
+
 def pick_sound(heroine : object, item : dict):
-    """She's picked what to use this turn. A Shifter's special: something big and furry comes out of her."""
-    if heroine.hero_class == 'Shifter' and item['special']:
-        sound('roar' if item['item'] in ROARS else 'growl')
-    elif item.get('effect') == 'cackle':
-        sound('cackle') # the Witch's Evil Cackle
-    elif item['item'] in PICK_SOUND:
-        sound('pick_' + PICK_SOUND[item['item']])
-    elif item['attack_type'] in ('heal', 'aoe_heal'):
-        sound('pick_magic')
+    """She's picked what to use this turn: her item's sound family (see sound_family)."""
+    family = sound_family(heroine, item)
+    if family in ('cackle', 'roar', 'growl'):
+        sound(family)
+    elif family:
+        sound('pick_' + family)
 
 def miss_sound():
     sound('whoosh')
@@ -282,7 +359,7 @@ async def check_tough(tough : bool, target : object) -> None:
     if tough and not target.is_mob:
         await say(f"{target.name}, being the bad mother fucker she is, shrugs off half the damage.  [narr]Hell yeah![/]")
     elif tough and target.is_mob:
-        await say(f"Damn... {target.name} is one tough piece-of-shit.  They absorbed HALF the damage!")
+        await say(f"Damn... {target.name} is one tough piece-of-shit.  He absorbed HALF the damage!")
 
 async def check_last_cleric(fallen : list, party : list):
     """If the party just lost its last Cleric (and anyone's still standing), the narrator panics."""
@@ -341,7 +418,7 @@ async def get_heal_outcome(heroine : object, item : dict, target : object, party
             await say([
                 f"{heroine.name} successfully heals {target.name} for {healing} healing.  [narr]What in the flying-fuck were you thinking?  Are you trying to give me gas?[/]",
                 f"{heroine.name} swells with pride as she successfully heals {target.name} for {healing} healing.  [narr]Pride eh?  Well.... Good Job??[/]",
-                f"{target.name} grins wickedly at {heroine.name} as their wounds begin to bind.  \"Thank you!\" {target.name} screams in your face, spraying you with spittle.  [narr]Did you expect that to go a different way or something?[/]",
+                f"{target.name} grins wickedly at {heroine.name} as his wounds begin to bind.  \"Thank you!\" {target.name} screams in your face, spraying you with spittle.  [narr]Did you expect that to go a different way or something?[/]",
                 f"{heroine.name} lays her holy hands on {target.name} for {healing} healing.  [narr]Somewhere up there, a god just facepalmed so hard it echoed.[/]",
                 f"[narr]Ah yes, the classic \"heal the guy who's trying to murder us\" strategy.[/]  {heroine.name} patches up {target.name} for {healing} healing.  [narr]Bold.  Stupid, but bold.[/]",
             ])
@@ -409,6 +486,9 @@ async def token_roll(heroine : object, item : dict, chosen : object, party_dict 
             was_in_pieces = getattr(chosen, 'blown_up', False)
             chosen.is_dead = False
             chosen.blown_up = False # even a Sapper in a billion pieces.  Because magic.
+            if was_in_pieces and 'big_badda_boom' in chosen.starting_inv and 'big_badda_boom' not in chosen.inv:
+                chosen.inv.append('big_badda_boom') # she comes back with a fresh keg (Ted, Nov 18)
+                chosen.spent_specials = [x for x in getattr(chosen, 'spent_specials', []) if x != 'big_badda_boom']
             chosen.health = max(1, round(chosen.starting_health * 0.5))
             await say(f"{heroine.name} raises the {item['item_desc']} and mutters something she definitely made up on the spot.  It WORKS.  {chosen.name} gasps back to life, for {chosen.health} healing.  [narr]Holy shit![/]")
             if was_in_pieces or random.random() < MAGIC_CHANCE:
@@ -435,7 +515,7 @@ async def use_hail_mary(heroine : object, item : dict, party_dict : dict, mobs :
         chosen = fallen[0]
     elif fallen:
         chosen = await choose_target(
-            f"\nThe Token hums in {heroine.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
+            f"\nThe Token hums in {heroine.name}'s hand.  Choose the fallen Heroine you're gambling on.  ",
             fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     blown_up = any(getattr(x, 'blown_up', False) for x in party_dict['party'])
     await token_roll(heroine, item, chosen, party_dict, blown_up)
@@ -457,7 +537,7 @@ async def token_between_battles(party_dict : dict) -> dict:
     user = holders[0] if len(holders) == 1 else await choose_target(
         "\nWho's holding the Token for this one?  ", holders, [], "\nOne of THOSE numbers, please:  ")
     chosen = fallen[0] if len(fallen) == 1 else await choose_target(
-        f"\nThe Token hums in {user.name}'s hand.  Choose the fallen heroine you're gambling on.  ",
+        f"\nThe Token hums in {user.name}'s hand.  Choose the fallen Heroine you're gambling on.  ",
         fallen, [], "\nOne of THOSE numbers.  The dead are waiting, and frankly so am I:  ")
     item = acc.get_item('token_of_the_wise_witch')
     spend_token(item, party_dict)
@@ -484,6 +564,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
         heroine.inv.remove(item['item']) # back in her kit next dungeon run
     if rules['blows_up_user']:
         await say(f"{heroine.name} lights the fuse on her {item['item_desc']}, grins, and does NOT run.  [narr]Oh no.  Oh no no no.[/]")
+        sound('boom') # a big badda sound (Ted, Nov 18)
         await effect('boom') # the keg flashes across the screen
         await say("[red]BIG.  BADDA.  BOOOOOOM!!![/]" if heroine_rolls['crit_mult'] > 1 else "[red]BIG.  BADDA.  BOOM!!![/]")
     else:
@@ -513,7 +594,7 @@ async def heroine_aoe(heroine : object, item : dict, party_dict : dict, mobs : l
             continue
         power = marked(mob, mob_roll()) # a Hunter's Mark on it
         damage = power * (1 - rules['tough_cut']) if mob_rolls['toughness'] else power
-        damage = int(min(damage, mob.health))
+        damage = int(min(max(1, damage), mob.health)) # a hit that lands always does at least 1 (Ted, Nov 18: a hit for 0 is weird)
         pack = getattr(mob, 'pack', None)
         if rules['link_shields'] and pack and getattr(pack, 'linked', False) and damage >= mob.health: # only the Kobolds' pack has a link (the wolves' doesn't)
             damage = mob.health - 1 # the Kobolds' life-link won't let the blast kill anyone still standing (Ted, Nov 10)
@@ -620,13 +701,21 @@ async def heroine_taunt(heroine : object, item : dict, party_dict : dict, mobs :
     return (party_dict, mobs, False)
 
 async def heroine_mark(heroine : object, item : dict, party_dict : dict, mobs : list) -> tuple:
-    """Hunter's Mark (Ted, Nov 18): no damage, never misses. Every heroine's hit on that mob does MARK_BONUS more for
-    the rest of the fight; marking another moves it. DRAFT lines."""
+    """Hunter's Mark (Ted, Nov 18): no damage. It rolls to hit and the mob can dodge it (Ted, Nov 18: never missing was
+    too much). On a hit every heroine's hit on that mob does MARK_BONUS more for the rest of the fight; marking another
+    moves it. DRAFT lines."""
     target = await get_target_choice(mobs, [], prompt=f"Who gets the {item['item_desc']}?  ")
+    rolls = get_heroine_rolls(heroine, attacking=True)
+    await blessed_line(heroine, rolls)
+    tally(heroine, 'attacks')
+    if not rolls['hit'] or (get_mob_rolls(target)['dodge'] and not rolls['expertise']):
+        miss_sound()
+        await say(f"{heroine.name} tries to pick out {target.name}'s weak spot, but he never holds still long enough.  [narr]Keep looking, sweetie.[/]")
+        await pause()
+        return (party_dict, mobs, False)
     for mob in mobs:
         status(mob).pop('marked', None)
     status(target)['marked'] = True
-    tally(heroine, 'attacks')
     await say(f"{heroine.name} studies {target.name} for a long, cold second and calls it out to the whole party: the limp, the soft spot, "
               f"the bad knee.  [narr]Everybody hits that one harder now.[/]")
     await pause()
@@ -644,9 +733,10 @@ def taunted_target(target : object, item : dict, party : list) -> object:
     reachable = standing_targets(item, party)
     return next((x for x in reachable if status(x).get('taunting')), target)
 
-async def bodyguard(target : object, item : dict, party : list) -> bool:
-    """(Ted, Nov 18) A melee hit aimed at a Cleric: a Warrior beside her gets her parry roll to block it completely.
-    Only for the Cleric; everybody else is on her own. True = it was blocked. DRAFT line."""
+async def bodyguard(target : object, item : dict, party : list, damage : int = 0) -> bool:
+    """(Ted, Nov 18) A melee hit aimed at a Cleric: a Warrior beside her gets her parry roll to block it. Only for
+    the Cleric; everybody else is on her own. The Warrior's forearm takes GUARD_SHARE of it (Ted, Nov 18), but a
+    block never drops her. True = it was blocked. DRAFT line."""
     if target.hero_class != 'Cleric' or item['attack_type'] != 'melee' or item.get('effect') == 'blink':
         return False
     guards = [x for x in party if x.hero_class == 'Warrior' and not x.is_dead and x is not target
@@ -654,7 +744,11 @@ async def bodyguard(target : object, item : dict, party : list) -> bool:
     for guard in guards:
         if get_heroine_rolls(guard)['parry']:
             tally(guard, 'parries')
-            await say(f"{guard.name} steps in front of {target.name} and catches the blow on her forearm.  [narr]Not the Cleric, asshole.[/]")
+            bruise = min(max(1, round(damage * GUARD_SHARE)), guard.health - 1)
+            if bruise > 0:
+                update_health(guard, bruise)
+            await say(f"{guard.name} steps in front of {target.name} and catches the blow on her forearm" + (f", for {bruise} damage" if bruise > 0 else "")
+                      + ".  [narr]Not the Cleric, asshole.[/]")
             return True
     return False
 
@@ -667,7 +761,7 @@ async def counter_strike(heroine : object, mob : object, party_dict : dict, mobs
     await say(f"...and in the same motion {heroine.name}'s hands crackle with blue light and she drives a palm strike into "
               f"{mob.name} for {damage} damage.  [narr]Return to sender.[/]")
     if mob.is_dead and mob.mob_class != 'Disgruntled Dwarf':
-        await say(f"{mob.name} has been slain!!  [narr]Killed by its own swing.  Poetry.[/]")
+        await say(f"{mob.name} has been slain!!  [narr]Killed by his own swing.  Poetry.[/]")
         if hasattr(mob, 'on_death'):
             await mob.on_death(mobs)
         return party_dict
@@ -687,13 +781,13 @@ async def heroine_buff(heroine : object, item : dict, party_dict : dict, mobs : 
         return (party_dict, mobs, False)
     if which == 'blessing':
         status(target)['blessed'] = dict(BLESSING)
-        what = f"{'Their' if target.is_mob else 'Her'} next attack is going to be something special"
+        what = f"{'His' if target.is_mob else 'Her'} next attack is going to be something special"
     else:
         status(target)['strong'] = {'attacks': STRENGTH_ATTACKS}
         acts = 'heals will be stronger' if getattr(target, 'hero_class', '') == 'Cleric' else 'attacks will hit harder' # a Cleric's Strength goes into her heals (Ted, Nov 15)
-        what = f"{'Their' if target.is_mob else 'Her'} next {acc.number_word(STRENGTH_ATTACKS)} {acts}"
+        what = f"{'His' if target.is_mob else 'Her'} next {acc.number_word(STRENGTH_ATTACKS)} {acts}"
     if target.is_mob:
-        await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and they're coming for one of you.")
+        await say(f"{heroine.name} lays her {item['item_desc']} on {target.name}.  [narr]On the ENEMY.  I...  okay.[/]  {what}, and he's coming for one of you.")
         await pause()
         return (party_dict, mobs, False) # helping a mob never earns the luck roll
     await say(f"{heroine.name} lays her {item['item_desc']} on {who}.  {what}.  [narr]Don't waste it.[/]")
@@ -729,7 +823,7 @@ async def heroine_hex(heroine : object, item : dict, party_dict : dict, mobs : l
             elif acc.roll_percent(CACKLE_CHANCE):
                 stun(mob, 'cackle')
                 frozen += 1
-                await say(f"  {mob.name} freezes, wide-eyed, and will lose its next turn.")
+                await say(f"  {mob.name} freezes, wide-eyed, and will lose his next turn.")
         if not frozen:
             await say("[narr]...nobody flinched.  Tough room.[/]")
         await pause()
@@ -758,13 +852,13 @@ async def heroine_hex(heroine : object, item : dict, party_dict : dict, mobs : l
             await say(f"  {mob.name} goes cross-eyed and starts swaying.  [narr]Good luck dodging anything now.[/]")
         elif which == 'stun':
             stun(mob, 'fungus')
-            await say(f"  {mob.name} gets a faceful and will lose its next turn.")
+            await say(f"  {mob.name} gets a faceful and will lose his next turn.")
         elif which == 'snare':
             stun(mob, 'snare', SNARE_TURNS)
-            await say(f"  The snare bites tight around {mob.name}'s legs.  It's going nowhere for {acc.number_word(SNARE_TURNS)} turns.  [narr]Sit.  Stay.  Good boy.[/]")
+            await say(f"  The snare bites tight around {mob.name}'s legs.  He's going nowhere for {acc.number_word(SNARE_TURNS)} turns.  [narr]Sit.  Stay.  Good boy.[/]")
         else:
             status(mob)['confused'] = CONFUSE_TURNS
-            await say(f"  {mob.name}'s eyes spin in two different directions.  [narr]It has no idea whose side it's on.[/]")
+            await say(f"  {mob.name}'s eyes spin in two different directions.  [narr]He has no idea whose side he's on.[/]")
     await pause()
     return (party_dict, mobs, heroine_rolls['luck'] if landed else False)
 
@@ -779,16 +873,17 @@ async def hit_effect(heroine : object, item : dict, target : object):
     which = item.get('effect')
     if which == 'poison' and random.random() < POISON_CHANCE:
         status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': POISON_DAMAGE[0], 'high': POISON_DAMAGE[1]}
-        await say(f"[green]The venom takes![/]  {target.name} will take a little damage at the start of its turns until it wears off.") # no turn count on screen (Ted, Nov 10)
+        await say(f"[green]The venom takes![/]  {target.name} will take a little damage at the start of his turns until it wears off.") # no turn count on screen (Ted, Nov 10)
     elif which == 'bleed':
         status(target)['bleeding'] = {'low': BLEED_DAMAGE[0], 'high': BLEED_DAMAGE[1]}
         await say(f"[red]That wound isn't closing.[/]  {target.name} will bleed at the start of every turn for the rest of the fight.")
     elif which == 'charge': # DRAFT line
         status(target)['provoked'] = heroine
-        await say(f"{target.name} staggers back, furious, and fixes its eyes on {heroine.name}.  [narr]It's coming for her next.[/]")
+        status(heroine)['aggro'] = True # her box says Aggro until he's had his swing at her
+        await say(f"{target.name} staggers back, furious, and fixes his eyes on {heroine.name}.  [narr]He's coming for her next.[/]")
     elif which == 'daze' and not hex_immune(target, 'daze') and acc.roll_percent(DAZE_CHANCE):
         stun(target, 'daze')
-        await say(f"{target.name}'s eyes roll in two different directions.  It'll lose its next turn.  [narr]Ding ding.[/]") # DRAFT line
+        await say(f"{target.name}'s eyes roll in two different directions.  He'll lose his next turn.  [narr]Ding ding.[/]") # DRAFT line
 
 async def after_mob_damage(mob : object, party_dict : dict, mobs : list) -> dict:
     """A mob just lost HP to something other than a heroine's own hit (poison, bleeding, a confused friend): the
@@ -878,14 +973,14 @@ async def confused_turn(mob : object, party_dict : dict, mobs : list) -> tuple:
     gear = [dict(item) for item in acc.get_mob_equipment() if item['item'] in mob.inv]
     simple = [item for item in gear if item['attack_type'] != 'aoe' and not item.get('effect')]
     if not simple:
-        await say(f"{mob.name} stares at its own hands for a while.  [narr]Take your time, buddy.[/]")
+        await say(f"{mob.name} stares at his own hands for a while.  [narr]Take your time, buddy.[/]")
         await pause()
         return (party_dict, mobs, False)
     item = random.choice(simple)
     everyone = [x for x in party_dict['party'] + mobs if not x.is_dead]
     healing = item['damage_high'] < 0
     target = random.choice(everyone if healing else [x for x in everyone if x is not mob])
-    await say(f"{mob.name} blinks, turns in a slow circle, and settles on {'itself' if target is mob else target.name}.  [narr]Eeny, meeny...[/]")
+    await say(f"{mob.name} blinks, turns in a slow circle, and settles on {'himself' if target is mob else target.name}.  [narr]Eeny, meeny...[/]")
     mob_rolls = get_mob_rolls(mob, attacking=not healing)
     target_rolls = {} if target.is_mob else get_heroine_rolls(target)
     party_dict, mobs, _ = await get_mob_turn_outcome(mob, target, item, party_dict, mobs, mob_rolls, target_rolls)
@@ -905,8 +1000,10 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
     if target.is_mob:  # an attack on a mob
         damage_w_crit_mult = marked(target, damage_w_crit_mult) # a Hunter's Mark on it
         tough = mob_rolls['toughness'] and which != 'quick' # a Quick Shot is in before it can brace
-        if which in ('quick', 'garrote'):
-            mob_rolls = {**mob_rolls, 'dodge': False} # too fast to see / from behind, out of the dark
+        if which == 'quick':
+            mob_rolls = {**mob_rolls, 'dodge': False} # too fast to see
+        elif which == 'garrote' and mob_rolls['dodge']:
+            mob_rolls = {**mob_rolls, 'dodge': acc.roll_percent(GARROTE_DODGE * 100)} # from behind, out of the dark: a quarter of its dodge
         if tough:
             damage = damage_w_crit_mult / 2
         else:
@@ -924,13 +1021,18 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
         elif mob_rolls['scare'] and heroine_rolls['fear']:
             tally(heroine, 'scared')
             scream()
-            await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of them.  [narr]Honestly?  Fair.  That's a lost turn, though.[/]")
+            await say(f"As {heroine.name} approaches {target.name}, she uncontrollably recoils at the very sight of him.  [narr]Honestly?  Fair.  That's a lost turn, though.[/]")
             await pause()
             return (party_dict, mobs, False)
         tally(heroine, 'attacks') # a whiff still counts as practice
         if not heroine_rolls['hit']:
             miss_sound()
             await say(f"[narr]Wow, that was a big ol' whiff, now wasn't it, {heroine.name}.[/]")
+            await pause()
+            return (party_dict, mobs, False)
+        if mob_rolls['dodge'] and not heroine_rolls['expertise'] and which == 'garrote':
+            miss_sound()
+            await say(f"{heroine.name} loops the wire from the dark, but {target.name} gets a hand up under it just in time and tears free.  [narr]Somebody's got a sixth sense.[/]") # DRAFT line
             await pause()
             return (party_dict, mobs, False)
         if mob_rolls['dodge'] and not heroine_rolls['expertise']:
@@ -946,13 +1048,13 @@ async def get_heroine_turn_outcome(heroine : object, item : dict,  target : obje
             del heroine.status['junked']
             await say(f"[narr]{heroine.name}'s junk still hurts, so that one only lands at half strength.[/]")
         if which == 'garrote': # DRAFT line
-            await say(f"{heroine.name} slides out of the dark behind {target.name}, loops her Garrote around its throat and HAULS, for {damage} damage.  [narr]Shhhh.  Shhhhhhhh.[/]")
+            await say(f"{heroine.name} slides out of the dark behind {target.name}, loops her Garrote around his throat and HAULS, for {damage} damage.  [narr]Shhhh.  Shhhhhhhh.[/]")
         elif which == 'quick': # DRAFT line
             await say(f"{heroine.name} snaps off a Quick Shot before anybody can blink.  It takes {target.name} for {damage} damage.")
         elif mob_rolls['dodge']: # it dodged, but her expertise beat it
-            await say(f"Despite their best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} damage.")
+            await say(f"Despite his best effort to evade the attack, {heroine.name} successfully contacts {target.name} for {damage} damage.")
         else:
-            await say(f"{heroine.name} slams {target.name} with her {item['item_desc']} for {damage} damage.")
+            await say(hit_line(heroine, target, item, damage))
         if strong:
             await say("[narr]The Cleric's Strength put some extra muscle behind that one.[/]")
         if not target.is_dead:
@@ -984,6 +1086,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
         return (party_dict, mobs, False)
     from_hide = bool(status(heroine).pop('hidden', None)) # Hide only lasts until her next turn (the Garrote needs it)
     status(heroine).pop('taunting', None) # so does a Battle Cry
+    if not any(status(m).get('provoked') is heroine for m in mobs if not m.is_dead):
+        status(heroine).pop('aggro', None) # nobody's still mad about her Charge
     if not extra:
         heroine.cooldowns = {name: left - 1 for name, left in getattr(heroine, 'cooldowns', {}).items() if left > 1}
     poison = status(heroine).get('poisoned')
@@ -1017,8 +1121,8 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
         return (party_dict, mobs, False)
     await say(f"\n{heroine.name}'s turn:")
     spent = getattr(heroine, 'spent_specials', [])
-    unready = lambda name: (name in spent or ready_in(heroine, name) > 0 or left_this_fight(heroine, acc.get_item(name)) == 0
-                            or bool(no_target(acc.get_item(name), mobs, from_hide)))
+    unready = lambda name: name in spent or ready_in(heroine, name) > 0 or left_this_fight(heroine, acc.get_item(name)) == 0
+    # (a Snare with nothing to snare, or a Garrote out in the open, CAN be picked: it just wastes her turn. Ted, Nov 18)
     if all(unready(item) for item in inv): # nothing but used-up specials: no point asking (it would ask forever)
         await say(f"[narr]Everything {heroine.name} is carrying is still recharging, so she spends this turn catching her breath.[/]")
         await pause()
@@ -1046,18 +1150,15 @@ async def player_turn(heroine : object, party_dict : dict, mobs : list, extra : 
             await say(f"[narr]Looks like {heroine.name} has but one item remaining, so I'm just going to assume it's the one you want and select it for you, mkay?[/]")
             await pause()
             item_choice = 0
+        picked = acc.get_item(inv[item_choice])
+        if not unready(inv[item_choice]) and no_target(picked, mobs, from_hide):
+            return await wasted_turn(heroine, picked, party_dict, mobs)
         if not unready(inv[item_choice]):
             break
-        picked = acc.get_item(inv[item_choice])
         if ready_in(heroine, inv[item_choice]):
             await say(f"\n[narr]Her {picked['item_desc']} is still recharging, champ.  Pick something else.[/]\n")
         elif left_this_fight(heroine, picked) == 0:
             await say(f"\n[narr]Her {picked['item_desc']} are all stuck in somebody.  She'll dig them out after the fight.  Pick something else.[/]\n")
-        elif picked.get('effect') == 'garrote' and not from_hide:
-            await say(f"\n[narr]Strangle someone in plain sight?  Hide first, THEN the Garrote.  Pick something else.[/]\n")
-        elif no_target(picked, mobs, from_hide):
-            why = no_target(picked, mobs, from_hide).strip()[1:-1].capitalize() # '  (nothing here to snare)' -> 'Nothing here to snare'
-            await say(f"\n[narr]Her {picked['item_desc']}?  On what?  {why}.  Pick something else.[/]\n")
         else:
             await say(f"\n[narr]Her {acc.get_item(inv[item_choice])['item_desc']} is still recharging, champ.  Specials work once per battle, remember?  Pick something else.[/]\n")
         if inv_len == 1:
@@ -1134,7 +1235,7 @@ def party_wiped_taunt(mob : object, party : list) -> str:
         template = random.choice(acc.generic_wipe_taunts())
         return template.format(mob=mob.name, victim=victim.name, victim2=victim2.name)
     elif len(party) == 1:
-        return f"\n{mob.name} walks over to {party[0].name}'s mangled corpse and spits on it.  \"What kind of FUCKING idiot attempts a dungeon encounter solo?!\""
+        return f"\n{mob.name} walks over to {party[0].name}'s mangled corpse and spits on her.  \"What kind of FUCKING idiot attempts a dungeon encounter solo?!\""
     else:
         return "[narr]No party members.  Right....[/]"
 
@@ -1276,6 +1377,7 @@ async def mob_gas(mob : object, item : dict, party_dict : dict, mobs : list, mob
     """Gas Release: a few of the melee heroines up front get a lungful (gas_targets). Each one can dodge it (if
     her dodge beats its expertise); a hit does a little damage and costs her next turn."""
     party = party_dict['party']
+    sound('fart') # a trombone puttering out (Ted, Nov 18)
     await say(f"{mob.name} turns around, squats, and lets rip a {item['item_desc']} right at the front line!  [narr]Oh god.  It's GREEN.[/]")
     if not mob_rolls['hit']:
         await say("[narr]...and the cloud drifts off into a corner.  That corner will never recover.[/]")
@@ -1350,20 +1452,20 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 return (party_dict, mobs, False)
             if mob == target:
                 mob = update_health(mob, -healing)
-                await say(f"Using their {item['item_desc']}, {mob.name} heals for {healing} healing.  [narr]Oh dear.[/]")
+                await say(f"Using his {item['item_desc']}, {mob.name} heals for {healing} healing.  [narr]Oh dear.[/]")
                 await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
             else:
                 target = update_health(target, -healing)
-                await say(f"Using their {item['item_desc']}, {mob.name} heals {target.name} for {healing} healing.  [narr]Ugh, teamwork.  Gross.[/]")
+                await say(f"Using his {item['item_desc']}, {mob.name} heals {target.name} for {healing} healing.  [narr]Ugh, teamwork.  Gross.[/]")
                 await pause()
                 return (party_dict, mobs, mob_rolls['luck'])
         else: # only a confused mob does this (Ted: no luck roll for it)
             if healing <= 0:
-                await say(f"{mob.name} wanders over and dabs at {target.name} with their {item['item_desc']}.  She's fine already.  [narr]Sweet of it, though.[/]")
+                await say(f"{mob.name} wanders over and dabs at {target.name} with his {item['item_desc']}.  She's fine already.  [narr]Sweet of him, though.[/]")
             else:
                 target = update_health(target, -healing)
-                await say(f"{mob.name} wanders over and uses their {item['item_desc']} on {target.name} for {healing} healing.  [narr]Uh...  thanks?[/]")
+                await say(f"{mob.name} wanders over and uses his {item['item_desc']} on {target.name} for {healing} healing.  [narr]Uh...  thanks?[/]")
             await pause()
             return (party_dict, mobs, False)
     else:
@@ -1381,7 +1483,7 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 if item.get('effect') == 'blink':
                     await say(f"{mob.name} blinks out in a puff of purple smoke, pops up behind {target.name}... and stabs the air a foot to her left.  [narr]Teleporting is hard.[/]")
                 else:
-                    await say(f"{mob.name} attempts to attack {target.name} with their {item['item_desc']}, but misses widely.")
+                    await say(f"{mob.name} attempts to attack {target.name} with his {item['item_desc']}, but misses widely.")
                 miss_sound()
                 await pause()
                 return (party_dict, mobs, False)
@@ -1391,7 +1493,7 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 await say(f"[narr]HELL YES![/]  {target.name} dodges {mob.name}'s attack like a goddamn ninja!")
                 await pause()
                 return (party_dict, mobs, False)
-            if await bodyguard(target, item, party_dict['party']): # a Warrior blocks a hit meant for the Cleric
+            if await bodyguard(target, item, party_dict['party'], damage): # a Warrior blocks a hit meant for the Cleric
                 await pause()
                 return (party_dict, mobs, False)
             attack_sound(item)
@@ -1407,11 +1509,11 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 status(target)['junked'] = True
                 await say(f"{mob.name} darts in low and lands a {item['item_desc']} on {target.name} for {damage} damage.  Her next hit will only do half damage.  [narr]Below the belt.  Literally.[/]")
             elif target_rolls['dodge']: # she tried to dodge, but its expertise beat her
-                await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with their {item['item_desc']} for {damage} damage.")
+                await say(f"Despite her best effort to dodge the attack, {mob.name} strikes {target.name} with his {item['item_desc']} for {damage} damage.")
             elif item['attack_type'] == 'range':
-                await say(f"{mob.name} lands their {item['item_desc']} on {target.name} for {damage} damage.")
+                await say(f"{mob.name} lands his {item['item_desc']} on {target.name} for {damage} damage.")
             else:
-                await say(f"{mob.name} bashes {target.name} with their {item['item_desc']} for {damage} damage.")
+                await say(f"{mob.name} bashes {target.name} with his {item['item_desc']} for {damage} damage.")
             if item.get('effect') == 'poison' and not target.is_dead and random.random() < POISON_CHANCE:
                 mult = getattr(mob, 'damage_mult', 1)
                 status(target)['poisoned'] = {'turns': POISON_TURNS, 'low': max(1, round(POISON_DAMAGE[0] * mult)), 'high': max(1, round(POISON_DAMAGE[1] * mult))}
@@ -1440,7 +1542,7 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
             damage = int(delta_w_crit / 2) if victim_rolls['toughness'] else int(delta_w_crit)
             damage = min(damage, target.health)
             if not mob_rolls['hit']:
-                await say(f"{mob.name} takes a wild swing at {target.name} with their {item['item_desc']} and misses.  [narr]Damn.  So close to helping.[/]")
+                await say(f"{mob.name} takes a wild swing at {target.name} with his {item['item_desc']} and misses.  [narr]Damn.  So close to helping.[/]")
                 await pause()
                 return (party_dict, mobs, False)
             if victim_rolls['dodge'] and not mob_rolls['expertise']:
@@ -1448,7 +1550,7 @@ async def get_mob_turn_outcome(mob : object, target : object, item : dict, party
                 await pause()
                 return (party_dict, mobs, False)
             target = update_health(target, damage)
-            await say(f"{mob.name} clobbers {target.name} with their {item['item_desc']} for {damage} damage.  [narr]Friendly fire!  My favorite kind.[/]")
+            await say(f"{mob.name} clobbers {target.name} with his {item['item_desc']} for {damage} damage.  [narr]Friendly fire!  My favorite kind.[/]")
             party_dict = await after_mob_damage(target, party_dict, mobs)
             await pause()
             return (party_dict, mobs, False)
@@ -1509,9 +1611,11 @@ async def mob_turn(mob : object, party_dict : dict, mobs : list, extra : bool = 
             if provoker is not None and provoker is not target and not provoker.is_dead and provoker in standing_targets(item, party_dict['party']):
                 await say(f"{mob.name} is still seething about that Charge and goes straight for {provoker.name}.") # DRAFT line
                 target = provoker
+            if provoker is not None and not any(status(m).get('provoked') is provoker for m in mobs if not m.is_dead):
+                status(provoker).pop('aggro', None)
             taunter = taunted_target(target, item, party_dict['party']) # a Warrior's Battle Cry
             if taunter is not target:
-                await say(f"{mob.name} was going for {target.name}, but it can't take its eyes off {taunter.name}.") # DRAFT line
+                await say(f"{mob.name} was going for {target.name}, but he can't take his eyes off {taunter.name}.") # DRAFT line
                 target = taunter
             mob_rolls = get_mob_rolls(mob, attacking=True)
             if effect == 'hiss':

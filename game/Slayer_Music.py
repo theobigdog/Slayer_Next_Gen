@@ -86,6 +86,10 @@ def _start(name: str, fade_in: int):
     global _current
     tube_off()
     try:
+        # Stop the old song outright first. Loading over a song that's still fading out makes pygame wait for the fade
+        # to finish. On a PC that's a moment. In the browser the fade can't move while the game waits for it, so it
+        # waited forever: the tablet froze whenever the song changed (Ted, Nov 18: the party screen, the first battle).
+        pygame.mixer.music.stop()
         pygame.mixer.music.load(str(FOLDER / f'{name}.ogg'))
         pygame.mixer.music.set_volume(volume)
         pygame.mixer.music.play(0 if name in THEN else -1, fade_ms=fade_in)
