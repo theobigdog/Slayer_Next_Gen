@@ -49,7 +49,7 @@ def restore_browser_saves():
         for i in range(int(storage.length)):
             key = str(storage.key(i))
             if key.startswith(BROWSER_SAVE_PREFIX):
-                (save_dir / f'{key[len(BROWSER_SAVE_PREFIX):]}.sav').write_text(str(storage.getItem(key)), encoding='ascii')
+                (save_dir / f'{key[len(BROWSER_SAVE_PREFIX):]}.sav').write_text(str(storage.getItem(key)), encoding='utf-8')
     except Exception as error:
         print('Slayer: could not read saves from the browser:', error)
 
@@ -238,7 +238,7 @@ def scramble(text : str) -> str:
     packed = zlib.compress(text.encode('utf-8'))
     mixed = bytes(byte ^ save_key[i % len(save_key)] for i, byte in enumerate(packed))
     seal = hmac.new(save_key, packed, 'sha256').hexdigest()[:16] # changes if a single byte of the save changes
-    return seal + base64.b64encode(mixed).decode('ascii')
+    return seal + base64.b64encode(mixed).decode('utf-8')
 
 def unscramble(blob : str) -> str:
     try:
@@ -256,7 +256,7 @@ async def save_party(party : dict):
     name = party['name'].title()
     save_dir.mkdir(exist_ok=True) # create the folder if it's missing
     blob = scramble(json.dumps(party_to_data(party)))
-    with open(save_dir / f"{name}.sav", 'w', encoding='ascii') as f:
+    with open(save_dir / f"{name}.sav", 'w', encoding='utf-8') as f:
         f.write(blob)
     storage = browser_storage()
     if storage is not None: # on the web: keep it in the browser too, so it survives closing the page
@@ -283,7 +283,7 @@ def save_checkpoint(party_dict : dict, next_fight : int):
         save_dir.mkdir(exist_ok=True)
         data = party_to_data(party_dict)
         data['next_fight'] = next_fight
-        checkpoint_path(party_dict['name']).write_text(scramble(json.dumps(data)), encoding='ascii')
+        checkpoint_path(party_dict['name']).write_text(scramble(json.dumps(data)), encoding='utf-8')
     except Exception as error:
         print('Slayer: could not write the checkpoint:', error)
 
@@ -293,7 +293,7 @@ def load_checkpoint(name : str):
     if not path.exists():
         return None
     try:
-        data = json.loads(unscramble(path.read_text(encoding='ascii')))
+        data = json.loads(unscramble(path.read_text(encoding='utf-8')))
         next_fight = data.pop('next_fight')
         return party_from_data(data), next_fight
     except Exception as error: # an unreadable checkpoint is just dropped
@@ -335,7 +335,7 @@ def delete_party(name : str) -> bool:
     return existed
 
 def load_party(name : str) -> dict:
-    with open(save_dir / f'{name.title()}.sav', encoding='ascii') as f: # a missing save raises FileNotFoundError, which get_party relies on
+    with open(save_dir / f'{name.title()}.sav', encoding='utf-8') as f: # a missing save raises FileNotFoundError, which get_party relies on
         return party_from_data(json.loads(unscramble(f.read())))
 
 def whine() -> str:
